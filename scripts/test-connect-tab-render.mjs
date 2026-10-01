@@ -37,8 +37,10 @@ const STUBS = {
     import { ref, computed } from 'vue'
     export const currentUser = ref({ id: 'u1' })
     export const isAuthLoading = ref(false)
-    globalThis.__AUTH = { currentUser, isAuthLoading }
-    export const isSuperAdmin = computed(() => false)
+    const staff = ref(false) // 관리자·스태프 — 카페24 카드는 이 값이 참일 때만 (2026-10-01)
+    globalThis.__AUTH = { currentUser, isAuthLoading, staff }
+    export const isSuperAdmin = computed(() => staff.value)
+    export const isAdminOrStaff = computed(() => staff.value)
     export const openLoginModal = () => {}`,
   'vue-router': `
     import { reactive } from 'vue'
@@ -86,6 +88,7 @@ async function mount(mk, { before, after } = {}) {
   globalThis.__CALLS = {}
   globalThis.__AUTH.currentUser.value = { id: 'u1' }
   globalThis.__AUTH.isAuthLoading.value = false
+  globalThis.__AUTH.staff.value = false
   if (before) before()
   document.body.innerHTML = '<div id="app"></div>'
   const errors = []
@@ -113,7 +116,8 @@ async function mount(mk, { before, after } = {}) {
       checking: !!cp?.querySelector('[data-mk-link-checking], [data-mk-link-phase="checking"]'),
       failed: !!cp?.querySelector('[data-mk-link-failed]'),
     },
-    others: ['11st', 'smartstore', 'cafe24'].map(k => ({ key: k, off: /연결 전/.test(text(card(k)?.querySelector('.flex'))), failed: !!card(k)?.querySelector('[data-mk-link-failed]') })),
+    cafe24: { card: !!card('cafe24'), planned: !!document.querySelector('[data-mk-planned="cafe24"]'), text: /카페24/.test(text(document.body)) },
+    others: ['11st', 'smartstore'].map(k => ({ key: k, off: /연결 전/.test(text(card(k)?.querySelector('.flex'))), failed: !!card(k)?.querySelector('[data-mk-link-failed]') })),
     retry: document.querySelectorAll('[data-mk-link-retry]').length,
     calls: { ...globalThis.__CALLS },
   }
@@ -127,17 +131,21 @@ if (built?.View) {
   eq('locked: 오류 없이 그려짐', a.errors, [])
   eq('locked: 탭 위 주문 고객 안내 한 번', a.notice, 1)
   eq('locked: 쿠팡 카드 = "연결 전" 배지 + 설명 + [쿠팡 연결하기] + [연결 방법 보기] (비어 있지 않음)', [a.coupang.badge, a.coupang.desc, a.coupang.connect, a.coupang.guide, a.coupang.checking, a.coupang.failed], ['연결 전', true, true, true, false, false])
-  eq('locked: 11번가·스마트스토어·카페24도 "연결 전" · [다시 시도] 없음', [a.others.map(o => o.off && !o.failed), a.retry], [[true, true, true], 0])
+  eq('locked: 11번가·스마트스토어도 "연결 전" · [다시 시도] 없음', [a.others.map(o => o.off && !o.failed), a.retry], [[true, true], 0])
+  eq('고객: 카페24 카드 없음 · "예정" 줄에도 없음 · 화면 글자에 카페24 없음 (2026-10-01)', a.cafe24, { card: false, planned: false, text: false })
 
   // 불러오기 실패 — 500·네트워크
   const b = await mount({ status: 'server_error', links: 'server_error' })
-  eq('failed(500): 카드마다 "불러오지 못했습니다 [다시 시도]" · "연결 전"·[연결하기] 없음 · 주문 고객 안내 없음', [b.errors, b.notice, b.coupang.failed, b.coupang.connect, b.coupang.badge, b.others.map(o => o.failed), b.retry], [[], 0, true, false, '', [true, true, true], 4])
+  eq('failed(500): 카드마다 "불러오지 못했습니다 [다시 시도]" · "연결 전"·[연결하기] 없음 · 주문 고객 안내 없음', [b.errors, b.notice, b.coupang.failed, b.coupang.connect, b.coupang.badge, b.others.map(o => o.failed), b.retry], [[], 0, true, false, '', [true, true], 3])
   const n = await mount({ status: 'network', links: 'network' })
-  eq('failed(네트워크 — 코드 없음): 같은 모양', [n.errors, n.notice, n.coupang.failed, n.coupang.connect, n.retry], [[], 0, true, false, 4])
+  eq('failed(네트워크 — 코드 없음): 같은 모양', [n.errors, n.notice, n.coupang.failed, n.coupang.connect, n.retry], [[], 0, true, false, 3])
 
   // 정상 응답 (주문 고객·관리자·허용 명단 계정 — 서버가 통과시킨 경우는 모두 이 모양)
   const c = await mount({ status: 'ok', links: 'ok' })
   eq('ready: 쿠팡 "연결 전" + 버튼 · 주문 고객 안내 없음 · [다시 시도] 없음', [c.errors, c.notice, c.coupang.badge, c.coupang.connect, c.coupang.guide, c.retry], [[], 0, '연결 전', true, true, 0])
+  eq('ready 고객: 카페24 카드·예정 줄·글자 없음', c.cafe24, { card: false, planned: false, text: false })
+  const adm = await mount({ status: 'ok', links: 'ok' }, { before: () => { globalThis.__AUTH.staff.value = true } })
+  eq('관리자·스태프: 카페24 카드 보임(지금처럼 — 테스트몰 유지) · "예정" 줄에는 없음 · 오류 없음', [adm.errors, adm.cafe24.card, adm.cafe24.planned], [[], true, false])
 
   // 섞인 경우 — 쿠팡만 자격 없음 코드, 나머지는 정상(서버가 같은 관문이라 실제로는 드묾)
   const d = await mount({ status: 'not_customer', links: 'ok' })
@@ -161,7 +169,7 @@ if (built?.View) {
   })
   // 운영 실측(2026-09-30 22:03) 재현 경우 — 고치기 전에는 쿠팡 카드가 "확인 중"(글자로는 제목 "쿠팡"만)에 멈췄다
   eq('locked + 로그인 복원 뒤 이벤트 없음: 쿠팡 카드 "연결 전" + 버튼', [e3.errors, e3.coupang.badge, e3.coupang.connect, e3.coupang.guide, e3.coupang.checking, e3.notice], [[], '연결 전', true, true, false, 1])
-  eq('locked + 로그인 복원 뒤 이벤트 없음: 11번가·스마트스토어·카페24도 "연결 전"', e3.others.map(o => o.off && !o.failed), [true, true, true])}
+  eq('locked + 로그인 복원 뒤 이벤트 없음: 11번가·스마트스토어도 "연결 전"', e3.others.map(o => o.off && !o.failed), [true, true])}
 
 try { fs.rmSync(workDir, { recursive: true, force: true }) } catch (e) { console.warn('임시 폴더를 지우지 못함:', workDir, e.message) }
 console.log(`\n${pass} 통과 · ${fail} 실패`)

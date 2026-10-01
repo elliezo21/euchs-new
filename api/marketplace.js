@@ -226,10 +226,17 @@ function cafe24Public(c) {
   const expired = c.expires_at && new Date(c.expires_at).getTime() < Date.now()
   return { connected: true, account: { mall_id: c.seller_login_id, status: expired && c.status === 'connected' ? 'expired' : c.status, expires_at: c.expires_at, last_checked_at: c.last_checked_at, last_error: c.last_error } }
 }
+/**
+ * 카페24는 관리자·스태프(ctx.isAdmin = is_admin_or_staff — 테스트몰 유지용)만 (2026-10-01 — 카페24 앱 심사 반려: 자체 소싱 기능과 경쟁이라 허용 불가).
+ * 고객에게는 화면에서 숨기고, 서버도 cafe24_* 요청을 거절한다. 카페24 코드·DB 기록은 지우지 않는다
+ */
+const cafe24Allowed = ctx => ctx?.isAdmin === true
+const CAFE24_ACTIONS = ['cafe24_begin', 'cafe24_launch', 'cafe24_finish', 'disconnect_cafe24', 'cafe24_categories', 'cafe24_send']
 async function marketStatus(ctx, body, res) {
   const a = await oneAccount(ctx, ELEVENST, ELEVENST_PUBLIC)
   const s = await oneAccount(ctx, SMARTSTORE, ELEVENST_PUBLIC)
-  let c = await oneAccount(ctx, CAFE24, CAFE24_PUBLIC)
+  // 고객이면 카페24 계정을 읽지 않는다(연결 안 됨으로 — 토큰 갱신도 안 부름)
+  let c = cafe24Allowed(ctx) ? await oneAccount(ctx, CAFE24, CAFE24_PUBLIC) : null
   if (c && c.status === 'connected' && needsRefresh(c.expires_at)) c = (await keepCafe24Alive(ctx)) || c // 연결 유지 — 2주 refresh 만료 전에 갱신
   return res.status(200).json({
     elevenst: a ? { connected: true, account: { seller_login_id: a.seller_login_id, key_last4: a.key_last4, status: a.status, last_checked_at: a.last_checked_at, last_error: a.last_error } } : { connected: false, account: null },
@@ -1223,7 +1230,9 @@ function publicSend(s) {
 // 목록은 모든 판매처 (쿠팡 + 카페24 + 스마트스토어). sync는 쿠팡만(market=eq.coupang 그대로) — 카페24·스마트스토어는 등록 즉시 끝이라 다시 읽을 상태가 없다
 // result_json은 목록에서만 더 읽는다(스마트스토어 채널상품번호) — 쿠팡 다시 보내기·sync가 쓰는 SEND_SELECT는 그대로
 async function loadSends(ctx) {
-  const rows = await sb(ctx.cfg, `marketplace_sends?select=${SEND_SELECT},result_json&user_id=eq.${ctx.userId}&market=in.(${MARKET},${CAFE24},${SMARTSTORE})&order=created_at.desc&limit=${SENDS_LIST_MAX}`)
+  // 카페24 기록은 관리자·스태프에게만 (2026-10-01 카페24 고객에게 숨김 — 기록은 DB에 그대로)
+  const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE}` : `${MARKET},${SMARTSTORE}`
+  const rows = await sb(ctx.cfg, `marketplace_sends?select=${SEND_SELECT},result_json&user_id=eq.${ctx.userId}&market=in.(${markets})&order=created_at.desc&limit=${SENDS_LIST_MAX}`)
   return (Array.isArray(rows) ? rows : []).map(publicSend)
 }
 async function sendsList(ctx, body, res) {
@@ -1312,6 +1321,10 @@ export default async function handler(req, res) {
   const ctx = await studioGuard(req, res)
   if (!ctx) return
   const body = req.body && typeof req.body === 'object' ? req.body : {}
+  if (CAFE24_ACTIONS.includes(body.action) && !cafe24Allowed(ctx)) {
+    console.warn(`[marketplace] 카페24 요청 거절(관리자 아님) ${ctx.userId}: ${body.action}`)
+    return sendError(res, 403, 'market_unavailable', '지원하지 않는 판매처입니다.')
+  }
   try {
     if (body.action === 'status') return await status(ctx, body, res)
     if (body.action === 'connect') return await connect(ctx, body, res)

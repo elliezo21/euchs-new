@@ -48,13 +48,20 @@ export const PLANNED_LABEL = '예정'
 /** 보내기 창(StudioSendModal)이 판매처 섹션에 내려주는 "같은 화면 안에서 다시 받지 않는 목록" provide 키 (2026-09-30 — 카페24 상품 분류) */
 export const SEND_CACHE_KEY = 'studio-send-cache'
 
-// 카페24 — 우리 앱 "EUCHS 스튜디오" 연결을 일반 고객에게 보일지 (2026-09-30)
-//   true = 모두에게 카드·[연결하기] (2026-09-30 20:50 카페24 앱 심사 신청 — 심사자가 일반 계정으로 연결해 봐야 해서 공개)
-//   false = 일반 고객 화면(연결 탭·보내기 탭·보내기 창)에서는 "예정", 관리자(isSuperAdmin)에게만 카드·[연결하기]
-//   쇼핑몰 관리자에서 앱을 여는 길(App URL + hmac)과 이미 연결된 계정의 [카페24로 보내기]는 이 값과 상관없이 동작한다
-export const CAFE24_PUBLIC = true
-/** 이 사람에게 보일 연결 방법 — MARKETS의 connect, 단 카페24는 CAFE24_PUBLIC 전이면 관리자만 'key' */
-export const connectFor = (m, { admin = false } = {}) => (m?.key === 'cafe24' && !CAFE24_PUBLIC && !admin ? 'planned' : m?.connect)
+// 카페24 — 고객에게 보일지 (2026-10-01 카페24 앱 심사 반려: 자체 소싱 기능과 경쟁이라 허용 불가 · 다시 켤 계획 없음)
+//   false = 고객 화면 어디에도 없음(목록·문구·로고 — "예정"도 아님). 관리자·스태프(isAdminOrStaff)에게만 지금처럼(테스트몰 유지용)
+//   서버도 같은 규칙: api/marketplace.js cafe24Allowed — 관리자가 아니면 cafe24_* 요청 403 · 상태·보낸 상품에서 카페24 뺌
+export const CAFE24_PUBLIC = false
+/** 관리자·스태프에게만 보이는 판매처 key */
+export const ADMIN_ONLY_MARKETS = CAFE24_PUBLIC ? [] : ['cafe24']
+/** 이 사람에게 보일 판매처 목록 (MARKETS 순서) — 고객이면 ADMIN_ONLY_MARKETS를 뺀다 */
+export const marketsFor = ({ admin = false } = {}) => (admin ? MARKETS : MARKETS.filter(m => !ADMIN_ONLY_MARKETS.includes(m.key)))
+/** 소개·홈처럼 누구나 보는 화면의 판매처 목록 */
+export const PUBLIC_MARKETS = marketsFor({ admin: false })
+/** 이 판매처가 이 사람에게 보이는지 */
+export const marketVisible = (key, { admin = false } = {}) => admin || !ADMIN_ONLY_MARKETS.includes(key)
+/** 이 사람에게 보일 연결 방법 — MARKETS의 connect (보이지 않는 판매처는 null) */
+export const connectFor = (m, { admin = false } = {}) => (m && marketVisible(m.key, { admin }) ? m.connect : null)
 
 /**
  * 카페24 입력 검사 — 우리 앱 방식이라 고객이 넣는 값은 쇼핑몰 ID 하나 (영문 소문자·숫자 — 서버 api/_cafe24.js isMallId·normalizeMallId와 같은 식)
@@ -90,11 +97,10 @@ export function elevenstKeyProblems({ sellerId = '', apiKey = '' } = {}) {
  * state: 'connected'(보낼 수 있음 — 체크 가능) | 'linked'(연결됨 — 보내기는 아직: 11번가) | 'locked'(연결 전 — 자물쇠 + [연결하기]) | 'planned'("예정" 한 단어만)
  * "준비 중" 글자는 쓰지 않는다
  * @param {{ [key:string]: { connected?:boolean } }} connected  쿠팡 = 서버 status/send_prepare.markets, 나머지 = studioMarketLinks.linkStates
- * @param {{ admin?: boolean }} who  관리자면 카페24도 연결 상태로 (CAFE24_PUBLIC 전 — connectFor)
- * ★ 이미 연결된 판매처는 CAFE24_PUBLIC·관리자와 상관없이 연결 상태(connected/linked) — 쇼핑몰 관리자에서 앱을 열어 연결한 일반 고객도 [카페24로 보내기]가 보여야 한다 (2026-09-30)
+ * @param {{ admin?: boolean }} who  관리자·스태프면 카페24 줄도 (고객이면 카페24 줄 자체가 없음 — 연결돼 있어도. 2026-10-01 marketsFor)
  */
 export function channelRows(connected = {}, { admin = false } = {}) {
-  return MARKETS.map(m => {
+  return marketsFor({ admin }).map(m => {
     const on = connected?.[m.key]?.connected === true
     const state = on ? (m.soon ? 'linked' : 'connected') : connectFor(m, { admin }) === 'planned' ? 'planned' : 'locked'
     return { key: m.key, name: m.name, state }

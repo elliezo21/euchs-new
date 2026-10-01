@@ -238,7 +238,7 @@ import { ArrowRight, Check, Sparkles, MessageCircle, Eraser, Link2, Gift, WandSp
 import { LANDING_MEDIA as M } from '@/data/studioLandingMedia'
 import { MALL_PATH } from '@/lib/homeCta'
 import { getStudioNotices } from '@/lib/studioNotices'
-import { MARKETS } from '@/lib/studioMarketplaceRules'
+import { PUBLIC_MARKETS as MARKETS } from '@/lib/studioMarketplaceRules' // 누구나 보는 화면 — 카페24 없음(2026-10-01)
 import { STUDIO_BETA, BETA_BADGE, BETA_NOTE, heroEyebrow } from '@/lib/studioBeta'
 import StudioLandingSteps from './StudioLandingSteps.vue'
 

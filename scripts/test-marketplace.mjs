@@ -251,7 +251,9 @@ globalThis.fetch = async (url, opts = {}) => {
   }
   const p = decodeURIComponent(u.pathname)
   if (p === '/auth/v1/user') return opts.headers.Authorization === 'Bearer good-token' ? json({ id: UID, email: 'admin@test.local' }) : json({ msg: 'bad' }, 401)
-  if (p === '/rest/v1/user_roles') return json([{ role: 'admin' }])
+  // __asCustomer = 관리자 아닌 주문 고객 (2026-10-01 카페24 숨김 확인용 — 'all' 모드 + 결제 주문 1건)
+  if (p === '/rest/v1/user_roles') return json(globalThis.__asCustomer ? [] : [{ role: 'admin' }])
+  if (p === '/rest/v1/orders' && globalThis.__asCustomer) return json([{ id: 'order-1' }])
   if (p === '/rest/v1/profiles') return json([])
   if (p.startsWith('/storage/v1/object/sign/')) return json({ signedURL: `/object/sign/${p.slice(24)}?token=t` })
   if (p.startsWith('/storage/v1/object/studio/')) {
@@ -692,11 +694,13 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const on = R.channelRows({ coupang: { connected: true } }), off = R.channelRows({ coupang: { connected: false } })
   // S3-3: 연결할 수 있는 곳(쿠팡·스마트스토어·11번가)은 연결 상태, 나머지는 "예정"(planned) — 카페24는 심사 승인 전(CAFE24_PUBLIC false) 관리자만 연결 상태
   // 2026-09-30 카페24 보내기: 이미 연결된 카페24는 일반 고객도 connected([카페24로 보내기]) — 쇼핑몰 관리자에서 앱을 열어 연결한 사람
-  // 2026-09-30 카페24 공개(CAFE24_PUBLIC true — 앱 심사 신청): 카페24도 일반 고객에게 연결 전 locked(자물쇠 + [연결하기]) — 관리자와 같음
+  // 2026-10-01 카페24 앱 심사 반려 → 고객 화면에는 카페24 줄 자체가 없음(연결돼 있어도) · 관리자·스태프는 지금처럼(locked/connected)
   const KEYED = ['coupang', 'smartstore', '11st', 'cafe24']
-  const offStates = R.MARKETS.map(m => (KEYED.includes(m.key) ? 'locked' : 'planned'))
+  const CUST = R.MARKETS.filter(m => m.key !== 'cafe24')
+  const offStates = CUST.map(m => (KEYED.includes(m.key) ? 'locked' : 'planned'))
   const adminOff = R.MARKETS.map(m => (KEYED.includes(m.key) ? 'locked' : 'planned'))
-  eq('판매처 줄 = MARKETS 9곳·같은 순서 · 연결된 쿠팡만 connected · 키 연결 판매처(카페24 포함)는 연결 전 locked · 나머지 = planned(준비 중 없음) · 스마트스토어는 연결되면 connected(2026-10-01 보내기) · 카페24 연결 전 = 일반 고객·관리자 모두 locked · 연결되면 누구나 connected', [on.map(r => r.key), on.map(r => r.state), off.map(r => r.state), R.channelRows().map(r => r.state), R.channelRows({ smartstore: { connected: true } })[1].state, R.channelRows({ cafe24: { connected: true } }).find(r => r.key === 'cafe24').state, R.channelRows({}, { admin: true }).map(r => r.state), R.channelRows({ cafe24: { connected: true } }, { admin: true }).find(r => r.key === 'cafe24').state], [R.MARKETS.map(m => m.key), ['connected', ...offStates.slice(1)], offStates, offStates, 'connected', 'connected', adminOff, 'connected'])
+  eq('판매처 줄(고객) = MARKETS에서 카페24만 뺀 8곳·같은 순서 · 연결된 쿠팡만 connected · 키 연결 판매처는 연결 전 locked · 나머지 = planned · 스마트스토어는 연결되면 connected · 카페24는 연결돼 있어도 줄 없음 / 관리자 = 9곳 · 카페24 연결 전 locked · 연결되면 connected', [on.map(r => r.key), on.map(r => r.state), off.map(r => r.state), R.channelRows().map(r => r.state), R.channelRows({ smartstore: { connected: true } })[1].state, R.channelRows({ cafe24: { connected: true } }).some(r => r.key === 'cafe24'), R.channelRows({}, { admin: true }).map(r => r.state), R.channelRows({ cafe24: { connected: true } }, { admin: true }).find(r => r.key === 'cafe24').state], [CUST.map(m => m.key), ['connected', ...offStates.slice(1)], offStates, offStates, 'connected', false, adminOff, 'connected'])
+  eq('카페24 숨김 스위치: CAFE24_PUBLIC false · 관리자 전용 = cafe24 · 누구나 보는 목록(PUBLIC_MARKETS)에 없음 · connectFor 고객 = null(예정 아님) · 관리자 = key', [R.CAFE24_PUBLIC, R.ADMIN_ONLY_MARKETS, R.PUBLIC_MARKETS.some(m => m.key === 'cafe24'), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.marketVisible('coupang'), R.PLANNED_MARKETS.includes('cafe24')], [false, ['cafe24'], false, null, 'key', true, false])
 }
 
 // ── 11. 쿠팡 항목 규칙 (api/_coupangFields.js — 화면과 서버가 같이 쓰는 순수 함수) ──
@@ -822,7 +826,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('판매처 목록·순서 (보내기 = 쿠팡·스마트스토어·카페24, 나머지는 soon)', [R.MARKETS.map(m => m.name), R.MARKETS.filter(m => !m.soon).map(m => m.key)], [['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '카페24', '메이크샵', '고도몰'], ['coupang', 'smartstore', 'cafe24']])
   const mkView = read('src/views/studio/StudioMarketplaceView.vue'), landing = read('src/views/studio/StudioLandingView.vue')
   const screenTextOf = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
-  eq('연결 탭·랜딩 둘 다 공용 목록을 씀 (따로 적은 목록 없음) · 연결 신청 화면 없음(S3-3)', [/<StudioMarketRequests/.test(mkView), /const PLANNED = computed\(\(\) => MARKETS\.filter\(m => \(m\.key === 'cafe24' \? !showCafe24\.value : m\.connect === 'planned'\)\)\)/.test(mkView), /import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(landing), /v-for="m in MARKETS"/.test(landing), /'카페24'|'고도몰'|'메이크샵'/.test(mkView + landing)], [false, true, true, true, false])
+  eq('연결 탭·랜딩 둘 다 공용 목록을 씀 (따로 적은 목록 없음) · 연결 신청 화면 없음(S3-3)', [/<StudioMarketRequests/.test(mkView), /const PLANNED = MARKETS\.filter\(m => m\.connect === 'planned'\)/.test(mkView), /import \{ PUBLIC_MARKETS as MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(landing), /v-for="m in MARKETS"/.test(landing), /'카페24'|'고도몰'|'메이크샵'/.test(mkView + landing)], [false, true, true, true, false])
 
   // ── 판매처 연결 2단계 (2026-09-30): 11번가 키 연결 · 가이드 (연결 신청은 S3-3에서 걷어냄 → "예정") ──
   {
@@ -833,16 +837,16 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     eq('연결 방법: 쿠팡·스마트스토어·11번가·카페24 = 키 · 나머지 5곳 = 예정 · 보내기는 쿠팡·스마트스토어·카페24', [R.MARKETS.filter(m => m.connect === 'key').map(m => m.key), R.PLANNED_MARKETS, R.MARKETS.filter(m => !m.soon).map(m => m.key), R.PLANNED_LABEL, 'REQUEST_MARKETS' in R, 'requestProblems' in R], [['coupang', 'smartstore', '11st', 'cafe24'], ['gmarket', 'ably', 'zigzag', 'makeshop', 'godomall'], ['coupang', 'smartstore', 'cafe24'], '예정', false, false])
     eq('서버: 연결 신청 action·표 없음 · SQL에 marketplace_requests 만들기 없음', [/connect_request|REQUEST_MARKETS|marketplace_requests/.test(api), /create table public\.marketplace_requests/.test(sql), /marketplace_requests/.test(read('src/lib/studioMarketplace.js') + read('src/lib/studioMarketLinks.js'))], [false, false, false])
     const on = R.channelRows({ coupang: { connected: true }, '11st': { connected: true }, zigzag: { connected: true }, cafe24: { connected: true } })
-    // 2026-09-30: 연결된 곳은 연결 방법(planned)보다 먼저 — 카페24가 연결돼 있으면 일반 고객도 [카페24로 보내기]. 지그재그처럼 "예정"인 곳도 값이 오면 linked(연결 자체가 없으니 실제로는 안 온다)
-    eq('보내기 탭 줄: 쿠팡 = 보내기 · 11번가 = 연결됨(보내기 없음) · 카페24 연결됨 = 보내기(일반 고객도) · 예정 판매처는 값이 안 오면 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'linked', gmarket: 'planned', ably: 'planned', zigzag: 'linked', cafe24: 'connected', makeshop: 'planned', godomall: 'planned' })
+    // 연결된 곳은 연결 방법(planned)보다 먼저 — 지그재그처럼 "예정"인 곳도 값이 오면 linked. 카페24는 2026-10-01부터 고객에게 줄 자체가 없음(연결돼 있어도)
+    eq('보내기 탭 줄(고객): 쿠팡 = 보내기 · 11번가 = 연결됨(보내기 없음) · 카페24 줄 없음(연결돼 있어도) · 예정 판매처는 값이 안 오면 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'linked', gmarket: 'planned', ably: 'planned', zigzag: 'linked', makeshop: 'planned', godomall: 'planned' })
     const onAdmin = R.channelRows({ cafe24: { connected: true } }, { admin: true })
-    // 2026-09-30 앱 심사 신청 → CAFE24_PUBLIC true: 일반 고객도 key([연결하기]). 값을 false로 되돌리면 관리자만 key로 돌아가는 규칙(connectFor)은 그대로
-    eq('카페24 공개: 설정값 하나(CAFE24_PUBLIC true) · 일반 고객·관리자 모두 key · MARKETS 자체는 key 그대로 · 연결되면 connected(보내기)', [R.CAFE24_PUBLIC, R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.connectFor(R.MARKETS.find(m => m.key === '11st')), onAdmin.find(r => r.key === 'cafe24').state, R.channelRows({}).find(r => r.key === 'cafe24').state], [true, 'key', 'key', 'key', 'connected', 'locked'])
+    // 2026-10-01 카페24 앱 심사 반려 → CAFE24_PUBLIC false: 고객 = 줄·카드 없음(connectFor null) · 관리자·스태프 = key·connected(테스트몰 유지)
+    eq('카페24 숨김: 설정값 하나(CAFE24_PUBLIC false) · 고객 = null · 관리자 = key · MARKETS 자체는 key 그대로 · 관리자 연결되면 connected · 고객 줄 없음', [R.CAFE24_PUBLIC, R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.connectFor(R.MARKETS.find(m => m.key === '11st')), onAdmin.find(r => r.key === 'cafe24').state, R.channelRows({}).some(r => r.key === 'cafe24')], [false, null, 'key', 'key', 'connected', false])
     {
       const mk = read('src/views/studio/StudioMarketplaceView.vue'), sv = read('src/views/studio/StudioChannelSendView.vue'), sm = read('src/components/studio/StudioSendModal.vue')
-      eq('화면: 카페24 카드는 showCafe24일 때만 (관리자·App URL로 들어옴·연결됨) · 보내기 탭·보내기 창 줄에 관리자 여부 전달 · 관리자 판정 = auth.isSuperAdmin 재사용',
-        [/<StudioCafe24Card v-if="showCafe24" \/>/.test(mk), /connectFor\(C24, \{ admin: isSuperAdmin\.value \}\) === 'key' \|\| cafe24Entry\.value/.test(mk), /hasCafe24Launch\(\) \|\| isCafe24Launch\(q\) \|\| isCafe24Return\(q\)/.test(mk), /channelRows\(linkStates\([^)]*\), \{ admin: isSuperAdmin\.value \}\)/.test(sv), /marketRows\(\{[^}]*\}[^,]*, \{ admin: isSuperAdmin\.value \}\)/.test(sm), [mk, sv, sm].every(s => /import \{[^}]*isSuperAdmin[^}]*\} from '@\/lib\/auth'/.test(s))],
-        [true, true, true, true, true, true])
+      eq('화면: 카페24 카드는 관리자·스태프에게만(앱 열기·연결됨이어도 고객은 안 보임) · 보내기 탭·보내기 창 줄에 관리자 여부 전달 · 관리자 판정 = auth.isAdminOrStaff(서버 ctx.isAdmin = is_admin_or_staff와 같은 범위)',
+        [/<StudioCafe24Card v-if="showCafe24" \/>/.test(mk), /const showCafe24 = computed\(\(\) => marketVisible\('cafe24', \{ admin: isAdminOrStaff\.value \}\)\)/.test(mk), /cafe24Entry|hasCafe24Launch/.test(mk), /channelRows\(linkStates\([^)]*\), \{ admin: isAdminOrStaff\.value \}\)/.test(sv), /marketRows\(\{[^}]*\}[^,]*, \{ admin: isAdminOrStaff\.value \}\)/.test(sm), [mk, sv, sm].every(s => /import \{[^}]*isAdminOrStaff[^}]*\} from '@\/lib\/auth'/.test(s))],
+        [true, true, false, true, true, true])
     }
     eq('11번가 키 입력 검사', [R.elevenstKeyProblems({ sellerId: 'seller', apiKey: 'abcd1234efgh' }), R.elevenstKeyProblems({ sellerId: '', apiKey: 'short' }), R.elevenstKeyProblems({ sellerId: 'a', apiKey: 'has space 123' })], [[], ['11번가 셀러 ID', 'API 키'], ['API 키']])
     // 2026-09-30 합니다체: 단계 끝 = "~하세요."(명령형) 또는 "~니다."(설명) — 예전 "~요."(대화체) 규칙에서 바꿈
@@ -1028,9 +1032,9 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
 
   // 3-2 보낼 판매처
   const rowsOn = R.marketRows({ coupang: { connected: true } }), rowsOff = R.marketRows({ coupang: { connected: false } })
-  eq('판매처 줄 = MARKETS와 같은 9곳·같은 순서', [rowsOn.map(r => r.name), rowsOn.map(r => r.key)], [R.MARKETS.map(m => m.name), R.MARKETS.map(m => m.key)])
+  eq('판매처 줄(고객) = PUBLIC_MARKETS 8곳·같은 순서 (카페24 없음) · 관리자 = MARKETS 9곳', [rowsOn.map(r => r.name), rowsOn.map(r => r.key), R.marketRows({}, { admin: true }).map(r => r.key)], [R.PUBLIC_MARKETS.map(m => m.name), R.PUBLIC_MARKETS.map(m => m.key), R.MARKETS.map(m => m.key)])
   // S3-3: 보내기 창도 보내기 탭과 같은 규칙(channelRows) — 키 연결 판매처는 연결 상태, 나머지 5곳 = "예정"(planned). "준비 중"(soon) 없음
-  eq('줄 상태: 연결됨 = connected · 연결 전 = locked · 스마트스토어·11번가·카페24(공개) = 연결 전 locked · 카페24 연결되면 connected · 나머지 5곳 = planned', [rowsOn[0].state, rowsOff[0].state, R.marketRows()[0].state, Object.fromEntries(rowsOn.slice(1).map(r => [r.key, r.state])), R.marketRows({ cafe24: { connected: true } }).find(r => r.key === 'cafe24').state, R.marketRows === R.channelRows], ['connected', 'locked', 'locked', { smartstore: 'locked', '11st': 'locked', gmarket: 'planned', ably: 'planned', zigzag: 'planned', cafe24: 'locked', makeshop: 'planned', godomall: 'planned' }, 'connected', true])
+  eq('줄 상태: 연결됨 = connected · 연결 전 = locked · 스마트스토어·11번가 = 연결 전 locked · 카페24 = 고객 줄 없음(연결돼 있어도)·관리자는 연결되면 connected · 나머지 5곳 = planned', [rowsOn[0].state, rowsOff[0].state, R.marketRows()[0].state, Object.fromEntries(rowsOn.slice(1).map(r => [r.key, r.state])), R.marketRows({ cafe24: { connected: true } }).some(r => r.key === 'cafe24'), R.marketRows({ cafe24: { connected: true } }, { admin: true }).find(r => r.key === 'cafe24').state, R.marketRows === R.channelRows], ['connected', 'locked', 'locked', { smartstore: 'locked', '11st': 'locked', gmarket: 'planned', ably: 'planned', zigzag: 'planned', makeshop: 'planned', godomall: 'planned' }, false, 'connected', true])
   eq('처음 체크: 연결된 곳만 체크 · 연결 전이면 아무것도 체크 안 됨', [R.checkedMarkets(rowsOn, R.defaultChecked(rowsOn)), R.checkedMarkets(rowsOff, R.defaultChecked(rowsOff))], [['coupang'], []])
   eq('체크할 수 없는 줄은 값이 들어와도 보내지 않음', [R.checkedMarkets(rowsOn, { coupang: true, smartstore: true, cafe24: true }), R.checkedMarkets(rowsOff, { coupang: true })], [['coupang'], []])
   eq('버튼 글자: 1곳 = 이름 · 0곳·여러 곳 = "선택한 판매처로 보내기"', [R.sendButtonLabel(['coupang']), R.sendButtonLabel([]), R.sendButtonLabel(['coupang', 'smartstore']), R.sendButtonLabel(['11st']), R.sendButtonLabel(['smartstore'])], ['쿠팡으로 보내기', '선택한 판매처로 보내기', '선택한 판매처로 보내기', '11번가로 보내기', '스마트스토어로 보내기'])
@@ -1390,8 +1394,10 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('관리 화면 주소: 쇼핑몰 ID·상품 번호가 올바를 때만', [K.cafe24AdminProductUrl('myshop', 28), K.cafe24AdminProductUrl('My Shop', 28), K.cafe24AdminProductUrl('myshop', 'x')], ['https://myshop.cafe24.com/disp/admin/shop1/product/ProductRegister?product_no=28', null, null])
   // 화면 규칙
   eq('"카페24로" 조사: 숫자로 끝나는 이름 · 버튼 글자', [R.withRo('카페24'), R.withRo('11번가'), R.withRo('쿠팡'), R.withRo('G마켓·옥션'), R.sendButtonLabel(['cafe24'])], ['카페24로', '11번가로', '쿠팡으로', 'G마켓·옥션으로', '카페24로 보내기'])
-  const both = R.channelRows({ coupang: { connected: true }, cafe24: { connected: true } })
-  eq('처음 체크: 누른 판매처만(market) · 다시 보내기는 쿠팡만 · 없으면 연결된 곳 모두', [R.initialChecked(both, { market: 'cafe24' }), R.initialChecked(both, { resend: true }), R.initialChecked(both), R.initialChecked(R.channelRows({ coupang: { connected: true } }), { market: 'cafe24' }).cafe24], [{ ...Object.fromEntries(R.MARKETS.map(m => [m.key, false])), cafe24: true }, { ...Object.fromEntries(R.MARKETS.map(m => [m.key, false])), coupang: true }, R.defaultChecked(both), false])
+  // 카페24 줄은 관리자·스태프에게만 (2026-10-01) — 이 규칙은 관리자 기준으로 확인
+  const both = R.channelRows({ coupang: { connected: true }, cafe24: { connected: true } }, { admin: true })
+  eq('처음 체크(관리자): 누른 판매처만(market) · 다시 보내기는 쿠팡만 · 없으면 연결된 곳 모두', [R.initialChecked(both, { market: 'cafe24' }), R.initialChecked(both, { resend: true }), R.initialChecked(both), R.initialChecked(R.channelRows({ coupang: { connected: true } }, { admin: true }), { market: 'cafe24' }).cafe24], [{ ...Object.fromEntries(R.MARKETS.map(m => [m.key, false])), cafe24: true }, { ...Object.fromEntries(R.MARKETS.map(m => [m.key, false])), coupang: true }, R.defaultChecked(both), false])
+  eq('처음 체크(고객): 카페24로 열어도 카페24 칸 자체가 없음 · 아무것도 체크 안 됨', (() => { const c = R.initialChecked(R.channelRows({ coupang: { connected: true }, cafe24: { connected: true } }), { market: 'cafe24' }); return ['cafe24' in c, Object.values(c).some(Boolean)] })(), [false, false])
   eq('보내기 창: market prop → initialChecked · 카페24 섹션 = 같은 모양(missing·busy·done·submit) · 판매가는 정수 검사 · 분류는 선택(못 읽어도 보냄)', [
     /market: \{ type: String, default: '' \}/.test(shell), shell.includes("initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend })"),
     /defineExpose\(\{ missing, busy, done, submit \}\)/.test(sec), sec.includes('Number.isInteger(f.value.price) && f.value.price >= 0'), /<option :value="null">미분류<\/option>/.test(sec), sec.includes('catError.value = e.message'),
@@ -1409,9 +1415,9 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     c24send.indexOf("market: CAFE24, status: 'sending'") < c24send.indexOf("path: '/products/images'"), /marketplace_sql_missing/.test(c24send), /2026-09-30-marketplace-sends-cafe24\.sql/.test(c24send),
     /display, selling: display,/.test(read('api/_cafe24.js')), /status: 'registered'/.test(c24send), /api\/marketplace\?t=/.test(c24send),
   ], [true, true, true, true, true, true, true, true, true, true, true, true, false])
-  eq('서버: 응답·기록에 토큰 없음 (access_token은 헤더로만) · 쿠팡 send·sync 코드는 그대로(market=eq.coupang) · 목록은 쿠팡+카페24+스마트스토어(2026-10-01)', [
+  eq('서버: 응답·기록에 토큰 없음 (access_token은 헤더로만) · 쿠팡 send·sync 코드는 그대로(market=eq.coupang) · 목록 = 관리자 쿠팡+카페24+스마트스토어 / 고객 쿠팡+스마트스토어 (2026-10-01)', [
     /access_token|refresh_token|oauth_enc/.test(c24send), /Bearer \$\{c\.accessToken\}/.test(read('api/_cafe24.js')), /market=eq\.\$\{MARKET\}&seller_product_id=not\.is\.null&status=in\.\(sending,approval_pending,rejected\)/.test(api),
-    /market=in\.\(\$\{MARKET\},\$\{CAFE24\},\$\{SMARTSTORE\}\)&order=created_at\.desc/.test(api), /market: MARKET, status: 'sending', request_json: \{\} \}/.test(api),
+    api.includes('const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE}` : `${MARKET},${SMARTSTORE}`') && /market=in\.\(\$\{markets\}\)&order=created_at\.desc/.test(api), /market: MARKET, status: 'sending', request_json: \{\} \}/.test(api),
   ], [false, true, true, true, true])
   eq('SQL: marketplace_sends market에 cafe24 · status에 registered · 새 표·GRANT 없음 · 미실행 표시', [/check \(market in \('coupang', 'cafe24'\)\)/.test(sql), /'registered'\)\)/.test(sql), /create table|grant /.test(sql), /상태: 미실행/.test(sql)], [true, true, false, true])
 }
@@ -1828,6 +1834,34 @@ function smartstoreRelay(u, method, opts) {
   eq('SQL: market에 coupang·cafe24 유지 + smartstore · 되돌리기 있음 · 새 표·GRANT 없음 · 미실행 표시', [/check \(market in \('coupang', 'cafe24', 'smartstore'\)\)/.test(sql), /-- alter table public\.marketplace_sends add constraint marketplace_sends_market_check check \(market in \('coupang', 'cafe24'\)\);/.test(sql), /create table|grant /i.test(sql.replace(/GRANT 변경 없음/g, '')), /상태: 미실행/.test(sql)], [true, true, false, true])
   // 쿠팡·카페24 보내기는 그대로 — 이 작업이 그 파일들을 바꾸지 않았다 (본문 값은 위 7·19번 묶음이 고정)
   eq('범위: 쿠팡·카페24 보내기 코드에 스마트스토어가 섞이지 않음', [/smartstore/i.test(read('api/_coupang.js') + read('api/_coupangFields.js') + read('api/_cafe24.js') + read('src/components/studio/StudioSendCoupang.vue') + read('src/components/studio/StudioSendCafe24.vue')), /async function send\(ctx[\s\S]*?\n\}/.exec(api)[0].includes('smartstore'), /async function cafe24Send[\s\S]*?\n\}/.exec(api)[0].includes('smartstore')], [false, false, false])
+}
+
+// ── 카페24 고객에게 숨김 (2026-10-01 카페24 앱 심사 반려) — 서버도 막는다 · 관리자·스태프는 그대로 ──
+{
+  // 같은 사용자에게 카페24 계정·보낸 기록이 있다고 둔다 (이미 연결·전송한 고객의 화면이 깨지지 않는지)
+  if (!db.marketplace_accounts.some(a => a.user_id === UID && a.market === 'cafe24')) db.marketplace_accounts.push({ id: newId(), user_id: UID, market: 'cafe24', seller_login_id: 'myshop', status: 'connected', expires_at: new Date(Date.now() + 10 * 86400000).toISOString() })
+  db.marketplace_sends.push({ id: newId(), created_at: new Date().toISOString(), user_id: UID, export_id: EID, market: 'cafe24', status: 'registered', seller_product_id: '28', request_json: {}, result_json: { productNo: 28 } })
+  const adminSends = (await post('sends_list')).body.sends
+  const adminStatus = (await post('market_status')).body
+  globalThis.__asCustomer = true
+  process.env.STUDIO_ENABLED = 'all'
+  try {
+    const actions = ['cafe24_begin', 'cafe24_launch', 'cafe24_finish', 'disconnect_cafe24', 'cafe24_categories', 'cafe24_send']
+    const nAcc = db.marketplace_accounts.length, nSend = db.marketplace_sends.length
+    const got = []
+    for (const a of actions) { const r = await post(a, { mall_id: 'myshop', exportId: EID }); got.push([r.statusCode, r.body?.code]) }
+    eq('고객: 카페24 action 6개 모두 403 market_unavailable · 계정·기록을 바꾸지 않음 · 카페24 계정 그대로(지우지 않음)', [got, db.marketplace_accounts.length, db.marketplace_sends.length, db.marketplace_accounts.some(a => a.user_id === UID && a.market === 'cafe24')], [actions.map(() => [403, 'market_unavailable']), nAcc, nSend, true])
+    const st = (await post('market_status')).body
+    eq('고객: market_status의 카페24 = 연결 안 됨(계정이 있어도) · 11번가·스마트스토어 값은 그대로 나옴', [st.cafe24, 'elevenst' in st && 'smartstore' in st], [{ connected: false, account: null }, true])
+    const cs = (await post('sends_list'))
+    eq('고객: 보낸 상품 목록에 카페24 기록 없음 · 쿠팡·스마트스토어 기록은 그대로 · 오류 없음', [cs.statusCode, cs.body.sends.some(s => s.market === 'cafe24'), cs.body.sends.length === adminSends.filter(s => s.market !== 'cafe24').length], [200, false, true])
+    eq('고객: 다른 판매처 요청은 막지 않음 (status·smartstore_addresses 정상)', [(await post('status')).statusCode, (await post('smartstore_addresses')).statusCode], [200, 200])
+  } finally {
+    globalThis.__asCustomer = false
+    process.env.STUDIO_ENABLED = 'admin'
+  }
+  eq('관리자·스태프: 카페24 기록·연결 상태 그대로 보임 (테스트몰 유지)', [adminSends.some(s => s.market === 'cafe24'), adminStatus.cafe24.connected], [true, true])
+  eq('관리자: 카페24 action은 거절하지 않음 (403 market_unavailable 아님)', (await post('cafe24_categories')).body?.code !== 'market_unavailable', true)
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

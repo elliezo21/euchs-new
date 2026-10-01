@@ -92,7 +92,7 @@
  *   글·그림은 처음부터 다 보인다(opacity 0으로 기다리지 않음). 움직임 줄이기면 움직임 없이 완성 장면(첫 화면 + ✓)만(is-still).
  */
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
-import { MARKETS } from '@/lib/studioMarketplaceRules'
+import { PUBLIC_MARKETS as MARKETS } from '@/lib/studioMarketplaceRules' // 누구나 보는 홈 — 카페24 없음(2026-10-01)
 import { STUDIO_PATH, MALL_PATH, trackStudioCta, trackMallCta } from '@/lib/homeCta'
 import { HOME_BRANDS, brandLogo } from '@/data/homeStudioBrands'
 import StudioPromoDetails from './StudioPromoDetails.vue'

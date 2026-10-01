@@ -71,7 +71,7 @@ import StudioSendCafe24 from '@/components/studio/StudioSendCafe24.vue'
 import StudioSendSmartstore from '@/components/studio/StudioSendSmartstore.vue'
 import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, sendActionLabel, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { linkStates } from '@/lib/studioMarketLinks'
-import { isSuperAdmin } from '@/lib/auth'
+import { isAdminOrStaff } from '@/lib/auth'
 
 const SECTIONS = { coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, cafe24: StudioSendCafe24 } // 2026-09-30 카페24 · 2026-10-01 스마트스토어 섹션 추가 — 쿠팡 섹션은 그대로
 
@@ -95,7 +95,7 @@ const sections = reactive({}) // key → 섹션 인스턴스
 const results = shallowRef({}) // key → 보낸 결과
 
 // 쿠팡 = 서버 send_prepare.markets, 스마트스토어·11번가·카페24 = 연결 탭과 같은 상태(studioMarketLinks — 11번가는 보내기 아직이라 "연결됨"만), 나머지 = "예정"
-const rows = computed(() => marketRows({ ...linkStates(false), ...(props.prepare?.markets || {}) }, { admin: isSuperAdmin.value })) // 카페24는 심사 승인 전 관리자만 (CAFE24_PUBLIC)
+const rows = computed(() => marketRows({ ...linkStates(false), ...(props.prepare?.markets || {}) }, { admin: isAdminOrStaff.value })) // 카페24 줄은 관리자·스태프에게만 (2026-10-01 — marketsFor)
 const picked = computed(() => checkedMarkets(rows.value, checked.value))
 const mounted = computed(() => sectionKeys(rows.value, Object.keys(SECTIONS))) // 섹션을 만들어 둘 판매처 (체크와 상관없음)
 const nameOf = key => MARKETS.find(m => m.key === key)?.name || key

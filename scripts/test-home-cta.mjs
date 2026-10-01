@@ -3,7 +3,7 @@
 import fs from 'fs'
 import path from 'path'
 import { KAKAO_CHAT_URL, STUDIO_PATH, MALL_PATH, showStickyCta, trackStudioCta, trackMallCta } from '../src/lib/homeCta.js'
-import { MARKETS } from '../src/lib/studioMarketplaceRules.js'
+import { PUBLIC_MARKETS } from '../src/lib/studioMarketplaceRules.js'
 
 let pass = 0, fail = 0
 function eq(name, got, want) {
@@ -66,8 +66,8 @@ eq('카톡 주소 = https 채팅', [KAKAO_CHAT_URL, STUDIO_PATH], ['https://pf.k
   eq('"무료"는 "이유씨컴퍼니에서 사입하면"과 같은 문장에', text.split(/[.!?]/).filter(s => s.includes('무료')).every(s => s.includes('이유씨컴퍼니에서 사입하면')), true)
   eq('고객 문구에 "중국어"·"고시정보" 없음', /중국어|고시정보/.test(text), false)
   eq('배지·제목(두 줄)·설명 (움직이는 시안 문구)', ['NEW · AI 스튜디오', '중국 수입부터<br />상세페이지·판매처 등록까지', '1688 링크 하나로 상세페이지를 만들어 쿠팡·스마트스토어에 바로 보내요.', '이유씨컴퍼니에서 사입하면 스튜디오 무료.'].every(s => shown.includes(s)), true)
-  eq('판매처 칩 = 스튜디오 MARKETS 그대로 읽기(9곳)', [/v-for="\(m, k\) in MARKETS"/.test(band), /import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(band), MARKETS.map(m => m.name)],
-    [true, true, ['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '카페24', '메이크샵', '고도몰']])
+  eq('판매처 칩 = 스튜디오 PUBLIC_MARKETS 읽기(8곳 — 카페24는 고객 화면에서 숨김 2026-10-01)', [/v-for="\(m, k\) in MARKETS"/.test(band), /import \{ PUBLIC_MARKETS as MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(band), PUBLIC_MARKETS.map(m => m.name)],
+    [true, true, ['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '메이크샵', '고도몰']])
   eq('홈 칸: 9곳 모두 ✓ · "준비 중" 없음 · soon 값을 안 씀', [/<i aria-hidden="true">✓<\/i>/.test(band), /준비 중/.test(text), /m\.soon|\.soon\b/.test(band.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\/.*$/gm, ''))], [true, false, false])
   eq('반짝임 = 9곳을 차례로 (pingKeys = MARKETS 전체)', [/const pingKeys = MARKETS\.map\(m => m\.key\)/.test(band), /pingKeys\[pingSeq % pingKeys\.length\]/.test(band)], [true, true])
   eq('버튼: [스튜디오 둘러보기] → /studio + studio_cta_click / [1688 소싱몰 가기] → /mall + mall_cta_click',
@@ -102,9 +102,9 @@ eq('카톡 주소 = https 채팅', [KAKAO_CHAT_URL, STUDIO_PATH], ['https://pf.k
   const { HOME_BRANDS, brandLogo } = await import('../src/data/homeStudioBrands.js')
   const band = read('src/components/StudioPromoBand.vue'), more = read('src/components/StudioPromoDetails.vue')
   const shownOf = s => s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
-  eq('판매처 배지 10곳 (G마켓·옥션 나눔) · 로고 파일은 public/brand에 있음 · 못 받은 곳은 이름만(출처 없음)',
+  eq('판매처 배지 9곳 (G마켓·옥션 나눔 · 카페24 숨김 2026-10-01) · 로고 파일은 public/brand에 있음 · 못 받은 곳은 이름만(출처 없음)',
     [HOME_BRANDS.map(b => b.key), HOME_BRANDS.filter(b => b.logo).every(b => fs.existsSync(new URL(`../public${brandLogo(b)}`, import.meta.url)) && /^https?:\/\//.test(b.src)), HOME_BRANDS.filter(b => !b.logo).every(b => !b.src)],
-    [['coupang', 'smartstore', '11st', 'gmarket', 'auction', 'ably', 'zigzag', 'cafe24', 'makeshop', 'godomall'], true, true])
+    [['coupang', 'smartstore', '11st', 'gmarket', 'auction', 'ably', 'zigzag', 'makeshop', 'godomall'], true, true])
   eq('띠: 배지·점선이 무대 안 · 둥둥(float)도 보일 때만 움직이고 움직임 줄이기면 멈춤 · 폰은 로고 배지만',
     [/v-for="b in BADGES"[^>]*data-band-badge/.test(shownOf(band).replace(/\s+/g, ' ')), /\.is-paused [^{]*\.float/.test(band), /\.is-still [^{]*\.float/.test(band), /\.badge\.m-hide \{ display: none; \}/.test(band)], [true, true, true, true])
   eq('자세한 소개가 띠 바로 아래 · 마지막 버튼 = 같은 스튜디오 주소 · GA studio_cta_click',

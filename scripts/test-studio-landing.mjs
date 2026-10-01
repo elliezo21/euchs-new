@@ -36,7 +36,7 @@ eq('모션 파일을 부르는 곳 = 랜딩 하나', motionUsers, ['src/views/st
 const landing = read('src/views/studio/StudioLandingView.vue')
 eq('랜딩은 모션 파일을 동적 import (정적 import 아님)', [/await import\(['"]@\/lib\/studioLandingMotion['"]\)/.test(landing), /^import .*studioLandingMotion/m.test(landing)], [true, false])
 eq('움직임 줄이기면 모션을 불러오지 않음 (첫 그리기부터 정지)', /const isStatic = ref\(!!window\.matchMedia\?\.\('\(prefers-reduced-motion: reduce\)'\)\.matches\)/.test(landing) && /if \(isStatic\.value\) return/.test(landing), true)
-eq('판매처 이름은 글자만 (로고 이미지 없음) · 목록은 MARKETS', /import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(landing) && !/const MARKETS =/.test(landing) && !/logo[^"]*\.(png|svg|webp)/i.test(landing), true)
+eq('판매처 이름은 글자만 (로고 이미지 없음) · 목록은 PUBLIC_MARKETS(카페24 없음 2026-10-01)', /import \{ PUBLIC_MARKETS as MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(landing) && !/const MARKETS =/.test(landing) && !/logo[^"]*\.(png|svg|webp)/i.test(landing), true)
 {
   // 홍보 화면(2026-09-29 해성 지시): 홈 StudioPromoBand처럼 9곳 모두 ✓, "준비 중" 없음 — soon 값은 랜딩에서 읽지 않는다 (설정·보내기 화면은 그대로)
   const tpl = landing.slice(landing.indexOf('<template>'), landing.indexOf('<script')).replace(/<!--[\s\S]*?-->/g, '')

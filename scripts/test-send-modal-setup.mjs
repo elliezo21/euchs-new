@@ -46,6 +46,7 @@ export { default as Coupang } from '@/components/studio/StudioSendCoupang.vue'
 export { default as Cafe24 } from '@/components/studio/StudioSendCafe24.vue'
 export { default as Smartstore } from '@/components/studio/StudioSendSmartstore.vue'
 export { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
+export { userRole } from '@/lib/auth'
 `)
 // 브라우저 전역 흉내 (불러올 때 window를 보는 파일이 있다) — 값이 아니라 자리만
 if (typeof globalThis.window === 'undefined') globalThis.window = globalThis
@@ -108,7 +109,11 @@ if (built?.Coupang && built?.Modal) {
 
   const c = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE) })
   eq('보내기 창 setup이 예외 없이 실행 (연결됨)', c.error, null)
-  eq('보내기 창: 판매처 9줄 + 쿠팡 섹션이 그려짐', [(c.html.match(/data-mk-s-market="/g) || []).length, /data-mk-send-coupang/.test(c.html), /data-mk-s-mode-pick/.test(c.html)], [9, true, true])
+  eq('보내기 창(고객): 판매처 8줄(카페24 없음) + 쿠팡 섹션이 그려짐 · 화면 글자에 카페24 없음', [(c.html.match(/data-mk-s-market="/g) || []).length, /data-mk-send-coupang/.test(c.html), /data-mk-s-mode-pick/.test(c.html), /data-mk-s-market="cafe24"|카페24/.test(c.html)], [8, true, true, false])
+  built.userRole.value = 'staff'
+  const cAdmin = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE) })
+  built.userRole.value = 'user'
+  eq('보내기 창(관리자·스태프): 판매처 9줄 · 카페24 줄 있음 (테스트몰 유지)', [cAdmin.error, (cAdmin.html.match(/data-mk-s-market="/g) || []).length, /data-mk-s-market="cafe24"/.test(cAdmin.html)], [null, 9, true])
 
   const d = await render(built.Modal, { open: true, prepare: PREPARE(false) })
   eq('보내기 창 (연결 전): 예외 없음 · 쿠팡 섹션 없음 · 보내기 버튼 꺼짐', [d.error, /data-mk-send-coupang/.test(d.html), /<button[^>]*disabled[^>]*data-mk-s-send|<button[^>]*data-mk-s-send[^>]*disabled/.test(d.html)], [null, false, true])

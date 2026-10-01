@@ -63,7 +63,7 @@
       <StudioElevenstCard />
       <!-- 스마트스토어 — 11번가와 같은 키 연결 (2026-09-30 S3-2, 연결까지만) -->
       <StudioSmartstoreCard />
-      <!-- 카페24 — 우리 앱 + 카페24 동의 화면 (연결까지만). 심사 승인 전(CAFE24_PUBLIC false)에는 관리자·앱 열기로 들어온 때만, 그 밖에는 아래 "예정" 줄 -->
+      <!-- 카페24 — 우리 앱 + 카페24 동의 화면 (연결까지만). 관리자·스태프에게만 (2026-10-01 — 고객에게는 어디에도 안 보임) -->
       <StudioCafe24Card v-if="showCafe24" />
     </div>
     <p v-if="marketLinks.error && marketLinks.loaded" class="text-[13px] break-keep" :class="marketLinks.soft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-links-error>{{ marketLinks.error }}</p>
@@ -142,7 +142,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Store } from 'lucide-vue-next'
-import { currentUser, isSuperAdmin, isAuthLoading } from '@/lib/auth'
+import { currentUser, isAdminOrStaff, isAuthLoading } from '@/lib/auth'
 import StudioLinkPending from '@/components/studio/StudioLinkPending.vue'
 import { studioGate } from '@/lib/studioGate'
 import StudioModal from '@/components/studio/StudioModal.vue'
@@ -153,8 +153,7 @@ import StudioSmartstoreCard from '@/components/studio/StudioSmartstoreCard.vue'
 import StudioCafe24Card from '@/components/studio/StudioCafe24Card.vue'
 import { marketLinks, loadMarketLinks, marketLinksPhase } from '@/lib/studioMarketLinks'
 import { STUDIO_NO_ACCESS_TITLE, STUDIO_NO_ACCESS_BODY, STUDIO_NO_ACCESS_MALL } from '@/lib/studioAccess'
-import { MARKETS, PLANNED_LABEL, connectFor, isCafe24Launch, isCafe24Return, linkPhase, NOT_CUSTOMER } from '@/lib/studioMarketplaceRules'
-import { hasCafe24Launch } from '@/lib/studioCafe24Launch'
+import { MARKETS, PLANNED_LABEL, marketVisible, linkPhase, NOT_CUSTOMER } from '@/lib/studioMarketplaceRules'
 
 const STATUS_LABEL = { connected: '연결됨', invalid: '키 확인 필요', expired: '만료됨' }
 const TONE_CLASS = { ok: 'font-bold st-success-text', error: 'font-bold st-danger-text', soft: 'st-muted' }
@@ -163,16 +162,10 @@ const toneOf = e => isNotReady(e.code) ? 'soft' : 'error'
 const route = useRoute()
 const router = useRouter()
 
-// 카페24 카드를 보일지 — 관리자(심사 승인 전 테스트용)·CAFE24_PUBLIC이면 connectFor가 'key'.
-// 쇼핑몰 관리자에서 앱을 열고 들어온 때(App URL·로그인 뒤 ?link=cafe24·동의 뒤 돌아옴)도 카드가 떠 있어야 이어서 처리된다 → 한 번 보이면 이 화면 동안 유지
-const C24 = MARKETS.find(m => m.key === 'cafe24')
-const cafe24Entry = ref(false)
-watch(() => route.query, q => {
-  if (hasCafe24Launch() || isCafe24Launch(q) || isCafe24Return(q) || q?.link === 'cafe24') cafe24Entry.value = true
-}, { immediate: true })
-const showCafe24 = computed(() => connectFor(C24, { admin: isSuperAdmin.value }) === 'key' || cafe24Entry.value || marketLinks.cafe24?.connected === true)
+// 카페24 카드 — 관리자·스태프에게만 (2026-10-01 카페24 앱 심사 반려 — 고객에게는 카드도 "예정" 줄도 없음. 앱 열기·동의 뒤 돌아옴도 관리자만 카드에서 이어서 처리)
+const showCafe24 = computed(() => marketVisible('cafe24', { admin: isAdminOrStaff.value }))
 // 쿠팡 밖의 판매처 — 키 연결은 카드(StudioElevenstCard·StudioSmartstoreCard·StudioCafe24Card), 아직 연결할 수 없는 곳은 "예정"만. 상태는 studioMarketLinks 한 곳
-const PLANNED = computed(() => MARKETS.filter(m => (m.key === 'cafe24' ? !showCafe24.value : m.connect === 'planned')))
+const PLANNED = MARKETS.filter(m => m.connect === 'planned')
 const loggedIn = computed(() => !!currentUser.value?.id)
 const st = ref(null)
 const loadError = ref('')
