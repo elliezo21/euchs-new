@@ -2409,5 +2409,48 @@ function elevenstRelay(u, method, opts) {
   ], [true, true, true, true, true, true, true])
 }
 
+// ── 22. 여러 판매처 한 번에 보내기 — 공통 정보 (2026-10-01) · src/lib/studioSendCommon.js (스마트스토어·11번가만, 쿠팡은 자기 칸) ──
+{
+  const SC = await import('../src/lib/studioSendCommon.js')
+  const O = await import('../api/_marketOptions.js')
+  eq('공통 정보 대상 = 스마트스토어·11번가 (쿠팡·카페24 아님)', SC.COMMON_MARKETS, ['smartstore', '11st'])
+  eq('공통 정보를 쓰는 때: 대상 2곳 이상 · 1곳만이면 예전 그대로 · 쿠팡+1곳은 아님 · 다시 보내기는 아님', [
+    SC.commonActive(['smartstore']), SC.commonActive(['11st']), SC.commonActive(['coupang', 'smartstore']), SC.commonActive(['smartstore', '11st']), SC.commonActive(['coupang', 'smartstore', '11st']),
+    SC.commonActive(['smartstore', '11st'], { resend: true }), SC.commonActive([]), SC.commonActive(undefined),
+  ], [false, false, false, true, true, false, false, false])
+
+  const pair = (zh, ko = null) => ({ zh, ko })
+  // 옵션별 가격이 다른 상품(3-8 첫째 — 1081981728994 모양): 줄마다 1688 가격이 다르다 → 원화 추가금액은 고객이 줄마다 넣는다(1688 위안은 원화로 바꾸지 않음)
+  const SKUS = [
+    { skuId: '1', values: [{ name: pair('颜色', '색상'), value: pair('黑色', '블랙') }], priceCny: 12.5, stock: 300 },
+    { skuId: '2', values: [{ name: pair('颜色', '색상'), value: pair('白色', '화이트') }], priceCny: 18, stock: 0 },
+  ]
+  const PREP = { export: { projectTitle: '매일 쓰는 머그', title: 'x' }, source: { title: { ko: '머그' }, skus: SKUS }, images: [{ id: 'img1' }, { id: 'img2' }] }
+  const c0 = SC.commonFromPrepare(PREP)
+  eq('처음 공통 값 = 섹션 처음 값과 같은 규칙: 상품명 한글(작업 이름) · 판매가·재고 비움 · 옵션 = 같은 원천 · 대표 이미지 = 첫 사진 · 여백 채우기', [c0.productName, c0.price, c0.stock, c0.opts, c0.repImageId, c0.fit],
+    ['매일 쓰는 머그', null, null, { enabled: true, ...O.marketOptionsFromSource(SKUS) }, 'img1', 'contain'])
+  eq('처음 공통 값: 사진·옵션 없는 상품 = 대표 이미지 null · 옵션 빈 모양(단일상품)', [SC.commonFromPrepare({ export: {}, images: [] }).repImageId, SC.commonFromPrepare({ export: {} }).opts], [null, { enabled: true, groupNames: [], rows: [] }])
+
+  // 공통 가격 → 판매처 칸 (3-8: 금액을 바꾸지 않는다 — 반올림·자르기·임의 숫자 없음)
+  const C = { ...c0, productName: '머그컵 350ml', price: 12900, stock: 30, repImageId: 'img2', fit: 'cover' }
+  C.opts.rows[0].addPrice = 0; C.opts.rows[0].stock = 10
+  C.opts.rows[1].addPrice = 1500; C.opts.rows[1].stock = 4
+  const ss = SC.commonPatch('smartstore', C), e11 = SC.commonPatch('11st', C)
+  eq('스마트스토어 칸: productName·salePrice·stock·repImageId·fit 그대로', ss.form, { productName: '머그컵 350ml', salePrice: 12900, stock: 30, repImageId: 'img2', fit: 'cover' })
+  eq('11번가 칸: productName·price·stock·repImageId·fit 그대로 (판매가 칸 이름만 다름)', e11.form, { productName: '머그컵 350ml', price: 12900, stock: 30, repImageId: 'img2', fit: 'cover' })
+  eq('옵션별 가격이 다른 상품: 줄마다 자기 추가금액·재고 유지 (스마트스토어·11번가 같음)', [ss.opts.rows.map(r => [r.values, r.addPrice, r.stock]), e11.opts.rows.map(r => [r.values, r.addPrice, r.stock])],
+    [[[['블랙'], 0, 10], [['화이트'], 1500, 4]], [[['블랙'], 0, 10], [['화이트'], 1500, 4]]])
+  eq('보낼 모양까지: 판매처 검사 함수 통과 (스마트스토어 조합형 · 11번가 싱글옵션 · 같은 공통 값)', [O.smartstoreOptionProblems(O.optionsPayload(ss.opts), ss.form.salePrice), O.elevenstOptionProblems(O.optionsPayload(e11.opts), e11.form.price)], [[], []])
+  eq('금액은 그대로 넘김: 12,345원 → 11번가 12345 (10원 단위로 반올림하지 않음 — 섹션 빠짐 목록이 "판매가 (10원 단위)"로 막음) · 빈칸은 빈칸', [
+    SC.commonPatch('11st', { ...C, price: 12345 }).form.price, SC.commonPatch('smartstore', { ...C, price: null }).form.salePrice, SC.commonPatch('11st', { ...C, price: '' }).form.price, SC.commonPatch('11st', { ...C, stock: 0 }).form.stock,
+  ], [12345, null, '', 0])
+  eq('옵션은 복사본: 섹션이 고쳐도 공통 값·다른 판매처 값이 안 바뀜', (() => { ss.opts.rows[0].addPrice = 999; ss.opts.groupNames[0] = 'x'; ss.opts.rows[0].values[0] = 'y'; return [C.opts.rows[0].addPrice, C.opts.groupNames[0], C.opts.rows[0].values[0], e11.opts.rows[0].addPrice] })(), [0, '색상', '블랙', 0])
+  eq('옵션 단순 상품(옵션 1개) · 옵션 끔 = 그대로 넘김', [SC.commonPatch('smartstore', { ...C, opts: { enabled: false, groupNames: ['색상'], rows: [{ values: ['블랙'], originals: ['黑色'], addPrice: 0, stock: 5, use: true }] } }).opts.enabled, O.optionsPayload(SC.commonPatch('11st', { ...C, opts: { enabled: false, groupNames: [], rows: [] } }).opts)], [false, null])
+  eq('이 판매처만 다르게: 켠 묶음은 넣지 않음 (상품명 · 판매가 · 재고·옵션 = opts null · 대표 이미지)', [
+    SC.commonPatch('11st', C, { name: true }).form, SC.commonPatch('11st', C, { price: true }).form, SC.commonPatch('smartstore', C, { stock: true }), SC.commonPatch('smartstore', C, { image: true }).form,
+  ], [{ price: 12900, stock: 30, repImageId: 'img2', fit: 'cover' }, { productName: '머그컵 350ml', stock: 30, repImageId: 'img2', fit: 'cover' }, { form: { productName: '머그컵 350ml', salePrice: 12900, repImageId: 'img2', fit: 'cover' }, opts: null }, { productName: '머그컵 350ml', salePrice: 12900, stock: 30 }])
+  eq('공통 대상이 아닌 판매처(쿠팡)는 오류로 멈춤 (조용히 넘어가지 않음)', (() => { try { SC.commonPatch('coupang', C); return 'no-throw' } catch (e) { return /쿠팡|coupang/.test(e.message) } })(), true)
+}
+
 console.log(`\n${pass} 통과 · ${fail} 실패`)
 if (fail) process.exit(1)
