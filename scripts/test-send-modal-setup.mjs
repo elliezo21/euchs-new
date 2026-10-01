@@ -54,6 +54,8 @@ export { default as Coupang } from '@/components/studio/StudioSendCoupang.vue'
 export { default as Cafe24 } from '@/components/studio/StudioSendCafe24.vue'
 export { default as Smartstore } from '@/components/studio/StudioSendSmartstore.vue'
 export { default as Elevenst } from '@/components/studio/StudioSendElevenst.vue'
+export { default as Common } from '@/components/studio/StudioSendCommon.vue'
+export { commonFromPrepare } from '@/lib/studioSendCommon'
 export { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 export { userRole } from '@/lib/auth'
 `)
@@ -319,6 +321,33 @@ if (built?.Elevenst) {
   const c = await render11(cache11({ out: null, in: null }))
   built.userRole.value = 'user'
   eq('11번가 섹션(관리자·스태프): 테스트 판매중지 칸 보임', [c.error, /data-mk-11st-teststop/.test(c.html)], [null, true])
+
+  // ── 공통 정보 (2026-10-01) — 스마트스토어·11번가를 함께 보낼 때 창이 common을 넘긴다. 안 넘기면 예전 그대로 ──
+  const val = (html, attr) => (new RegExp('<input[^>]*' + attr + '[^>]*>').exec(html)?.[0].match(/ value="([^"]*)"/)?.[1]) ?? ''
+  const ssCacheC = { smartstoreCategoriesDone: { categories: [] }, smartstoreAddressesDone: { addresses: [] } }
+  const COMMON = () => { const c = built.commonFromPrepare(PREPARE(true, SOURCE)); c.productName = '공통 머그'; c.price = 12900; c.repImageId = 'img1'; c.fit = 'cover'; c.opts.rows[0].stock = 7; c.opts.rows[1].stock = 3; c.opts.rows[1].addPrice = 1000; return c }
+  const withC = (comp, cache, common) => render({ setup: () => { vueProvide2(built.SEND_CACHE_KEY, cache); return () => h(comp, { prepare: PREPARE(true, SOURCE), common }) } }, {})
+  const hidden = (html, attr) => new RegExp('<(label|div)[^>]*style="display:none;?"[^>]*>(?:(?!</(label|div)>)[\\s\\S])*' + attr).test(html)
+  const ssNo = await withC(built.Smartstore, ssCacheC, null), ssYes = await withC(built.Smartstore, ssCacheC, COMMON())
+  eq('스마트스토어 섹션(common 없음): 예전 그대로 — 공통 안내 없음 · 가려진 칸 없음', [ssNo.error, /data-mk-ss-common/.test(ssNo.html), /display:none/.test(ssNo.html)], [null, false, false])
+  eq('스마트스토어 섹션(common 있음): 안내 + [이 판매처만 다르게] 4개 · 칸에 공통 값(이름·판매가·옵션 재고·추가금액) · 상품명·판매가·옵션·대표 이미지 칸은 가려짐 · 카테고리·배송은 보임', [
+    ssYes.error, /data-mk-ss-common/.test(ssYes.html), (ssYes.html.match(/data-mk-ss-own="/g) || []).length, val(ssYes.html, 'data-mk-ss-name'), val(ssYes.html, 'data-mk-ss-price'), val(ssYes.html, 'data-mk-opt-stock="0"'), val(ssYes.html, 'data-mk-opt-price="1"'),
+    hidden(ssYes.html, 'data-mk-ss-name'), hidden(ssYes.html, 'data-mk-ss-price'), hidden(ssYes.html, 'data-mk-ss-images'), /<div[^>]*style="display:none;?"[^>]*data-mk-ss-options|data-mk-ss-options[^>]*style="display:none/.test(ssYes.html), hidden(ssYes.html, 'data-mk-ss-category-box'),
+    /data-mk-ss-preview-row="판매가"[\s\S]{0,200}12,900원/.test(ssYes.html), /data-mk-ss-preview-row="재고 수량"[\s\S]{0,200}10개 \(옵션 재고 합계\)/.test(ssYes.html),
+  ], [null, true, 4, '공통 머그', '12900', '7', '1000', true, true, true, true, false, true, true])
+  const cache11C = { elevenstCategoriesDone: { categories: [] }, elevenstAddressesDone: { outAddresses: [], inAddresses: [] } }
+  const e11No = await withC(built.Elevenst, cache11C, null), e11Yes = await withC(built.Elevenst, cache11C, COMMON())
+  eq('11번가 섹션(common 없음): 예전 그대로 — 공통 안내 없음 · 가려진 칸 없음', [e11No.error, /data-mk-11st-common/.test(e11No.html), /display:none/.test(e11No.html)], [null, false, false])
+  eq('11번가 섹션(common 있음): 안내 + 4개 · 칸에 공통 값(price 칸) · 상품명·판매가·대표 이미지 가려짐 · 브랜드는 보임 · 요약 표 판매가', [
+    e11Yes.error, /data-mk-11st-common/.test(e11Yes.html), (e11Yes.html.match(/data-mk-11st-own="/g) || []).length, val(e11Yes.html, 'data-mk-11st-name'), val(e11Yes.html, 'data-mk-11st-price'), val(e11Yes.html, 'data-mk-opt-price="1"'),
+    hidden(e11Yes.html, 'data-mk-11st-name'), hidden(e11Yes.html, 'data-mk-11st-price'), hidden(e11Yes.html, 'data-mk-11st-images'), hidden(e11Yes.html, 'data-mk-11st-brand'), /data-mk-11st-preview-row="판매가"[\s\S]{0,200}12,900원/.test(e11Yes.html),
+  ], [null, true, 4, '공통 머그', '12900', '1000', true, true, true, false, true])
+  const cm = await render(built.Common, { common: COMMON(), prepare: PREPARE(true, SOURCE), markets: ['smartstore', '11st'], coupang: true })
+  eq('공통 정보 칸: 예외 없음 · 상품명·판매가·옵션 표(공용 영역)·대표 이미지 · 쿠팡 안내 한 줄 · 추가금액 범위 = 두 판매처가 겹치는 곳(-6,450 ~ +6,450)', [
+    cm.error, val(cm.html, 'data-mk-cm-name'), val(cm.html, 'data-mk-cm-price'), /data-mk-opt-table/.test(cm.html), /data-mk-cm-images/.test(cm.html), /data-mk-cm-coupang[^>]*>쿠팡은 아래 쿠팡 칸에서 따로 입력합니다\.</.test(cm.html), /data-mk-opt-range[^>]*>추가금액은 -6,450원 ~ \+6,450원/.test(cm.html), /data-mk-cm-desc[^>]*>[^<]*스마트스토어·11번가/.test(cm.html),
+  ], [null, '공통 머그', '12900', true, true, true, true, true])
+  const cmNoCp = await render(built.Common, { common: COMMON(), prepare: PREPARE(true, SOURCE), markets: ['smartstore', '11st'], coupang: false })
+  eq('공통 정보 칸: 쿠팡을 체크하지 않으면 쿠팡 안내 없음', /data-mk-cm-coupang/.test(cmNoCp.html), false)
 
   // ── 등록 템플릿 (2026-10-01) — 기본 템플릿 자동 선택 · 고르면 칸이 채워짐 · 조건부 무료 ──
   const val11 = (html, attr) => (new RegExp('<input[^>]*' + attr + '[^>]*>').exec(html)?.[0].match(/ value="([^"]*)"/)?.[1]) ?? ''

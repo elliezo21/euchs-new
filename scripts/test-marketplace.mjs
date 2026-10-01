@@ -2344,7 +2344,7 @@ function elevenstRelay(u, method, opts) {
   // 화면 연결 — 스마트스토어 섹션만 옵션 영역을 쓴다 (11번가는 근거 확정 전이라 보류 · 쿠팡은 손대지 않음)
   const ss = read('src/components/studio/StudioSendSmartstore.vue'), area = read('src/components/studio/StudioSendOptions.vue')
   eq('스마트스토어 섹션: 옵션 영역 · 같은 원천(prepare.source.skus) · 화면 검사 = 서버 함수 · 옵션을 쓸 때만 options 보냄 · 재고 칸 대신 합계', [
-    /<StudioSendOptions v-if="opts\.rows\.length"/.test(ss), /marketOptionsFromSource\(props\.prepare\?\.source\?\.skus\)/.test(ss), /smartstoreOptionProblems\(/.test(ss), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(ss), /<label v-if="!useOptions" class="block">/.test(ss),
+    /<StudioSendOptions v-if="opts\.rows\.length"/.test(ss), /marketOptionsFromSource\(props\.prepare\?\.source\?\.skus\)/.test(ss), /smartstoreOptionProblems\(/.test(ss), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(ss), /<label v-if="!useOptions"( v-show="showOwn\('stock'\)")? class="block">/.test(ss),
   ], [true, true, true, true, true])
   eq('옵션 영역: 옵션 사용 끄기 · 판매 체크 · 값·추가금액·재고 칸 · 가져온 원문 · 한 번에 넣기 · 1688 재고는 툴팁만', [/data-mk-opt-enabled/.test(area), /data-mk-opt-use/.test(area), /data-mk-opt-value/.test(area), /data-mk-opt-price/.test(area), /data-mk-opt-stock/.test(area), /가져온 옵션:/.test(area), /data-mk-opt-bulk-apply/.test(area), /`1688 재고 \$\{r\.stock1688\}`/.test(area)], [true, true, true, true, true, true, true, true])
   eq('쿠팡 섹션·서버는 공용 옵션을 쓰지 않음 (쿠팡 출력 그대로)', /StudioSendOptions|_marketOptions/.test(read('src/components/studio/StudioSendCoupang.vue') + read('api/_coupang.js') + read('api/_coupangFields.js')), false)
@@ -2405,7 +2405,7 @@ function elevenstRelay(u, method, opts) {
 
   const el11 = read('src/components/studio/StudioSendElevenst.vue')
   eq('11번가 섹션: 옵션 영역(같은 컴포넌트) · 같은 원천 · 화면 검사 = 서버 함수 · 옵션 쓸 때만 options · 재고 칸 대신 합계 · 규칙 안내 · 요약 "옵션" 줄', [
-    /<StudioSendOptions :model="opts"[^>]*:note="OPTION_NOTE"/.test(el11), /marketOptionsFromSource\(props\.prepare\?\.source\?\.skus\)/.test(el11), /elevenstOptionProblems\(/.test(el11), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(el11), /<label v-if="!useOptions" class="block">/.test(el11), /0원인 옵션이 1개 이상/.test(el11), /label: '옵션', value: optionsSummary\.value/.test(el11),
+    /<StudioSendOptions :model="opts"[^>]*:note="OPTION_NOTE"/.test(el11), /marketOptionsFromSource\(props\.prepare\?\.source\?\.skus\)/.test(el11), /elevenstOptionProblems\(/.test(el11), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(el11), /<label v-if="!useOptions"( v-show="showOwn\('stock'\)")? class="block">/.test(el11), /0원인 옵션이 1개 이상/.test(el11), /label: '옵션', value: optionsSummary\.value/.test(el11),
   ], [true, true, true, true, true, true, true])
 }
 
@@ -2482,6 +2482,19 @@ function elevenstRelay(u, method, opts) {
   eq('창 배선: 보내기 탭이 그 상품의 판매처별 최근 전송을 넘김 · 확인 전에는 빠짐 목록(보내기 꺼짐) · 브라우저 confirm/alert 없음 · 다시 보내기 창은 안 씀', [
     /:sent="sentOfOpen"/.test(view), /sendsByExport\(sends\.value\)\[sendExportId\.value\]/.test(view), /for \(const key of confirmKeys\.value\) out\.push\(/.test(modal), /window\.confirm|window\.alert|\bconfirm\(|\balert\(/.test(modal), /props\.prepare\?\.resend \? \{\} : alreadySent\(props\.sent\)/.test(modal), /sent: sentMap\.value/.test(modal),
   ], [true, true, true, false, true, true])
+  // ── 공통 정보 화면 연결 (스마트스토어·11번가만 · 쿠팡은 자기 칸) ──
+  eq('공통 옵션 추가금액 범위 = 두 판매처 범위가 겹치는 곳 (12,900원: 스마트스토어 ±6,450 · 11번가 -6,450~+12,900 → -6,450~+6,450) · 판매가 없음 = null · 1곳이면 그 판매처 범위', [
+    SC.commonOptionRange(['smartstore', '11st'], 12900), SC.commonOptionRange(['smartstore', '11st'], 5000), SC.commonOptionRange(['smartstore', '11st'], null), SC.commonOptionRange(['11st'], 12900), SC.commonOptionRange(['coupang'], 12900),
+  ], [{ min: -6450, max: 6450 }, { min: -2500, max: 5000 }, null, { min: -6450, max: 12900 }, null])
+  {
+    const ssv = read('src/components/studio/StudioSendSmartstore.vue'), e11v = read('src/components/studio/StudioSendElevenst.vue'), cpv = read('src/components/studio/StudioSendCoupang.vue')
+    eq('창: 공통 정보는 대상 2곳 이상일 때만(commonActive) · common은 스마트스토어·11번가 섹션에만 · 쿠팡 섹션은 common을 모름', [
+      /useCommon = computed\(\(\) => !!common\.value && commonActive\(picked\.value, \{ resend: !!props\.prepare\?\.resend \}\)\)/.test(modal), /v-bind="COMMON_MARKETS\.includes\(key\) \? \{ common: useCommon \? common : null \} : \{\}"/.test(modal), /common/.test(cpv.replace(/\/\/.*$/gm, '')),
+    ], [true, true, false])
+    eq('섹션: 공통 값은 commonPatch로 자기 f·opts에 옮김(빠짐 목록·요약·보내기는 예전 그대로) · 보낸 뒤(done)는 안 옮김 · submit 본문은 공통 정보를 직접 안 봄', [
+      /commonPatch\('smartstore', props\.common, own\)/.test(ssv), /commonPatch\('11st', props\.common, own\)/.test(e11v), [ssv, e11v].every(s => /if \(!props\.common \|\| done\.value\) return/.test(s)), [ssv, e11v].every(s => !/props\.common/.test(s.slice(s.indexOf('async function submit()'), s.indexOf('async function submit()') + 3000))),
+    ], [true, true, true, true])
+  }
   eq('섹션 4개 모두 sendError를 내놓음 (창 결과 표용 — 읽기만)', ['Coupang', 'Smartstore', 'Elevenst', 'Cafe24'].map(n => /defineExpose\(\{ missing, busy, done, submit, sendError \}\)/.test(read(`src/components/studio/StudioSend${n}.vue`))), [true, true, true, true])
 }
 

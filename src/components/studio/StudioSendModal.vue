@@ -35,8 +35,11 @@
 
       <!-- 판매처별 섹션 — 연결된 판매처마다 하나 만들어 두고, 체크된 것만 보인다(v-show).
            체크를 풀었다 다시 켜도 넣었던 값이 남는다(섹션을 없애지 않는다). 판매처가 늘면 SECTIONS에 컴포넌트를 더한다 -->
+      <!-- 공통 정보 (2026-10-01) — 스마트스토어·11번가를 함께 체크했을 때만. 그 두 섹션은 이 값을 자기 칸에 옮겨 담는다(commonPatch). 쿠팡은 자기 칸 그대로 -->
+      <StudioSendCommon v-if="useCommon" :key="`common:${openSeq}`" :common="common" :prepare="prepare" :markets="commonMarkets(picked)" :coupang="picked.includes('coupang')" :disabled="sending" />
+
       <template v-for="key in mounted" :key="`${openSeq}:${key}`">
-        <component :is="SECTIONS[key]" v-show="picked.includes(key)" :ref="el => setSection(key, el)" :prepare="prepare" :data-mk-s-section="key" />
+        <component :is="SECTIONS[key]" v-show="picked.includes(key)" :ref="el => setSection(key, el)" :prepare="prepare" v-bind="COMMON_MARKETS.includes(key) ? { common: useCommon ? common : null } : {}" :data-mk-s-section="key" />
       </template>
 
       <!-- 고른 판매처의 섹션을 그리지 못함 — 보내기를 막고 한 줄만 (원인은 콘솔) -->
@@ -94,6 +97,8 @@ import StudioSendCoupang from '@/components/studio/StudioSendCoupang.vue'
 import StudioSendCafe24 from '@/components/studio/StudioSendCafe24.vue'
 import StudioSendSmartstore from '@/components/studio/StudioSendSmartstore.vue'
 import StudioSendElevenst from '@/components/studio/StudioSendElevenst.vue'
+import StudioSendCommon from '@/components/studio/StudioSendCommon.vue'
+import { COMMON_MARKETS, commonMarkets, commonActive, commonFromPrepare } from '@/lib/studioSendCommon'
 import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, bulkSendLabel, sendResultRows, alreadySent, SEND_BADGE_CLASS, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { SEND_STATUS_LABEL } from '@/lib/studioMarketplace'
 import { linkStates } from '@/lib/studioMarketLinks'
@@ -131,6 +136,9 @@ const nameOf = key => MARKETS.find(m => m.key === key)?.name || key
 const sentMap = computed(() => (props.prepare?.resend ? {} : alreadySent(props.sent)))
 const sentOk = ref({}) // 체크한 "이미 보냄" 판매처 중 [그래도 다시 보내기]를 누른 곳
 const confirmKeys = computed(() => picked.value.filter(k => sentMap.value[k] && !sentOk.value[k] && !sections[k]?.done))
+// 공통 정보 — 창을 열 때(준비 데이터가 올 때) 새로 만든다. 스마트스토어·11번가를 함께 체크했고 다시 보내기가 아닐 때만 쓴다(commonActive)
+const common = ref(null)
+const useCommon = computed(() => !!common.value && commonActive(picked.value, { resend: !!props.prepare?.resend }))
 function setSection(key, el) {
   if (el) sections[key] = el
   else delete sections[key]
@@ -145,6 +153,7 @@ function resetForPrepare() {
   results.value = {}
   runKeys.value = []
   sentOk.value = {}
+  common.value = props.prepare ? commonFromPrepare(props.prepare) : null
   for (const k of Object.keys(sections)) delete sections[k]
   checked.value = props.prepare ? initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend, sent: sentMap.value }) : {}
 }

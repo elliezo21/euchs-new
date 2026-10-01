@@ -9,7 +9,7 @@
  * [판매처별로 다르게] own = { name|price|stock|image: true } — 켠 묶음은 공통 값을 넣지 않는다(섹션 칸에서 따로 고친다)
  */
 import { pickKoreanName } from '../../api/_coupangFields.js'
-import { marketOptionsFromSource } from '../../api/_marketOptions.js'
+import { marketOptionsFromSource, ssOptionPriceRange, elevenstOptionPriceRange } from '../../api/_marketOptions.js'
 
 export const COMMON_MARKETS = ['smartstore', '11st']
 export const COMMON_GROUPS = [
@@ -28,6 +28,17 @@ export const COUPANG_COMMON_NOTE = '쿠팡은 아래 쿠팡 칸에서 따로 입
 /** 공통 정보를 쓸지 — 공통 대상 판매처를 2곳 이상 체크 · 다시 보내기가 아님 */
 export const commonMarkets = picked => (Array.isArray(picked) ? picked : []).filter(k => COMMON_MARKETS.includes(k))
 export const commonActive = (picked, { resend = false } = {}) => !resend && commonMarkets(picked).length >= 2
+
+/**
+ * 공통 옵션 추가금액 범위 — 체크한 판매처 범위가 모두 겹치는 곳(어느 판매처에도 통과하는 값). 범위 규칙은 판매처 함수 그대로(api/_marketOptions.js)
+ * @returns {{ min, max } | null}  판매가가 없거나 판매처가 없으면 null
+ */
+const RANGE_OF = { smartstore: ssOptionPriceRange, '11st': elevenstOptionPriceRange }
+export function commonOptionRange(markets, price) {
+  const list = commonMarkets(markets).map(k => RANGE_OF[k](price))
+  if (!list.length || list.some(r => !r)) return null
+  return { min: Math.max(...list.map(r => r.min)), max: Math.min(...list.map(r => r.max)) }
+}
 
 /** 옵션 모양 복사 (공통 ↔ 섹션이 서로의 줄을 고치지 않게) */
 export function cloneOptions(o) {

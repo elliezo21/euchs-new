@@ -36,9 +36,18 @@
       <a :href="SELLER_OFFICE_URL" target="_blank" rel="noopener noreferrer" class="st-link" data-mk-11st-office>셀러오피스 열기</a>
     </div>
 
+    <!-- 공통 정보를 쓰는 중 (2026-10-01) — 이 판매처만 다르게 할 묶음을 켜면 아래에 그 칸이 다시 보인다 -->
+    <div v-if="common" class="st-surface st-border rounded-[10px] p-3 space-y-1.5" data-mk-11st-common>
+      <p class="text-[13px] st-ink break-keep">상품명·판매가·재고·옵션·대표 이미지는 위 공통 정보 값을 사용합니다.</p>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] st-ink">
+        <span class="st-desc-sm">이 판매처만 다르게:</span>
+        <label v-for="g in COMMON_GROUPS" :key="g.key" class="flex items-center gap-1.5"><input v-model="own[g.key]" type="checkbox" :disabled="!!done" :data-mk-11st-own="g.key" /> {{ g.label }}</label>
+      </div>
+    </div>
+
     <!-- 상품명 · 브랜드 -->
     <div ref="nameEl" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <label class="block sm:col-span-2">
+      <label v-show="showOwn('name')" class="block sm:col-span-2">
         <span class="st-label">상품명 *</span>
         <input v-model="f.productName" type="text" class="st-input w-full" :maxlength="PRODUCT_NAME_MAX" placeholder="상품명을 입력하세요" :disabled="!!done" data-mk-11st-name />
         <span class="st-desc-sm block mt-1">{{ [...String(f.productName || '')].length }} / {{ PRODUCT_NAME_MAX }}자</span>
@@ -67,29 +76,29 @@
     </div>
 
     <!-- 판매가 · 재고 -->
-    <div ref="priceEl" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <label class="block">
+    <div v-show="showOwn('price') || showOwn('stock')" ref="priceEl" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <label v-show="showOwn('price')" class="block">
         <span class="st-label">판매가 *</span>
         <input v-model.number="f.price" type="number" min="10" step="10" class="st-input w-full" placeholder="원 (10원 단위)" :disabled="!!done" data-mk-11st-price />
       </label>
-      <label v-if="!useOptions" class="block">
+      <label v-if="!useOptions" v-show="showOwn('stock')" class="block">
         <span class="st-label">재고 수량 *</span>
         <input v-model.number="f.stock" type="number" min="1" step="1" class="st-input w-full" placeholder="개" :disabled="!!done" data-mk-11st-stock />
         <span class="st-desc-sm block mt-1">11번가는 재고 0으로 등록할 수 없습니다.</span>
       </label>
-      <div v-else class="block" data-mk-11st-stock-total>
+      <div v-else v-show="showOwn('stock')" class="block" data-mk-11st-stock-total>
         <span class="st-label">재고 수량</span>
         <p class="text-[13px] st-ink mt-1">판매할 옵션 재고 합계 {{ optionStockTotal.toLocaleString('ko-KR') }}개</p>
       </div>
     </div>
 
     <!-- 옵션 (싱글옵션 한 칸 — 종류가 여럿이면 "/"로 합침) — 가져온 상품에 옵션이 있을 때만. 규칙·근거 api/_marketOptions.js -->
-    <div v-if="opts.rows.length" ref="optionsEl">
+    <div v-if="opts.rows.length" v-show="showOwn('stock')" ref="optionsEl">
       <StudioSendOptions :model="opts" :disabled="!!done" :range="optionRange" :note="OPTION_NOTE" data-mk-11st-options />
     </div>
 
     <!-- 대표 이미지 -->
-    <div ref="imageEl" class="block">
+    <div v-show="showOwn('image')" ref="imageEl" class="block">
       <span class="st-label">대표 이미지 *</span>
       <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
       <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-11st-images>
@@ -267,8 +276,9 @@
 // 금액은 기본값 없이 비워 둔다(임의 숫자 없음). KC 인증은 판매자가 직접 고른다(기본값 없음)
 // 카테고리·주소록은 창이 들고 있는 목록(sendCache)을 같이 쓴다 — 창을 다시 열어도 다시 받지 않는다
 // 등록 템플릿(2026-10-01): 마켓 공용 값(api/_listingTemplates.js) ↔ 이 섹션 칸 변환은 api/_elevenstFields.js에서만. 출고지·반품지는 템플릿에 없다(주소록 + 마지막 사용 기억 그대로)
-import { ref, reactive, computed, onMounted, inject, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, inject, nextTick } from 'vue'
 import { listElevenstCategories, listElevenstAddresses, sendElevenstProduct, isNotReady } from '@/lib/studioMarketplace'
+import { COMMON_GROUPS, commonPatch } from '@/lib/studioSendCommon'
 import { listListingTemplates, createListingTemplate } from '@/lib/studioListingTemplates'
 import { TEMPLATE_KINDS, TEMPLATE_NAME_MAX, pickDefaultTemplate, uniqueTemplateName } from '../../../api/_listingTemplates.js'
 import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
@@ -285,7 +295,8 @@ import StudioSendOptions from './StudioSendOptions.vue'
 
 const CAT_SHOWN = 200
 const OPTION_NOTE = '11번가는 옵션 종류가 여럿이면 "/"로 합쳐 한 칸으로 등록합니다(예: 색상/사이즈 · 블랙/M). 추가금액 0원인 옵션이 1개 이상 있어야 하고, 판매할 옵션 재고는 1개 이상이어야 합니다.'
-const props = defineProps({ prepare: { type: Object, required: true } })
+// common = 창의 공통 정보(2026-10-01) — 스마트스토어와 함께 보낼 때만 온다. null이면 예전 그대로(이 섹션 칸에 직접 넣는다)
+const props = defineProps({ prepare: { type: Object, required: true }, common: { type: Object, default: null } })
 
 const busy = ref('')
 const done = ref(null)
@@ -333,6 +344,18 @@ const useOptions = computed(() => opts.value.enabled && opts.value.rows.length >
 const optionsOut = computed(() => (useOptions.value ? optionsPayload(opts.value) : null))
 const optionStockTotal = computed(() => (optionsOut.value?.rows || []).reduce((s, r) => s + (Number.isInteger(r.stock) ? r.stock : 0), 0))
 const optionRange = computed(() => elevenstOptionPriceRange(f.value.price))
+
+// ── 공통 정보 (2026-10-01) — 스마트스토어 섹션과 같은 방식. 칸에 들어간 값은 예전 f·opts 그대로라 빠짐 목록(10원 단위 등)·요약 표·보내기는 바뀌지 않는다
+const own = reactive(Object.fromEntries(COMMON_GROUPS.map(g => [g.key, false])))
+const showOwn = key => !props.common || own[key]
+function syncCommon() {
+  if (!props.common || done.value) return
+  const p = commonPatch('11st', props.common, own)
+  Object.assign(f.value, p.form)
+  if (p.opts) opts.value = p.opts
+}
+watch(() => props.common, syncCommon, { deep: true, immediate: true })
+watch(own, syncCommon)
 
 const catMatches = computed(() => {
   const q = catQuery.value.trim().toLowerCase()
@@ -550,7 +573,9 @@ const FIELD_HINTS = [
 ]
 function scrollToProblem(message) {
   const hit = FIELD_HINTS.find(([re]) => re.test(String(message || '')))
-  const target = hit?.[1]?.value || errorEl.value
+  // 공통 정보를 쓰는 중이면 그 칸이 가려져 있다(v-show) → 가려진 칸 대신 섹션 맨 위 사유 줄로 (2026-10-01)
+  const field = hit?.[1]?.value
+  const target = field && field.offsetParent !== null ? field : errorEl.value
   nextTick(() => target?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }))
 }
 

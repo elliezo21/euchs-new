@@ -28,8 +28,17 @@
       <p v-if="lt.message" class="text-[12px] break-keep" :class="lt.error ? 'st-danger-text font-bold' : 'st-muted'" data-mk-ss-lt-msg>{{ lt.message }}</p>
     </div>
 
+    <!-- 공통 정보를 쓰는 중 (2026-10-01) — 이 판매처만 다르게 할 묶음을 켜면 아래에 그 칸이 다시 보인다 -->
+    <div v-if="common" class="st-surface st-border rounded-[10px] p-3 space-y-1.5" data-mk-ss-common>
+      <p class="text-[13px] st-ink break-keep">상품명·판매가·재고·옵션·대표 이미지는 위 공통 정보 값을 사용합니다.</p>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] st-ink">
+        <span class="st-desc-sm">이 판매처만 다르게:</span>
+        <label v-for="g in COMMON_GROUPS" :key="g.key" class="flex items-center gap-1.5"><input v-model="own[g.key]" type="checkbox" :disabled="!!done" :data-mk-ss-own="g.key" /> {{ g.label }}</label>
+      </div>
+    </div>
+
     <!-- 상품명 -->
-    <label class="block">
+    <label v-show="showOwn('name')" class="block">
       <span class="st-label">상품명 *</span>
       <input v-model="f.productName" type="text" class="st-input w-full" maxlength="300" placeholder="상품명을 입력하세요" :disabled="!!done" data-mk-ss-name />
     </label>
@@ -51,27 +60,27 @@
     </div>
 
     <!-- 판매가 · 재고 -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <label class="block">
+    <div v-show="showOwn('price') || showOwn('stock')" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <label v-show="showOwn('price')" class="block">
         <span class="st-label">판매가 *</span>
         <input v-model.number="f.salePrice" type="number" min="1" step="1" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-ss-price />
       </label>
-      <label v-if="!useOptions" class="block">
+      <label v-if="!useOptions" v-show="showOwn('stock')" class="block">
         <span class="st-label">재고 수량 *</span>
         <input v-model.number="f.stock" type="number" min="0" step="1" class="st-input w-full" placeholder="개" :disabled="!!done" data-mk-ss-stock />
         <span class="st-desc-sm block mt-1">0이면 품절로 등록됩니다.</span>
       </label>
-      <div v-else class="block" data-mk-ss-stock-total>
+      <div v-else v-show="showOwn('stock')" class="block" data-mk-ss-stock-total>
         <span class="st-label">재고 수량</span>
         <p class="text-[13px] st-ink mt-1">판매할 옵션 재고 합계 {{ optionStockTotal.toLocaleString('ko-KR') }}개</p>
       </div>
     </div>
 
     <!-- 옵션 (조합형) — 가져온 상품에 옵션이 있을 때만. 규칙·근거 api/_marketOptions.js -->
-    <StudioSendOptions v-if="opts.rows.length" :model="opts" :disabled="!!done" :range="optionRange" data-mk-ss-options />
+    <StudioSendOptions v-if="opts.rows.length" v-show="showOwn('stock')" :model="opts" :disabled="!!done" :range="optionRange" data-mk-ss-options />
 
     <!-- 대표 이미지 -->
-    <div class="block">
+    <div v-show="showOwn('image')" class="block">
       <span class="st-label">대표 이미지 *</span>
       <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
       <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-ss-images>
@@ -222,8 +231,9 @@
 // 판매 상태: 등록 때는 판매중(SALE)만 가능(문서) → 기본 전시중지(SUSPENSION)로 노출하지 않는다. 필수값은 화면(missing)이 먼저 막고 서버가 다시 검사한다
 // 카테고리·주소록은 창(StudioSendModal)이 화면이 떠 있는 동안 들고 있는 목록(sendCache)을 같이 쓴다 — 창을 다시 열어도 다시 받지 않는다
 // 등록 템플릿(2026-10-01): 11번가 섹션과 같은 공용 템플릿(api/_listingTemplates.js) — 이 섹션 칸 변환은 api/_smartstoreFields.js에서만. 택배사·출고지·반품지는 템플릿에 없다(주소록 + 마지막 사용 기억 그대로)
-import { ref, reactive, computed, onMounted, inject, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, inject, nextTick } from 'vue'
 import { listSmartstoreCategories, listSmartstoreAddresses, sendSmartstoreProduct, isNotReady } from '@/lib/studioMarketplace'
+import { COMMON_GROUPS, commonPatch } from '@/lib/studioSendCommon'
 import { listListingTemplates, createListingTemplate } from '@/lib/studioListingTemplates'
 import { TEMPLATE_KINDS, TEMPLATE_NAME_MAX, pickDefaultTemplate, uniqueTemplateName } from '../../../api/_listingTemplates.js'
 import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
@@ -238,7 +248,8 @@ import StudioSendOptions from './StudioSendOptions.vue'
 const CAT_SHOWN = 200 // 선택 목록에 한 번에 보이는 카테고리 수 (검색으로 좁힌다)
 const DETAIL_REF = '상세페이지 참조'
 const DISPLAY_LABEL = { SUSPENSION: '전시중지', ON: '전시중' }
-const props = defineProps({ prepare: { type: Object, required: true } })
+// common = 창의 공통 정보(2026-10-01) — 11번가와 함께 보낼 때만 온다. null이면 예전 그대로(이 섹션 칸에 직접 넣는다)
+const props = defineProps({ prepare: { type: Object, required: true }, common: { type: Object, default: null } })
 
 const busy = ref('')
 const done = ref(null)
@@ -276,6 +287,19 @@ const useOptions = computed(() => opts.value.enabled && opts.value.rows.length >
 const optionsOut = computed(() => (useOptions.value ? optionsPayload(opts.value) : null))
 const optionStockTotal = computed(() => (optionsOut.value?.rows || []).reduce((s, r) => s + (Number.isInteger(r.stock) ? r.stock : 0), 0))
 const optionRange = computed(() => ssOptionPriceRange(f.value.salePrice))
+
+// ── 공통 정보 (2026-10-01) — 창이 common을 주면 상품명·판매가·재고·옵션·대표 이미지를 그 값으로 채우고 칸을 가린다.
+//    [이 판매처만 다르게]를 켠 묶음(own)은 채우지 않고 칸을 다시 보인다. 칸에 들어간 값은 예전 f·opts 그대로라 빠짐 목록·요약 표·보내기는 바뀌지 않는다
+const own = reactive(Object.fromEntries(COMMON_GROUPS.map(g => [g.key, false])))
+const showOwn = key => !props.common || own[key]
+function syncCommon() {
+  if (!props.common || done.value) return
+  const p = commonPatch('smartstore', props.common, own)
+  Object.assign(f.value, p.form)
+  if (p.opts) opts.value = p.opts
+}
+watch(() => props.common, syncCommon, { deep: true, immediate: true })
+watch(own, syncCommon)
 
 const isWon = (v, min) => Number.isInteger(v) && v >= min
 const catMatches = computed(() => {
