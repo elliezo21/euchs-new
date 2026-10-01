@@ -42,6 +42,9 @@
  *   cafe24_send       { exportId, productName, price, categoryNo?, repImageId, fit? } → 토큰 갱신(필요하면) → 이미지 업로드(대표 + 상세) → 상품 등록(진열·판매 안 함) → marketplace_sends(cafe24, registered) → { sendId, productNo, status, adminUrl }
  *   smartstore_categories → { categories:[{ id, name, wholeName }] }  (리프 카테고리 — 2026-10-01 스마트스토어 보내기)
  *   smartstore_addresses  → { addresses:[{ id, name, type, address, phone, overseas }], last:{ shipping, return }, defaults:{ shipping, return } }  (판매자 주소록 · last = 마지막 등록 성공 때 주소)
+ *   elevenst_categories → { categories:[{ id, name, wholeName }] } (최하위만 — 11번가 공개 조회)
+ *   elevenst_addresses  → { outAddresses, inAddresses:[{ id, name, address, phone }], last:{ out, in }, defaults:{ out, in } } (판매자 주소록 — 읽기만)
+ *   elevenst_send       { exportId, productName, brand?, categoryId, categoryName?, price, stock, repImageId, fit?, vat, minorOk?, kc, delivery, asDetail, rtngExchDetail, notice, testStop?(관리자만) } → { sendId, productNo, status:'registered', stopped }
  *   smartstore_send   { exportId, productName, salePrice, stock, leafCategoryId, categoryName?, repImageId, fit?, display?('SUSPENSION' 기본|'ON'), delivery(+ shippingOverseas), afterService, origin, notice, customsTaxType?(해외 출고지면 필수) }
  *                     → 토큰 → marketplace_sends(smartstore, sending) → 이미지 업로드(대표 + 상세, 네이버 주소) → 상품 등록 → registered(원상품번호·채널상품번호) → { sendId, originProductNo, channelProductNo, status }
  * GET ?t={토큰}  (로그인 없음 — 쿠팡이 이미지를 내려받는 짧은 주소, _marketplaceCrypto 토큰 30분) → 파일 바이트 그대로 (302 아님)
@@ -60,7 +63,11 @@ import { extractFacts, factTexts, withKo } from './_studioFacts.js'
 import { resendPlan } from './_coupangFields.js'
 import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand, detailImagePlans, formFromBody, DETAIL_MAX_BYTES } from './_coupangFields.js'
 import { renderDetailPiece, shrinkBytes, renderSquare } from './_coupangImage.js'
-import { verifyElevenstKey, ElevenstError } from './_elevenst.js'
+import {
+  verifyElevenstKey, ElevenstError, elevenstCall, ELEVENST_PATHS, ELEVENST_CATEGORY_URL, decodeXmlBytes, normalizeElevenstCategories, normalizeElevenstAddresses,
+  translateElevenstApi, buildElevenstProduct, elevenstDetailImageUrls, parseClientMessage, lastElevenstAddresses,
+} from './_elevenst.js'
+import { pickElevenstAddress } from './_elevenstFields.js'
 import {
   smartstoreToken, SmartstoreError, smartstoreApi, SS_PATHS, buildSmartstoreProduct, normalizeSsCategories, normalizeAddressBooks, defaultAddress, uploadedImageUrls, productNosOf,
   imageMime, planUploads, buildImageMultipart, UPLOAD_IMAGE_MAX, DETAIL_IMAGE_MAX, DISPLAY_STATUSES,
@@ -798,6 +805,172 @@ async function smartstoreSend(ctx, body, res) {
   return res.status(200).json({ sendId, originProductNo: nos.originProductNo, channelProductNo: nos.channelProductNo, sellerProductId: nos.originProductNo, status: 'registered', display })
 }
 
+// ── 11번가 상품 보내기 (2026-10-01) ── 규칙·근거는 api/_elevenst.js · api/_elevenstFields.js
+// 카테고리 = 11번가 공개 조회(키·중계 없음) · 출고지/반품지·등록·판매중지 = 연결과 같은 중계 + openapikey(셀러 키). 판매자 주소록은 읽기만
+// 기록: marketplace_sends(market '11st', sending → registered / failed, seller_product_id = 11번가 상품번호)
+//   SQL docs/sql/2026-10-01-marketplace-sends-11st.sql 실행 전이면 기록을 만들 때 503 marketplace_sql_missing (11번가에 아무것도 보내기 전)
+const ELEVENST_CATEGORY_TIMEOUT_MS = 25000
+function elevenstFail(res, e, where) {
+  if (!(e instanceof ElevenstError)) throw e
+  if (NOT_READY_CODES.includes(e.code)) console.error(`[marketplace] 11번가 ${where} 중계 문제 ${e.code} (HTTP ${e.status}): ${e.raw} — MARKETPLACE_RELAY_URL·SECRET·relay.js 11st 대상 확인`)
+  else console.warn(`[marketplace] 11번가 ${where} 실패 ${e.code} (HTTP ${e.status}): ${e.raw}`)
+  return sendError(res, e.status === 429 ? 429 : 502, e.code, e.message)
+}
+/** 호출 재료 { relayUrl, relaySecret, apiKey, breakerKey } — 연결 전·복호화 실패면 응답을 보내고 null */
+async function elevenstCredentials(ctx, res) {
+  const encKey = encKeyOr(res)
+  if (!encKey) return null
+  const row = await oneAccount(ctx, ELEVENST, `${ELEVENST_PUBLIC},access_key_enc`)
+  if (!row?.access_key_enc) { sendError(res, 409, 'not_connected', '먼저 11번가를 연결하세요.'); return null }
+  let apiKey
+  try { apiKey = decryptSecret(row.access_key_enc, encKey) } catch (e) {
+    console.error('[marketplace] 11번가 키 복호화 실패:', e.message)
+    sendError(res, 500, 'decrypt_failed', '저장된 연결 정보를 읽지 못했습니다. 연결을 해제하고 다시 연결하세요.')
+    return null
+  }
+  const m = marketConfig()
+  return { relayUrl: m.relayUrl, relaySecret: m.relaySecret, apiKey, breakerKey: ctx.userId }
+}
+async function elevenstCategories(ctx, body, res) {
+  const cred = await elevenstCredentials(ctx, res) // 연결된 사람만 (카테고리 조회 자체는 키가 필요 없다)
+  if (!cred) return
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ELEVENST_CATEGORY_TIMEOUT_MS)
+  let r, buf
+  try {
+    r = await fetch(ELEVENST_CATEGORY_URL, { headers: { Accept: 'application/xml' }, signal: controller.signal })
+    buf = Buffer.from(await r.arrayBuffer())
+  } catch (e) {
+    console.error('[marketplace] 11번가 카테고리 조회 실패(연결):', e?.name === 'AbortError' ? 'timeout' : e?.message)
+    return sendError(res, 502, 'market_server', '판매처가 응답하지 않습니다. 잠시 후 다시 시도해 주세요.')
+  } finally {
+    clearTimeout(timer)
+  }
+  if (!r.ok) {
+    console.error(`[marketplace] 11번가 카테고리 조회 HTTP ${r.status}`)
+    return sendError(res, 502, 'market_server', '판매처가 응답하지 않습니다. 잠시 후 다시 시도해 주세요.')
+  }
+  const categories = normalizeElevenstCategories(decodeXmlBytes(buf, r.headers.get('content-type')))
+  if (!categories.length) console.error(`[marketplace] 11번가 카테고리 응답에 최하위가 없음 ${ctx.userId}: bytes=${buf.length}`)
+  return res.status(200).json({ categories })
+}
+/** 마지막으로 등록에 성공한 11번가 보내기의 출고지·반품지 — 새 DB 칸 없이 그때 기록(request_json.summary)에서. 못 읽으면 기억 없이(원인 로그) */
+async function lastElevenstAddressPair(ctx) {
+  try {
+    const rows = await sb(ctx.cfg, `marketplace_sends?select=summary:request_json->summary&user_id=eq.${ctx.userId}&market=eq.${ELEVENST}&seller_product_id=not.is.null&order=created_at.desc&limit=1`)
+    return lastElevenstAddresses(rows?.[0]?.summary)
+  } catch (e) {
+    console.error('[marketplace] 11번가 마지막 출고지·반품지 조회 실패 — 목록 첫째로:', ctx.userId, e.message)
+    return lastElevenstAddresses(null)
+  }
+}
+async function elevenstAddresses(ctx, body, res) {
+  const cred = await elevenstCredentials(ctx, res)
+  if (!cred) return
+  const lists = {}
+  for (const [kind, path] of [['out', ELEVENST_PATHS.outbound], ['in', ELEVENST_PATHS.inbound]]) {
+    let xml
+    try { xml = await elevenstCall(cred, { method: 'GET', path, translate: (s, t) => translateElevenstApi(s, t, '요청') }) } catch (e) { return elevenstFail(res, e, `addresses/${kind}`) }
+    const list = normalizeElevenstAddresses(xml)
+    if (!list) {
+      console.warn(`[marketplace] 11번가 주소 조회 결과가 SUCCESS 아님 ${ctx.userId} ${kind}: ${String(xml).slice(0, 300)}`)
+      return sendError(res, 502, 'market_rejected', '판매처 주소록을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.')
+    }
+    lists[kind] = list
+  }
+  const last = await lastElevenstAddressPair(ctx)
+  return res.status(200).json({ outAddresses: lists.out, inAddresses: lists.in, last, defaults: { out: pickElevenstAddress(lists.out, last.out), in: pickElevenstAddress(lists.in, last.in) } })
+}
+/** 화면 값 → 등록 재료 (이미지 주소는 기록을 만든 뒤에 채운다) */
+function elevenstInput(body) {
+  const num = v => (v === '' || v == null ? NaN : Number(v))
+  const d = body.delivery && typeof body.delivery === 'object' ? body.delivery : {}
+  const n = body.notice && typeof body.notice === 'object' ? body.notice : {}
+  return {
+    productName: body.productName, brand: body.brand, categoryId: body.categoryId, price: num(body.price), stock: num(body.stock), vat: body.vat,
+    minorOk: body.minorOk !== false, kc: body.kc && typeof body.kc === 'object' ? body.kc : {},
+    delivery: { feeType: d.feeType, fee: d.feeType === '02' ? num(d.fee) : undefined, jejuFee: num(d.jejuFee), islandFee: num(d.islandFee), returnFee: num(d.returnFee), exchangeFee: num(d.exchangeFee), outAddr: d.outAddr, inAddr: d.inAddr, sendCloseTmplt: d.sendCloseTmplt },
+    asDetail: body.asDetail, rtngExchDetail: body.rtngExchDetail, notice: { type: n.type, maker: n.maker, country: n.country, phone: n.phone },
+  }
+}
+async function elevenstSend(ctx, body, res) {
+  const ex = await loadOwnedExport(ctx, body, res)
+  if (!ex) return
+  const input = elevenstInput(body)
+  // 입력 검사를 11번가를 부르기 전에 — 이미지 주소 자리는 검사용 값
+  const pre = buildElevenstProduct({ ...input, repUrl: '-', detailUrls: ['-'] })
+  if (!pre.ok) return sendError(res, 400, 'invalid_input', pre.message)
+  if (ex.files.length > DETAIL_IMAGE_MAX) return sendError(res, 400, 'invalid_input', `상세 이미지는 ${DETAIL_IMAGE_MAX}장까지 보낼 수 있습니다.`)
+  const testStop = body.testStop === true && ctx.isAdmin === true // 등록 직후 판매중지 — 관리자·스태프 테스트용만 (고객이 보내도 무시)
+  const rep = await squareFromImage(ctx, ex, body.repImageId, body.fit)
+  if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)
+  const cred = await elevenstCredentials(ctx, res)
+  if (!cred) return
+  const encKey = loadEncKey()
+
+  let created
+  try {
+    created = await sb(ctx.cfg, 'marketplace_sends?select=id', { method: 'POST', body: { user_id: ctx.userId, export_id: ex.id, market: ELEVENST, status: 'sending', request_json: {} }, prefer: 'return=representation' })
+  } catch (e) {
+    if (isSchemaGap(e)) {
+      console.error('[marketplace] 11번가 전송 기록 실패 — marketplace_sends market 규칙에 11st 없음(docs/sql/2026-10-01-marketplace-sends-11st.sql 실행 필요):', e.message)
+      return sendError(res, 503, 'marketplace_sql_missing', NOT_READY_MESSAGE)
+    }
+    throw e
+  }
+  const sendId = created?.[0]?.id
+  if (!sendId) throw new Error('marketplace_sends insert: id 없음')
+  const fail = async (status, code, message, extra = {}) => {
+    await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { status: 'failed', reason: message.slice(0, 2000), ...extra }, prefer: 'return=minimal' }).catch(e => console.error('[marketplace] 실패 기록도 못 남김:', sendId, e.message))
+    return sendError(res, status, code, message)
+  }
+
+  // ① 대표 이미지 저장 + 이미지 주소(토큰 — 11번가가 등록할 때 내려받는다)
+  const repPath = `${ex.folder}/marketplace/${sendId}_rep.jpg`
+  try { await storageUpload(ctx.cfg, BUCKET, repPath, rep.buf, 'image/jpeg') } catch (e) {
+    console.error('[marketplace] 11번가 대표 이미지 저장 실패:', repPath, e.message)
+    return fail(500, 'storage_error', '대표 이미지를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+  }
+  const m = marketConfig()
+  const urlOf = key => `${m.publicUrl}/api/marketplace?t=${makeImageToken(encKey, sendId, key)}`
+  const files = { rep: repPath, ...Object.fromEntries(ex.files.map(f => [f.key, f.path])) }
+  // ② 등록 본문
+  const built = buildElevenstProduct({ ...input, repUrl: urlOf('rep'), detailUrls: elevenstDetailImageUrls({ files: ex.files, urlOf }) })
+  if (!built.ok) return fail(400, 'invalid_input', built.message)
+  const categoryName = typeof body.categoryName === 'string' ? body.categoryName.slice(0, 300) : null
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: { summary: built.summary, xml: built.xml, files, categoryName } }, prefer: 'return=minimal' })
+  // ③ 등록
+  let xml
+  try { xml = await elevenstCall(cred, { method: 'POST', path: ELEVENST_PATHS.product, body: built.buf, contentType: 'text/xml', translate: (s, t) => translateElevenstApi(s, t, '등록') }) } catch (e) {
+    if (!(e instanceof ElevenstError)) throw e
+    if (NOT_READY_CODES.includes(e.code)) console.error(`[marketplace] 11번가 등록 중계 문제 ${e.code} (HTTP ${e.status}): ${e.raw}`)
+    else console.warn(`[marketplace] 11번가 등록 실패 ${e.code} (HTTP ${e.status}) send=${sendId}: ${e.raw}`)
+    return fail(e.status === 429 ? 429 : 502, e.code, e.message, { result_json: { code: e.code, status: e.status, step: 'product', raw: e.raw } })
+  }
+  const cm = parseClientMessage(xml)
+  if (!cm.ok) {
+    console.warn(`[marketplace] 11번가 등록 응답이 성공 아님 send=${sendId}: code=${cm.code} ${String(xml).slice(0, 300)}`)
+    const message = cm.message ? `판매처에서 등록을 거절했습니다: ${cm.message.slice(0, 500)}` : '판매처가 상품 번호를 주지 않았습니다. 셀러오피스에서 상품이 등록되었는지 확인하세요.'
+    return fail(502, 'market_rejected', message, { result_json: { code: cm.code, step: 'product', message: cm.message } })
+  }
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { seller_product_id: cm.productNo, status: 'registered', result_json: { productNo: cm.productNo, resultCode: cm.code, message: cm.message } }, prefer: 'return=minimal' })
+  console.info(`[marketplace] 11번가 상품 등록 ${ctx.userId} send=${sendId} prdNo=${cm.productNo} code=${cm.code} images=${ex.files.length + 1}`)
+  // ④ 테스트용 판매중지 (관리자·스태프만) — 실패해도 등록은 그대로, 안내만
+  let stopped = false, stopError = ''
+  if (testStop) {
+    try {
+      await elevenstCall(cred, { method: 'PUT', path: ELEVENST_PATHS.stopDisplay(cm.productNo), translate: (s, t) => translateElevenstApi(s, t, '판매중지') })
+      stopped = true
+      await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { result_json: { productNo: cm.productNo, resultCode: cm.code, message: cm.message, stopped: true } }, prefer: 'return=minimal' })
+    } catch (e) {
+      if (!(e instanceof ElevenstError)) throw e
+      console.warn(`[marketplace] 11번가 판매중지 실패 send=${sendId} prdNo=${cm.productNo} ${e.code}: ${e.raw}`)
+      stopError = '등록은 완료되었지만 판매중지 처리에 실패했습니다. 셀러오피스에서 판매중지하세요.'
+    }
+  }
+  return res.status(200).json({ sendId, productNo: cm.productNo, sellerProductId: cm.productNo, status: 'registered', stopped, stopError })
+}
+
 async function disconnectElevenst(ctx, body, res) {
   await sb(ctx.cfg, `marketplace_accounts?user_id=eq.${ctx.userId}&market=eq.${ELEVENST}`, { method: 'DELETE', prefer: 'return=minimal' })
   return marketStatus(ctx, body, res)
@@ -1216,9 +1389,10 @@ function publicSend(s) {
   const market = s.market || MARKET
   const c24 = market === CAFE24
   const ss = market === SMARTSTORE
+  const st11 = market === ELEVENST
   return {
     id: s.id, exportId: s.export_id, market, sellerProductId: s.seller_product_id, status: s.status, coupangStatus: s.coupang_status, reason: s.reason,
-    productName: (c24 ? s.request_json?.body?.request?.product_name : ss ? s.request_json?.body?.originProduct?.name : s.request_json?.body?.sellerProductName) || null, categoryName: s.request_json?.categoryName || null, revision: revisionsOf(s).length,
+    productName: (c24 ? s.request_json?.body?.request?.product_name : ss ? s.request_json?.body?.originProduct?.name : st11 ? s.request_json?.summary?.prdNm : s.request_json?.body?.sellerProductName) || null, categoryName: s.request_json?.categoryName || null, revision: revisionsOf(s).length,
     adminUrl: c24 ? cafe24AdminProductUrl(s.request_json?.mallId, s.seller_product_id) : null, // 카페24 = 관리자 상품 화면
     display: c24 ? (s.request_json?.body?.request?.display === 'T' ? 'T' : 'F') : null, // 카페24 진열상태(보낸 값 — 관리자에서 바꾼 뒤는 모름)
     // 스마트스토어 = 보낸 전시 상태(ON|SUSPENSION — 스마트스토어센터에서 바꾼 뒤는 모름) · 채널상품번호
@@ -1227,11 +1401,11 @@ function publicSend(s) {
     approvalRequestedAt: s.approval_requested_at, lastSyncedAt: s.last_synced_at, createdAt: s.created_at, updatedAt: s.updated_at,
   }
 }
-// 목록은 모든 판매처 (쿠팡 + 카페24 + 스마트스토어). sync는 쿠팡만(market=eq.coupang 그대로) — 카페24·스마트스토어는 등록 즉시 끝이라 다시 읽을 상태가 없다
+// 목록은 모든 판매처 (쿠팡 + 카페24 + 스마트스토어 + 11번가). sync는 쿠팡만(market=eq.coupang 그대로) — 카페24·스마트스토어는 등록 즉시 끝이라 다시 읽을 상태가 없다
 // result_json은 목록에서만 더 읽는다(스마트스토어 채널상품번호) — 쿠팡 다시 보내기·sync가 쓰는 SEND_SELECT는 그대로
 async function loadSends(ctx) {
   // 카페24 기록은 관리자·스태프에게만 (2026-10-01 카페24 고객에게 숨김 — 기록은 DB에 그대로)
-  const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE}` : `${MARKET},${SMARTSTORE}`
+  const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE},${ELEVENST}` : `${MARKET},${SMARTSTORE},${ELEVENST}`
   const rows = await sb(ctx.cfg, `marketplace_sends?select=${SEND_SELECT},result_json&user_id=eq.${ctx.userId}&market=in.(${markets})&order=created_at.desc&limit=${SENDS_LIST_MAX}`)
   return (Array.isArray(rows) ? rows : []).map(publicSend)
 }
@@ -1354,7 +1528,10 @@ export default async function handler(req, res) {
     if (body.action === 'smartstore_categories') return await smartstoreCategories(ctx, body, res)
     if (body.action === 'smartstore_addresses') return await smartstoreAddresses(ctx, body, res)
     if (body.action === 'smartstore_send') return await smartstoreSend(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'status'·'connect'·'disconnect'·'refresh_places'·'templates_list'·'template_save'·'template_delete'·'send_prepare'·'category_predict'·'brand_search'·'category_meta'·'send'·'sends_list'·'sync'·'market_status'·'connect_11st'·'disconnect_11st'·'connect_smartstore'·'disconnect_smartstore'·'cafe24_begin'·'cafe24_launch'·'cafe24_finish'·'disconnect_cafe24'·'cafe24_categories'·'cafe24_send'·'smartstore_categories'·'smartstore_addresses'·'smartstore_send' 중 하나여야 합니다.")
+    if (body.action === 'elevenst_categories') return await elevenstCategories(ctx, body, res)
+    if (body.action === 'elevenst_addresses') return await elevenstAddresses(ctx, body, res)
+    if (body.action === 'elevenst_send') return await elevenstSend(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'status'·'connect'·'disconnect'·'refresh_places'·'templates_list'·'template_save'·'template_delete'·'send_prepare'·'category_predict'·'brand_search'·'category_meta'·'send'·'sends_list'·'sync'·'market_status'·'connect_11st'·'disconnect_11st'·'connect_smartstore'·'disconnect_smartstore'·'cafe24_begin'·'cafe24_launch'·'cafe24_finish'·'disconnect_cafe24'·'cafe24_categories'·'cafe24_send'·'smartstore_categories'·'smartstore_addresses'·'smartstore_send'·'elevenst_categories'·'elevenst_addresses'·'elevenst_send' 중 하나여야 합니다.")
   } catch (e) {
     if (e?.status === 404 || e?.status === 401 || e?.status === 403) {
       console.error(`[marketplace] ${body.action} 표를 쓸 수 없음(GRANT·표 — docs/sql/2026-09-28-marketplace-coupang.sql):`, e.message)

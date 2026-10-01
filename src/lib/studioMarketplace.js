@@ -7,7 +7,7 @@
  */
 import { callStudioApi, studioErrorMessage } from '@/lib/studioApi'
 
-export const MARKET_LABEL = { coupang: '쿠팡', cafe24: '카페24', smartstore: '스마트스토어' }
+export const MARKET_LABEL = { coupang: '쿠팡', cafe24: '카페24', smartstore: '스마트스토어', '11st': '11번가' }
 export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인', registered: '등록됨', rejected: '반려', failed: '실패' } // registered = 카페24·스마트스토어(승인 절차 없음 — 등록 즉시 끝)
 // 색: 전송 중·승인 대기 = 회색, 승인·등록됨 = 초록, 반려·실패 = 빨강 (st-badge 위에 덧붙이는 클래스)
 export const SEND_STATUS_CLASS = { sending: '', approval_pending: '', approved: 'st-badge-ok', registered: 'st-badge-ok', rejected: 'st-badge-danger', failed: 'st-badge-danger' }
@@ -61,6 +61,10 @@ export const sendCafe24Product = (payload) => call('cafe24_send', payload)      
 export const listSmartstoreCategories = () => call('smartstore_categories')                 // → { categories:[{ id, name, wholeName }] } (리프만)
 export const listSmartstoreAddresses = () => call('smartstore_addresses')                   // → { addresses:[{ id, name, type, address, phone }], defaults:{ shipping, return } }
 export const sendSmartstoreProduct = (payload) => call('smartstore_send', payload)          // → { sendId, originProductNo, channelProductNo, status:'registered', display }
+// 11번가 상품 보내기 (2026-10-01) — 서버가 이미지 주소·EUC-KR XML 등록까지. 창의 11번가 섹션(StudioSendElevenst)이 부른다
+export const listElevenstCategories = () => call('elevenst_categories')                     // → { categories:[{ id, name, wholeName }] } (최하위만)
+export const listElevenstAddresses = () => call('elevenst_addresses')                       // → { outAddresses, inAddresses, last:{ out, in }, defaults:{ out, in } }
+export const sendElevenstProduct = (payload) => call('elevenst_send', payload)              // → { sendId, productNo, status:'registered', stopped, stopError }
 
 /**
  * [판매처로 보내기] 진입 — 연결·내 상품을 확인하고 보내기 창에 필요한 값을 돌려준다.

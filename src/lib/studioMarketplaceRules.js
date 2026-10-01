@@ -30,11 +30,11 @@ export const CHANNEL_TABS = [
 // 판매처 목록 — 연결 탭·보내기 탭·보내기 창·랜딩 칩이 같은 목록·같은 순서를 쓴다
 // connect = 연결 방법: 'key' = 고객이 직접 발급한 키·앱으로 연결(쿠팡·11번가·스마트스토어·카페24) · 'planned' = 아직 연결할 수 없음 → 화면에 "예정" 한 단어만
 //   (S3-3, 2026-09-30: 업체 등록·제휴 없이 고객 키만으로 되는 곳만 연결한다. 연결 신청 기능은 걷어냄 — 버튼·입력 칸·안내 문구 없음)
-// soon = 연결은 되지만 아직 상품 보내기를 못 함 (11번가). 보내기 되는 곳 = 쿠팡·카페24(2026-09-30)·스마트스토어(2026-10-01)
+// soon = 연결은 되지만 아직 상품 보내기를 못 함 (지금은 없음). 보내기 되는 곳 = 쿠팡·카페24(2026-09-30)·스마트스토어·11번가(2026-10-01)
 export const MARKETS = [
   { key: 'coupang', name: '쿠팡', connect: 'key' },
   { key: 'smartstore', name: '스마트스토어', connect: 'key' }, // 2026-09-30 S3-2 — 고객이 만든 내 스토어 애플리케이션 ID·시크릿. 2026-10-01 보내기 = 서버 smartstore_send
-  { key: '11st', name: '11번가', soon: true, connect: 'key' },
+  { key: '11st', name: '11번가', connect: 'key' }, // 2026-10-01 보내기 = 서버 elevenst_send
   { key: 'gmarket', name: 'G마켓·옥션', soon: true, connect: 'planned' },
   { key: 'ably', name: '에이블리', soon: true, connect: 'planned' }, // 판매자 API 토큰은 있지만 공개 API 문서가 없어 주소·인증을 확인할 수 없음 (S3-3 조사)
   { key: 'zigzag', name: '지그재그', soon: true, connect: 'planned' },

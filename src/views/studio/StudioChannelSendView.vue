@@ -47,7 +47,7 @@
               v-if="r.state === 'connected'" type="button" class="st-btn st-btn-primary ch-btn" :disabled="!!opening"
               :data-ch-send="r.key" @click="openSend(r.key)"
             ><Send class="w-3.5 h-3.5" :stroke-width="2" /> {{ opening === r.key ? '여는 중…' : sendButtonLabel([r.key]) }}</button>
-            <!-- 연결됨(스마트스토어·11번가) — 보내기 버튼은 아직 없다 · 아직 연결할 수 없는 곳 = "예정"만. 카페24는 연결되면 위 [카페24로 보내기] -->
+            <!-- 연결됨(보내기 아직인 판매처 — 지금은 없음) — 보내기 버튼은 없다 · 아직 연결할 수 없는 곳 = "예정"만. 카페24는 연결되면 위 [카페24로 보내기] -->
             <span v-else-if="r.state === 'linked'" class="st-badge st-badge-accent shrink-0" :data-ch-linked="r.key">연결됨</span>
             <span v-else-if="r.state === 'planned'" class="st-badge shrink-0" :data-ch-planned="r.key">{{ PLANNED_LABEL }}</span>
             <!-- 연결 상태를 읽는 중·못 읽음 — 자물쇠·[연결하기]를 그리지 않는다 (studioMarketplaceRules.linkPhase) -->
@@ -247,12 +247,14 @@ function onSent(r) {
   const market = r?.market || 'coupang'
   const name = MARKETS.find(m => m.key === market)?.name || market
   // 카페24 = 승인 절차 없이 등록 → "등록되었습니다" + 진열상태 + 관리자 링크. 쿠팡 = 승인 요청 → "전송되었습니다" (문구 원칙: 결과는 ~되었습니다)
-  // 스마트스토어 = 승인 절차 없이 등록 → "등록되었습니다" + 원상품번호 + 전시상태 (2026-10-01)
+  // 스마트스토어 = 승인 절차 없이 등록 → "등록되었습니다" + 원상품번호 + 전시상태 (2026-10-01) · 11번가 = 등록 → 상품번호 (+ 관리자 테스트 판매중지)
   message.value = market === 'cafe24'
     ? `카페24에 등록되었습니다.${r?.productNo ? ` 상품번호 ${r.productNo}` : ''} · ${r?.display === 'T' ? '진열함' : '진열안함'}${typeof r?.repImageError === 'string' && r.repImageError ? ` — ${r.repImageError}` : ''}`
     : market === 'smartstore'
       ? `스마트스토어에 등록되었습니다.${r?.originProductNo ? ` 원상품번호 ${r.originProductNo}` : ''} · ${r?.display === 'ON' ? '전시중' : '전시중지'}`
-      : `${name}에 전송되었습니다.${r?.sellerProductId ? ` 상품번호 ${r.sellerProductId}` : ''}`
+      : market === '11st'
+        ? `11번가에 등록되었습니다.${r?.productNo ? ` 상품번호 ${r.productNo}` : ''}${r?.stopped ? ' · 판매중지' : ''}${typeof r?.stopError === 'string' && r.stopError ? ` — ${r.stopError}` : ''}`
+        : `${name}에 전송되었습니다.${r?.sellerProductId ? ` 상품번호 ${r.sellerProductId}` : ''}`
   messageAdminUrl.value = market === 'cafe24' && typeof r?.adminUrl === 'string' ? r.adminUrl : ''
   messageError.value = false
   loadSends()

@@ -31,7 +31,8 @@ const stubPlugin = {
       export const REP_SIZE = 1000, SEND_BODY_MAX = 4000000
       export const readSaleMode = () => '', rememberSaleMode = () => {}
       export const listCafe24Categories = never, sendCafe24Product = never, isNotReady = () => false
-      export const listSmartstoreCategories = never, listSmartstoreAddresses = never, sendSmartstoreProduct = never`
+      export const listSmartstoreCategories = never, listSmartstoreAddresses = never, sendSmartstoreProduct = never
+      export const listElevenstCategories = never, listElevenstAddresses = never, sendElevenstProduct = never`
     return null
   },
 }
@@ -45,6 +46,7 @@ fs.writeFileSync(entry, `export { default as Modal } from '@/components/studio/S
 export { default as Coupang } from '@/components/studio/StudioSendCoupang.vue'
 export { default as Cafe24 } from '@/components/studio/StudioSendCafe24.vue'
 export { default as Smartstore } from '@/components/studio/StudioSendSmartstore.vue'
+export { default as Elevenst } from '@/components/studio/StudioSendElevenst.vue'
 export { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 export { userRole } from '@/lib/auth'
 `)
@@ -237,6 +239,26 @@ if (built?.Coupang && built?.Modal) {
   const ov = await renderAddr(ovCache)
   eq('국내 주소가 없을 때만 목록 첫 번째(해외 104) — 출고지·반품지 둘 다', [sel(ov.html, 'data-mk-ss-shipping', 104), sel(ov.html, 'data-mk-ss-return', 104)], [true, true])
   eq('스마트스토어 섹션: 해외 출고지면 관부가세 칸(필수 · 3개 + 선택 안 함) · 출고지 이름에 "해외" · 요약 줄 미입력', [ov.error, /data-mk-ss-customs-box/.test(ov.html), (ov.html.match(/<option[^>]*value="(NOT_APPLICABLE|INCLUDED|EXCLUDED)"/g) || []).length, /data-mk-ss-customs[^-][\s\S]{0,200}<option value=""[^>]*selected/.test(ov.html) || /<option value="" selected[^>]*>관부가세 선택/.test(ov.html), ov.html.includes('항주 창고 (출고지) · 해외'), /data-mk-ss-preview-row="관부가세"[\s\S]{0,200}미입력/.test(ov.html)], [null, true, 3, true, true, true])
+}
+
+if (built?.Elevenst) {
+  // 11번가 섹션 (2026-10-01) — 카테고리·주소록을 창의 목록(sendCache)에서 받아 그린다
+  const { provide: vueProvide2 } = await import('vue')
+  const A = (id, name) => ({ id, name, address: name + ' 주소', phone: '', receiver: '' })
+  const cache11 = last => ({ elevenstCategoriesDone: { categories: [{ id: '1017898', name: '머그컵', wholeName: '주방용품>컵>머그컵' }] }, elevenstAddressesDone: { outAddresses: [A('11', '3PL 창고'), A('12', '사무실 출고')], inAddresses: [A('21', '반품센터'), A('22', '창고 반품')], last } })
+  const render11 = cache => render({ setup: () => { vueProvide2(built.SEND_CACHE_KEY, cache); return () => h(built.Elevenst, { prepare: PREPARE(true) }) } }, {})
+  const sel11 = (html, attr, id) => new RegExp(attr + '[^>]*>(?:(?!<\\/select>)[\\s\\S])*<option[^>]*value="' + id + '"[^>]*selected').test(html)
+  const a = await render11(cache11({ out: null, in: null }))
+  eq('11번가 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 한글 기본값 · 보낸 적 없으면 출고지·반품지 = 목록 첫째', [a.error, /data-mk-11st-name[^>]*value="매일 쓰는 머그"|value="매일 쓰는 머그"[^>]*data-mk-11st-name/.test(a.html), sel11(a.html, 'data-mk-11st-out', '11'), sel11(a.html, 'data-mk-11st-in', '21')], [null, true, true, true])
+  const b = await render11(cache11({ out: '12', in: '22' }))
+  eq('11번가 섹션: 마지막에 보낸 주소(12·22)가 목록에 있으면 그것', [sel11(b.html, 'data-mk-11st-out', '12'), sel11(b.html, 'data-mk-11st-in', '22')], [true, true])
+  eq('11번가 섹션: KC 기본값 없음(세 그룹 모두 "선택") · 고시 기본 기타 재화 · 금액 칸 빈칸 · 관리자 아니면 테스트 판매중지 없음', [
+    ['01', '02', '03'].every(g => sel11(a.html, 'data-mk-11st-kc-group="' + g + '"', '')), sel11(a.html, 'data-mk-11st-notice-type', '891045'), /data-mk-11st-price[^>]*value="\d/.test(a.html), /data-mk-11st-teststop/.test(a.html),
+  ], [true, true, false, false])
+  built.userRole.value = 'staff'
+  const c = await render11(cache11({ out: null, in: null }))
+  built.userRole.value = 'user'
+  eq('11번가 섹션(관리자·스태프): 테스트 판매중지 칸 보임', [c.error, /data-mk-11st-teststop/.test(c.html)], [null, true])
 }
 
 try { fs.rmSync(workDir, { recursive: true, force: true }) } catch (e) { console.warn('임시 폴더를 지우지 못함:', workDir, e.message) }

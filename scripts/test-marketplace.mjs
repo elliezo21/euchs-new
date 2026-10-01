@@ -227,6 +227,7 @@ globalThis.fetch = async (url, opts = {}) => {
     relay.calls.push({ path: u.pathname, query: u.search, method, headers: opts.headers, body: opts.body && isJson ? JSON.parse(opts.body) : null, raw: opts.body && !isJson ? Buffer.from(opts.body) : null })
     if (opts.headers['x-relay-secret'] !== 'test-relay-secret') return json({ error: 'relay secret mismatch' }, 401)
     if (u.pathname.startsWith('/smartstore/')) return smartstoreRelay(u, method, opts)
+    if (u.pathname.startsWith('/11st/')) return elevenstRelay(u, method, opts)
     if (relay.mode === 'ip') return json({ code: 403, message: 'Not allowed IP' }, 403)
     if (relay.mode === 'reject' && method === 'POST' && u.pathname.endsWith('/seller-products')) return json({ code: 'ERROR', message: '카테고리 필수 속성 누락' }, 400)
     const p = u.pathname.replace(/^\/coupang/, '')
@@ -249,6 +250,8 @@ globalThis.fetch = async (url, opts = {}) => {
     if (p === C.PATHS.histories('1234567890')) return json({ code: 'SUCCESS', data: [{ status: '승인요청', comment: '' }, { status: '승인반려', comment: '대표 이미지에 글자가 있습니다' }] })
     return json({ message: 'no route' }, 404)
   }
+  // 11번가 카테고리 공개 조회 (키·중계 없음) — 가짜 EUC-KR XML
+  if (u.host === 'api.11st.co.kr') { st11.categoryCalls++; return eucXml(ST11_CATEGORY_XML) }
   const p = decodeURIComponent(u.pathname)
   if (p === '/auth/v1/user') return opts.headers.Authorization === 'Bearer good-token' ? json({ id: UID, email: 'admin@test.local' }) : json({ msg: 'bad' }, 401)
   // __asCustomer = 관리자 아닌 주문 고객 (2026-10-01 카페24 숨김 확인용 — 'all' 모드 + 결제 주문 1건)
@@ -823,7 +826,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('보내기 창·태그 칩: 규칙은 공용 파일에서', [/from '\.\.\/\.\.\/\.\.\/api\/_coupangFields\.js'/.test(modal), /from '\.\.\/\.\.\/\.\.\/api\/_coupangFields\.js'/.test(read('src/components/studio/StudioTagChips.vue'))], [true, true])
   // 판매처 목록 — 설정·랜딩이 같은 목록·같은 순서, 사정 설명 문구 없음
   const R = await import('../src/lib/studioMarketplaceRules.js')
-  eq('판매처 목록·순서 (보내기 = 쿠팡·스마트스토어·카페24, 나머지는 soon)', [R.MARKETS.map(m => m.name), R.MARKETS.filter(m => !m.soon).map(m => m.key)], [['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '카페24', '메이크샵', '고도몰'], ['coupang', 'smartstore', 'cafe24']])
+  eq('판매처 목록·순서 (보내기 = 쿠팡·스마트스토어·11번가(2026-10-01)·카페24, 나머지는 soon)', [R.MARKETS.map(m => m.name), R.MARKETS.filter(m => !m.soon).map(m => m.key)], [['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '카페24', '메이크샵', '고도몰'], ['coupang', 'smartstore', '11st', 'cafe24']])
   const mkView = read('src/views/studio/StudioMarketplaceView.vue'), landing = read('src/views/studio/StudioLandingView.vue')
   const screenTextOf = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
   eq('연결 탭·랜딩 둘 다 공용 목록을 씀 (따로 적은 목록 없음) · 연결 신청 화면 없음(S3-3)', [/<StudioMarketRequests/.test(mkView), /const PLANNED = MARKETS\.filter\(m => m\.connect === 'planned'\)/.test(mkView), /import \{ PUBLIC_MARKETS as MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(landing), /v-for="m in MARKETS"/.test(landing), /'카페24'|'고도몰'|'메이크샵'/.test(mkView + landing)], [false, true, true, true, false])
@@ -834,11 +837,11 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     const E = await import('../api/_elevenst.js')
     const api = read('api/marketplace.js'), el = read('api/_elevenst.js'), card = read('src/components/studio/StudioElevenstCard.vue')
     const sql = read('docs/sql/2026-09-30-marketplace-11st-requests.sql')
-    eq('연결 방법: 쿠팡·스마트스토어·11번가·카페24 = 키 · 나머지 5곳 = 예정 · 보내기는 쿠팡·스마트스토어·카페24', [R.MARKETS.filter(m => m.connect === 'key').map(m => m.key), R.PLANNED_MARKETS, R.MARKETS.filter(m => !m.soon).map(m => m.key), R.PLANNED_LABEL, 'REQUEST_MARKETS' in R, 'requestProblems' in R], [['coupang', 'smartstore', '11st', 'cafe24'], ['gmarket', 'ably', 'zigzag', 'makeshop', 'godomall'], ['coupang', 'smartstore', 'cafe24'], '예정', false, false])
+    eq('연결 방법: 쿠팡·스마트스토어·11번가·카페24 = 키 · 나머지 5곳 = 예정 · 보내기는 쿠팡·스마트스토어·11번가·카페24', [R.MARKETS.filter(m => m.connect === 'key').map(m => m.key), R.PLANNED_MARKETS, R.MARKETS.filter(m => !m.soon).map(m => m.key), R.PLANNED_LABEL, 'REQUEST_MARKETS' in R, 'requestProblems' in R], [['coupang', 'smartstore', '11st', 'cafe24'], ['gmarket', 'ably', 'zigzag', 'makeshop', 'godomall'], ['coupang', 'smartstore', '11st', 'cafe24'], '예정', false, false])
     eq('서버: 연결 신청 action·표 없음 · SQL에 marketplace_requests 만들기 없음', [/connect_request|REQUEST_MARKETS|marketplace_requests/.test(api), /create table public\.marketplace_requests/.test(sql), /marketplace_requests/.test(read('src/lib/studioMarketplace.js') + read('src/lib/studioMarketLinks.js'))], [false, false, false])
     const on = R.channelRows({ coupang: { connected: true }, '11st': { connected: true }, zigzag: { connected: true }, cafe24: { connected: true } })
     // 연결된 곳은 연결 방법(planned)보다 먼저 — 지그재그처럼 "예정"인 곳도 값이 오면 linked. 카페24는 2026-10-01부터 고객에게 줄 자체가 없음(연결돼 있어도)
-    eq('보내기 탭 줄(고객): 쿠팡 = 보내기 · 11번가 = 연결됨(보내기 없음) · 카페24 줄 없음(연결돼 있어도) · 예정 판매처는 값이 안 오면 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'linked', gmarket: 'planned', ably: 'planned', zigzag: 'linked', makeshop: 'planned', godomall: 'planned' })
+    eq('보내기 탭 줄(고객): 쿠팡 = 보내기 · 11번가 = 보내기(2026-10-01) · 카페24 줄 없음(연결돼 있어도) · 예정 판매처는 값이 안 오면 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'connected', gmarket: 'planned', ably: 'planned', zigzag: 'linked', makeshop: 'planned', godomall: 'planned' })
     const onAdmin = R.channelRows({ cafe24: { connected: true } }, { admin: true })
     // 2026-10-01 카페24 앱 심사 반려 → CAFE24_PUBLIC false: 고객 = 줄·카드 없음(connectFor null) · 관리자·스태프 = key·connected(테스트몰 유지)
     eq('카페24 숨김: 설정값 하나(CAFE24_PUBLIC false) · 고객 = null · 관리자 = key · MARKETS 자체는 key 그대로 · 관리자 연결되면 connected · 고객 줄 없음', [R.CAFE24_PUBLIC, R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.connectFor(R.MARKETS.find(m => m.key === '11st')), onAdmin.find(r => r.key === 'cafe24').state, R.channelRows({}).some(r => r.key === 'cafe24')], [false, null, 'key', 'key', 'connected', false])
@@ -1058,7 +1061,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     ], [true, false, true, true, true, true, true, true])
     eq('서버: 재고가 비면 본문을 만들지 않음 (임의 숫자로 채우지 않음) · 0과 37은 그대로', [C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: null }] }).ok, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: '' }] }).ok, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 0 }] }).body.items[0].maximumBuyCount, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 37 }] }).body.items[0].maximumBuyCount], [false, false, 0, 37])
   }
-  eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임 · 카페24 섹션 추가(2026-09-30) · 스마트스토어 섹션 추가(2026-10-01)', [/const SECTIONS = \{ coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, cafe24: StudioSendCafe24 \}/.test(shell), /v-show="picked\.includes\(key\)"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
+  eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임 · 카페24 섹션 추가(2026-09-30) · 스마트스토어·11번가 섹션 추가(2026-10-01)', [/const SECTIONS = \{ coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, '11st': StudioSendElevenst, cafe24: StudioSendCafe24 \}/.test(shell), /v-show="picked\.includes\(key\)"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
   {
     // 체크를 풀었다 다시 켜도 값이 남는다 — 섹션은 체크와 상관없이 만들어 두고(v-show로 가리기만), 빠짐·보내기는 체크된 것만
     const on = R.marketRows({ coupang: { connected: true } })
@@ -1415,9 +1418,9 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     c24send.indexOf("market: CAFE24, status: 'sending'") < c24send.indexOf("path: '/products/images'"), /marketplace_sql_missing/.test(c24send), /2026-09-30-marketplace-sends-cafe24\.sql/.test(c24send),
     /display, selling: display,/.test(read('api/_cafe24.js')), /status: 'registered'/.test(c24send), /api\/marketplace\?t=/.test(c24send),
   ], [true, true, true, true, true, true, true, true, true, true, true, true, false])
-  eq('서버: 응답·기록에 토큰 없음 (access_token은 헤더로만) · 쿠팡 send·sync 코드는 그대로(market=eq.coupang) · 목록 = 관리자 쿠팡+카페24+스마트스토어 / 고객 쿠팡+스마트스토어 (2026-10-01)', [
+  eq('서버: 응답·기록에 토큰 없음 (access_token은 헤더로만) · 쿠팡 send·sync 코드는 그대로(market=eq.coupang) · 목록 = 관리자 쿠팡+카페24+스마트스토어+11번가 / 고객 쿠팡+스마트스토어+11번가 (2026-10-01)', [
     /access_token|refresh_token|oauth_enc/.test(c24send), /Bearer \$\{c\.accessToken\}/.test(read('api/_cafe24.js')), /market=eq\.\$\{MARKET\}&seller_product_id=not\.is\.null&status=in\.\(sending,approval_pending,rejected\)/.test(api),
-    api.includes('const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE}` : `${MARKET},${SMARTSTORE}`') && /market=in\.\(\$\{markets\}\)&order=created_at\.desc/.test(api), /market: MARKET, status: 'sending', request_json: \{\} \}/.test(api),
+    api.includes('const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE},${ELEVENST}` : `${MARKET},${SMARTSTORE},${ELEVENST}`') && /market=in\.\(\$\{markets\}\)&order=created_at\.desc/.test(api), /market: MARKET, status: 'sending', request_json: \{\} \}/.test(api),
   ], [false, true, true, true, true])
   eq('SQL: marketplace_sends market에 cafe24 · status에 registered · 새 표·GRANT 없음 · 미실행 표시', [/check \(market in \('coupang', 'cafe24'\)\)/.test(sql), /'registered'\)\)/.test(sql), /create table|grant /.test(sql), /상태: 미실행/.test(sql)], [true, true, false, true])
 }
@@ -1862,6 +1865,201 @@ function smartstoreRelay(u, method, opts) {
   }
   eq('관리자·스태프: 카페24 기록·연결 상태 그대로 보임 (테스트몰 유지)', [adminSends.some(s => s.market === 'cafe24'), adminStatus.cafe24.connected], [true, true])
   eq('관리자: 카페24 action은 거절하지 않음 (403 market_unavailable 아님)', (await post('cafe24_categories')).body?.code !== 'market_unavailable', true)
+}
+
+// ── 21. 11번가 상품 보내기 (2026-10-01) — 가짜 중계·가짜 카테고리 응답으로 보내는 XML을 고정한다 (실제 11번가 호출 없음) ──
+// 가짜 11번가(중계 /11st 뒤). st11.mode로 실패를 흉내 낸다. 응답은 실제처럼 EUC-KR 바이트
+var st11 = { mode: 'ok', categoryCalls: 0 }
+var E11 = null
+function eucXml(xml, status = 200) { return new Response(E11.encodeEucKr(xml).buf, { status, headers: { 'Content-Type': 'application/xml;charset=euc-kr' } }) }
+// 2026-10-01 실제 카테고리 응답 모양 그대로 (ns2:categorys > ns2:category: depth·dispNm·dispNo·leafYn·parentDispNo) — 값은 줄임
+var ST11_CATEGORY_XML = '<?xml version="1.0" encoding="euc-kr" standalone="yes"?><ns2:categorys xmlns:ns2="http://skt.tmall.business.openapi.spring.service.client.domain/">'
+  + '<ns2:category><depth>1</depth><dispNm>주방용품</dispNm><dispNo>100</dispNo><leafYn>N</leafYn><parentDispNo>0</parentDispNo></ns2:category>'
+  + '<ns2:category><depth>2</depth><dispNm>컵</dispNm><dispNo>110</dispNo><leafYn>N</leafYn><parentDispNo>100</parentDispNo></ns2:category>'
+  + '<ns2:category><depth>3</depth><dispNm>머그컵</dispNm><dispNo>1017898</dispNo><leafYn>Y</leafYn><parentDispNo>110</parentDispNo></ns2:category>'
+  + '<ns2:category><depth>1</depth><dispNm>가구</dispNm><dispNo>200</dispNo><leafYn>Y</leafYn><parentDispNo>0</parentDispNo></ns2:category></ns2:categorys>'
+// 출고지·반품지 응답 — 문서(1014·1015) 모양: ns2:inOutAddresss > ns2:inOutAddress + ns2:result_message
+const st11Addr = (rows, msg = 'SUCCESS') => `<?xml version="1.0" encoding="euc-kr" standalone="yes"?><ns2:inOutAddresss xmlns:ns2="http://skt.tmall.business.openapi.spring.service.client.domain/">${rows.map(r => `<ns2:inOutAddress><addr>${r.addr}</addr><addrNm>${r.nm}</addrNm><addrSeq>${r.seq}</addrSeq><gnrlTlphnNo>02-000-0000</gnrlTlphnNo><memNo>777</memNo><prtblTlphnNo>010-0000-0000</prtblTlphnNo><rcvrNm>담당</rcvrNm></ns2:inOutAddress>`).join('')}<ns2:result_message>${msg}</ns2:result_message></ns2:inOutAddresss>`
+function elevenstRelay(u, method, opts) {
+  const p = u.pathname.replace(/^\/11st/, '')
+  if (opts.headers.openapikey !== '11st-key-ABCD1234') return eucXml('<?xml version="1.0" encoding="euc-kr"?><AuthMessage><resultCode>100</resultCode><message>인증 실패</message></AuthMessage>')
+  if (st11.mode === 'unapproved') return eucXml('<?xml version="1.0" encoding="euc-kr"?><AuthMessage><resultCode>300</resultCode><message>미승인</message></AuthMessage>')
+  if (p === '/rest/areaservice/outboundarea' && method === 'GET') return eucXml(st11Addr([{ seq: '11', nm: '3PL 창고', addr: '경기 용인 창고' }, { seq: '12', nm: '사무실 출고', addr: '광주 북구' }]))
+  if (p === '/rest/areaservice/inboundarea' && method === 'GET') return eucXml(st11.mode === 'addr-fail' ? st11Addr([], 'FAIL') : st11Addr([{ seq: '21', nm: '반품센터', addr: '광주 북구 2층' }, { seq: '22', nm: '창고 반품', addr: '경기 용인 창고' }]))
+  if (p === '/rest/prodservices/product' && method === 'POST') {
+    if (st11.mode === 'reject') return eucXml('<?xml version="1.0" encoding="euc-kr"?><ClientMessage><resultCode>500</resultCode><message>카테고리 번호가 올바르지 않습니다.</message></ClientMessage>')
+    if (st11.mode === 'limit') return eucXml('<?xml version="1.0" encoding="euc-kr"?><ClientMessage><resultCode>400</resultCode><message>일일 등록 한도 초과</message></ClientMessage>')
+    return eucXml('<?xml version="1.0" encoding="euc-kr"?><ClientMessage><resultCode>200</resultCode><productNo>3456789012</productNo><message>상품 등록 완료</message></ClientMessage>')
+  }
+  if (/^\/rest\/prodstatservice\/stat\/stopdisplay\/\d+$/.test(p) && method === 'PUT') return eucXml('<?xml version="1.0" encoding="euc-kr"?><ClientMessage><resultCode>200</resultCode><message>판매중지</message></ClientMessage>')
+  return eucXml('<?xml version="1.0" encoding="euc-kr"?><ClientMessage><resultCode>500</resultCode><message>no route</message></ClientMessage>', 404)
+}
+{
+  E11 = await import('../api/_elevenst.js')
+  const F = await import('../api/_elevenstFields.js')
+  const R = await import('../src/lib/studioMarketplaceRules.js')
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const talk = /(어요|예요|해요|돼요|아요|워요|네요|줘요|까요|에요)[.!?]/ // '잠시 후 다시 시도해 주세요.'는 우리 쪽 문제 표준 문구(CLAUDE.md)라 허용
+  const dec = buf => new TextDecoder('euc-kr').decode(buf)
+
+  // 1) 공용 값 — 공식 표 그대로
+  eq('고시 유형 11개 · 코드 = 셀러오피스 표 · 기본 891045 기타 재화', [F.NOTICE_TYPES.map(t => t.code), F.DEFAULT_NOTICE_TYPE, F.noticeTypeOf('891045').name], [['891045', '891011', '891012', '891013', '891014', '891015', '891016', '891027', '891033', '891035', '1149547'], '891045', '기타 재화'])
+  eq('기타 재화 항목 코드 5개 (표 그대로) · 의류 891011 항목 9개 (표 그대로)', [F.noticeTypeOf('891045').items.map(i => i[0]), F.noticeTypeOf('891011').items.map(i => i[0])], [['11800', '11905', '23760413', '23759100', '23756033'], ['11835', '23756520', '23759095', '23760437', '23759468', '23760034', '23760386', '11905', '23759308']])
+  eq('고시 값: 제조자·제조국·전화번호만 판매자 값, 나머지 "상세페이지 참조" · 제조국 기본 = 원산지 표 이름 · 무거운 유형 = 어린이제품·생활화학제품', [
+    F.noticeItemsFor('891045', { maker: '이유씨', country: '중국', phone: '010-1' }).map(i => [i.code, i.name]), F.NOTICE_COUNTRY_DEFAULT === F.ORIGIN_CHINA.name, F.HEAVY_NOTICE_TYPES, F.noticeItemsFor('999', {}),
+  ], [[['11800', '상세페이지 참조'], ['11905', '이유씨'], ['23760413', '010-1'], ['23759100', '중국'], ['23756033', '상세페이지 참조']], true, ['891033', '1149547'], null])
+  eq('KC: 기본값 없음(하나라도 안 고르면 null) · 구매대행 면제 = 대상여부 02 + 면제유형 02 · 어린이·방송통신은 대상 아님만 · 인증대상(01)은 화면에 없음', [
+    F.kcGroupsFor({}), F.kcGroupsFor({ '01': 'agent', '02': 'none' }), F.kcGroupsFor({ '01': 'agent', '02': 'none', '03': 'none' }), F.KC_CHOICES['02'].map(c => c.key), Object.values(F.KC_CHOICES).flat().some(c => c.obj === '01'),
+  ], [null, null, [{ crtfGrpTypCd: '01', crtfGrpObjClfCd: '02', crtfGrpExptTypCd: '02' }, { crtfGrpTypCd: '02', crtfGrpObjClfCd: '03' }, { crtfGrpTypCd: '03', crtfGrpObjClfCd: '03' }], ['none'], false])
+  eq('주소 기본: 마지막에 쓴 주소가 목록에 있으면 그것 · 없으면 목록 첫째 · 빈 목록 null', [F.pickElevenstAddress([{ id: '11' }, { id: '12' }], '12'), F.pickElevenstAddress([{ id: '11' }, { id: '12' }], '99'), F.pickElevenstAddress([{ id: '11' }, { id: '12' }]), F.pickElevenstAddress([])], ['12', '11', '11', null])
+
+  // 2) 응답 읽기
+  eq('카테고리: 최하위만 · 전체 이름(상위>하위) · 이름 순', E11.normalizeElevenstCategories(ST11_CATEGORY_XML), [{ id: '200', name: '가구', wholeName: '가구' }, { id: '1017898', name: '머그컵', wholeName: '주방용품>컵>머그컵' }])
+  eq('주소록: inOutAddress → 번호·이름·주소·전화 · result_message가 SUCCESS가 아니면 null(실패)', [E11.normalizeElevenstAddresses(st11Addr([{ seq: '11', nm: '창고', addr: '용인' }])), E11.normalizeElevenstAddresses(st11Addr([], 'FAIL'))], [[{ id: '11', name: '창고', address: '용인', phone: '02-000-0000', receiver: '담당' }], null])
+  eq('등록 응답: 200·210 + productNo = 성공 · 500 = 실패 · 번호 없으면 실패', [
+    E11.parseClientMessage('<ClientMessage><resultCode>210</resultCode><productNo>12</productNo><message>m</message></ClientMessage>').ok,
+    E11.parseClientMessage('<ClientMessage><resultCode>500</resultCode><message>사유</message></ClientMessage>'), E11.parseClientMessage('<ClientMessage><resultCode>200</resultCode></ClientMessage>').ok,
+  ], [true, { ok: false, code: '500', productNo: null, message: '사유' }, false])
+  {
+    const T = (s, t, w) => E11.translateElevenstApi(s, t, w)
+    const all = [T(200, '<AuthMessage><resultCode>300</resultCode></AuthMessage>'), T(200, '<AuthMessage><resultCode>100</resultCode></AuthMessage>'), T(200, '<ClientMessage><resultCode>400</resultCode></ClientMessage>', '등록'), T(200, '<ClientMessage><resultCode>500</resultCode><message>카테고리 오류</message></ClientMessage>', '등록'), T(503, ''), T(0, ''), T(200, '<ClientMessage><resultCode>200</resultCode></ClientMessage>')]
+    eq('오류 번역(합니다체): 300 = Seller API 미승인 · 100 = 인증 실패 · 400 = 하루 500개 한도 · 500 = 판매처 문구 · 대화체 없음 (중계 준비 문구는 모든 판매처 공용이라 제외)', [all.map(x => x && x.code), all[3].message, all.filter(Boolean).filter(x => !/^relay_/.test(x.code) && talk.test(x.message)).length], [['not_approved', 'bad_key', 'daily_limit', 'market_rejected', 'market_server', 'relay_unreachable', null], '판매처에서 등록을 거절했습니다: 카테고리 오류', 0])
+  }
+
+  // 3) 등록 본문 — 공식 필수 항목 · EUC-KR · 해외 항목 없음
+  const IN = {
+    productName: '매일 쓰는 머그', categoryId: '1017898', price: 12900, stock: 30, repUrl: 'https://www.euchs.co.kr/api/marketplace?t=rep', detailUrls: ['https://www.euchs.co.kr/api/marketplace?t=01', 'https://www.euchs.co.kr/api/marketplace?t=02'],
+    vat: '01', kc: { '01': 'agent', '02': 'none', '03': 'none' },
+    delivery: { feeType: '01', jejuFee: 3000, islandFee: 5000, returnFee: 3000, exchangeFee: 6000, outAddr: '11', inAddr: '22' },
+    asDetail: '상세페이지 참조', rtngExchDetail: '상세페이지 참조', notice: { type: '891045', maker: '이유씨', country: '중국', phone: '010-1234-5678' },
+  }
+  const b = E11.buildElevenstProduct(IN)
+  const x = b.ok ? dec(b.buf) : ''
+  const tags = [...x.matchAll(/<([A-Za-z0-9]+)>/g)].map(m => m[1]).filter((t, i, a) => a.indexOf(t) === i)
+  eq('등록 본문: EUC-KR 바이트 · XML 선언 EUC-KR · 바이트를 되읽으면 같은 글자', [b.ok, x.startsWith('<?xml version="1.0" encoding="EUC-KR"?><Product>'), x === b.xml], [true, true, true])
+  eq('등록 본문: 문서 필수 칸 모두 · 순서 고정', tags, ['Product', 'selMthdCd', 'dispCtgrNo', 'prdTypCd', 'prdNm', 'brand', 'rmaterialTypCd', 'orgnTypCd', 'orgnTypDtlsCd', 'suplDtyfrPrdClfCd', 'prdStatCd', 'minorSelCnYn', 'prdImage01', 'htmlDetail', 'ProductCertGroup', 'crtfGrpTypCd', 'crtfGrpObjClfCd', 'crtfGrpExptTypCd', 'selPrc', 'prdSelQty', 'dlvCnAreaCd', 'dlvWyCd', 'dlvCstInstBasiCd', 'bndlDlvCnYn', 'dlvCstPayTypCd', 'jejuDlvCst', 'islandDlvCst', 'addrSeqOut', 'addrSeqIn', 'rtngdDlvCst', 'exchDlvCst', 'asDetail', 'rtngExchDetail', 'dlvClf', 'ProductNotification', 'type', 'item', 'code', 'name'])
+  eq('등록 본문 값: 고정가 01 · 일반배송 01 · 상품명 CDATA · 브랜드 없음 = 알수없음 · 원산지 해외 02 + 중국 1287 · 새상품 · 택배 · 전국 · 선결제 · 업체배송 02 · 출고지 11 · 반품지 22 · 고시 891045 + 5항목', [
+    E11.xmlTag(x, 'selMthdCd'), E11.xmlTag(x, 'prdTypCd'), /<prdNm><!\[CDATA\[매일 쓰는 머그\]\]><\/prdNm>/.test(x), E11.xmlTag(x, 'brand'), E11.xmlTag(x, 'orgnTypCd'), E11.xmlTag(x, 'orgnTypDtlsCd'), E11.xmlTag(x, 'prdStatCd'),
+    E11.xmlTag(x, 'dlvWyCd'), E11.xmlTag(x, 'dlvCnAreaCd'), E11.xmlTag(x, 'dlvCstPayTypCd'), E11.xmlTag(x, 'dlvClf'), E11.xmlTag(x, 'addrSeqOut'), E11.xmlTag(x, 'addrSeqIn'), E11.xmlTag(x, 'type'), (x.match(/<item>/g) || []).length,
+  ], ['01', '01', true, '알수없음', '02', '1287', '01', '01', '01', '03', '02', '11', '22', '891045', 5])
+  eq('국내 셀러: 해외 항목 없음 · 발송마감 템플릿은 값이 있을 때만 · 무료배송이면 dlvCst1 없음', [/abrdBuyPlace|forAbrdBuyClf|outsideYnOut|outsideYnIn|importFeeCd|hsCode|globalOutAddrSeq/.test(x), /dlvSendCloseTmpltNo/.test(x), /dlvSendCloseTmpltNo>77</.test(dec(E11.buildElevenstProduct({ ...IN, delivery: { ...IN.delivery, sendCloseTmplt: '77' } }).buf)), /dlvCst1/.test(x)], [false, false, true, false])
+  eq('상세설명: 이미지 주소를 위에서 아래로 · 상세 이미지 주소는 한 함수(elevenstDetailImageUrls)에서', [(E11.xmlTag(x, 'htmlDetail').match(/<img src="https:\/\/www\.euchs\.co\.kr\/api\/marketplace\?t=0\d"/g) || []).length, E11.elevenstDetailImageUrls({ files: [{ key: '01' }, { key: '02' }], urlOf: k => `u/${k}` })], [2, ['u/01', 'u/02']])
+  {
+    const bad = o => E11.buildElevenstProduct({ ...IN, ...o })
+    const cases = [
+      { productName: '' }, { productName: '가'.repeat(101) }, { categoryId: '' }, { price: 12905 }, { price: 0 }, { stock: 0 }, { stock: NaN }, { repUrl: '' }, { detailUrls: [] }, { vat: '' }, { kc: {} },
+      { delivery: { ...IN.delivery, feeType: '02' } }, { delivery: { ...IN.delivery, jejuFee: NaN } }, { delivery: { ...IN.delivery, returnFee: 3005 } }, { delivery: { ...IN.delivery, outAddr: '' } },
+      { asDetail: ' ' }, { rtngExchDetail: '' }, { notice: { ...IN.notice, type: '999' } }, { notice: { ...IN.notice, maker: '' } }, { notice: { ...IN.notice, maker: '가'.repeat(51) } }, { productName: '머그 똠' },
+    ].map(o => bad(o))
+    eq('필수 항목 누락·잘못된 값 → 거절(임의 값으로 채우지 않음) · 문구는 합니다체 · 재고 0 거절 · 10원 단위 · 고시 50자 · EUC-KR 밖 글자 거절', [cases.every(r => r.ok === false), cases.filter(r => talk.test(r.message)).length, cases[5].message, cases[3].message, cases[20].message],
+      [true, 0, '재고 수량은 1개 이상 입력하세요. (11번가는 재고 0으로 등록할 수 없습니다)', '판매가는 10원 단위로 입력하세요. (10억 원 미만)', '11번가에 보낼 수 없는 글자가 있습니다: 똠 — 상품명·안내 문구에서 빼고 다시 보내세요.'])
+  }
+
+  // 4) handler — 가짜 Supabase + 가짜 중계(/11st) + 가짜 카테고리
+  const PID11 = 'aaaaaaaa-1111-4111-8111-111111111111', EID11 = 'bbbbbbbb-2222-4222-8222-222222222222', IMG11 = 'cccccccc-3333-4333-8333-333333333333'
+  const folder11 = `${UID}/${PID11}/exports/20261001-150000-st01`
+  const { default: sharp } = await import('sharp')
+  db.studio_projects.push({ id: PID11, user_id: UID, title: '머그' })
+  db.studio_exports.push({ id: EID11, user_id: UID, project_id: PID11, folder: folder11, title: '매일 쓰는 머그', format: 'jpg', mode: 'sections', files: [{ key: '01', name: 'a_01.jpg', path: `${folder11}/01.jpg`, width: 780, height: 900 }, { key: '02', name: 'a_02.jpg', path: `${folder11}/02.jpg`, width: 780, height: 400 }] })
+  db.studio_images.push({ id: IMG11, user_id: UID, project_id: PID11, original_path: `${UID}/${PID11}/orig/m.png`, width: 800, height: 600, sort_order: 0, included: true, ingest_status: 'done' })
+  files.set(`${UID}/${PID11}/orig/m.png`, await sharp({ create: { width: 800, height: 600, channels: 3, background: { r: 0, g: 120, b: 200 } } }).png().toBuffer())
+  files.set(`${folder11}/01.jpg`, await sharp({ create: { width: 780, height: 900, channels: 3, background: { r: 250, g: 250, b: 250 } } }).jpeg().toBuffer())
+  files.set(`${folder11}/02.jpg`, await sharp({ create: { width: 780, height: 400, channels: 3, background: { r: 10, g: 10, b: 10 } } }).jpeg().toBuffer())
+  const UI11 = {
+    exportId: EID11, productName: '매일 쓰는 머그', brand: '', categoryId: '1017898', categoryName: '주방용품>컵>머그컵', price: 12900, stock: 30, repImageId: IMG11, fit: 'contain',
+    vat: '01', minorOk: true, kc: { '01': 'agent', '02': 'none', '03': 'none' },
+    delivery: { feeType: '01', fee: null, jejuFee: 3000, islandFee: 5000, returnFee: 3000, exchangeFee: 6000, outAddr: '12', inAddr: '22' },
+    asDetail: '상세페이지 참조', rtngExchDetail: '상세페이지 참조', notice: { type: '891045', maker: '이유씨', country: '중국', phone: '010-1234-5678' },
+  }
+  db.marketplace_accounts = db.marketplace_accounts.filter(a => !(a.user_id === UID && a.market === '11st'))
+  eq('연결 전 → 409 not_connected (카테고리·주소록·보내기 모두) · 기록 안 만듦', [(await post('elevenst_categories')).body.code, (await post('elevenst_addresses')).body.code, (await post('elevenst_send', UI11)).body.code, db.marketplace_sends.filter(s => s.market === '11st').length], ['not_connected', 'not_connected', 'not_connected', 0])
+  db.marketplace_accounts.push({ id: newId(), user_id: UID, market: '11st', seller_login_id: 'zozo', vendor_id: null, access_key_enc: encryptSecret('11st-key-ABCD1234', K), secret_key_enc: null, key_last4: '1234', expires_at: null, status: 'connected' })
+
+  relay.calls = []
+  const cats = await post('elevenst_categories')
+  eq('카테고리: 11번가 공개 조회(중계·키 없음) · 최하위만 · 전체 이름', [cats.statusCode, cats.body.categories.map(c => `${c.id}:${c.wholeName}`), relay.calls.length, st11.categoryCalls], [200, ['200:가구', '1017898:주방용품>컵>머그컵'], 0, 1])
+  relay.calls = []
+  const ad = await post('elevenst_addresses')
+  eq('주소록: 출고지·반품지 두 번 조회(중계 /11st + openapikey, GET만 — 읽기만) · EUC-KR 읽기 · 보낸 적 없으면 목록 첫째', [ad.statusCode, ad.body.outAddresses.map(a => `${a.id}:${a.name}`), ad.body.inAddresses.map(a => `${a.id}:${a.name}`), ad.body.last, ad.body.defaults, relay.calls.map(c => `${c.method} ${c.path}`), relay.calls.every(c => c.headers.openapikey === '11st-key-ABCD1234' && c.headers['x-relay-secret'] === 'test-relay-secret')],
+    [200, ['11:3PL 창고', '12:사무실 출고'], ['21:반품센터', '22:창고 반품'], { out: null, in: null }, { out: '11', in: '21' }, ['GET /11st/rest/areaservice/outboundarea', 'GET /11st/rest/areaservice/inboundarea'], true])
+  st11.mode = 'addr-fail'
+  const adFail = await post('elevenst_addresses')
+  st11.mode = 'ok'
+  eq('주소록 result_message가 SUCCESS가 아니면 502 · 합니다체', [adFail.statusCode, adFail.body.message], [502, '판매처 주소록을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.'])
+
+  relay.calls = []
+  const nSend = db.marketplace_sends.length
+  const iv = await post('elevenst_send', { ...UI11, stock: 0 })
+  eq('재고 0 → 400 · 11번가 호출 0 · 기록 안 만듦', [iv.statusCode, iv.body.code, relay.calls.length, db.marketplace_sends.length], [400, 'invalid_input', 0, nSend])
+  // SQL 실행 전(market 규칙에 11st 없음)이면 11번가에 보내기 전에 503
+  {
+    const realFetch = globalThis.fetch
+    globalThis.fetch = async (url, o = {}) => (new URL(url).pathname === '/rest/v1/marketplace_sends' && (o.method || 'GET') === 'POST' && JSON.parse(o.body).market === '11st'
+      ? json({ code: '23514', message: 'new row for relation "marketplace_sends" violates check constraint "marketplace_sends_market_check"' }, 400) : realFetch(url, o))
+    relay.calls = []
+    const gap = await post('elevenst_send', UI11)
+    globalThis.fetch = realFetch
+    eq('SQL 실행 전 → 503 marketplace_sql_missing · 상품 등록 호출 없음', [gap.statusCode, gap.body.code, relay.calls.filter(c => /prodservices/.test(c.path)).length], [503, 'marketplace_sql_missing', 0])
+  }
+  relay.calls = []
+  const ok = await post('elevenst_send', { ...UI11, testStop: true }) // 관리자 계정(가짜 user_roles admin) — 판매중지까지
+  const rec = db.marketplace_sends.at(-1)
+  const prod = relay.calls.find(c => c.path.endsWith('/rest/prodservices/product'))
+  const sentXml = prod ? dec(prod.raw) : ''
+  eq('보내기 성공: 200 registered · 상품번호 · 관리자 테스트 판매중지 = PUT stopdisplay/{상품번호}', [ok.statusCode, ok.body.status, ok.body.productNo, ok.body.stopped, relay.calls.map(c => `${c.method} ${c.path}`)], [200, 'registered', '3456789012', true, ['POST /11st/rest/prodservices/product', 'PUT /11st/rest/prodstatservice/stat/stopdisplay/3456789012']])
+  eq('보낸 본문: Content-Type text/xml · EUC-KR 바이트 = buildElevenstProduct 결과 · 대표 이미지 = 우리 이미지 주소(토큰) · 상세 = 내 상품 2장', [prod.headers['Content-Type'], sentXml === rec.request_json.xml, /^https:\/\/www\.euchs\.co\.kr\/api\/marketplace\?t=/.test(E11.xmlTag(sentXml, 'prdImage01')), (E11.xmlTag(sentXml, 'htmlDetail').match(/<img /g) || []).length, E11.xmlTag(sentXml, 'addrSeqOut'), E11.xmlTag(sentXml, 'addrSeqIn')], ['text/xml', true, true, 2, '12', '22'])
+  eq('기록: market 11st · registered · seller_product_id = 상품번호 · 요약(주소·상품명) · 키·중계 비밀 없음', [rec.market, rec.status, rec.seller_product_id, rec.request_json.summary.prdNm, rec.request_json.summary.addrSeqOut, /11st-key-ABCD1234|test-relay-secret/.test(JSON.stringify(rec) + JSON.stringify(ok.body))], ['11st', 'registered', '3456789012', '매일 쓰는 머그', '12', false])
+  {
+    const t = new URL(E11.xmlTag(sentXml, 'prdImage01')).searchParams.get('t')
+    const res = mockRes()
+    await quiet(() => handler({ method: 'GET', url: `/api/marketplace?t=${t}`, headers: {} }, res))
+    eq('대표 이미지 주소: 11번가가 내려받을 때 Content-Type image/jpeg (문서 — 이미지 형식이어야 다운로드)', [res.statusCode, res.headers['content-type']], [200, 'image/jpeg'])
+  }
+  const ad2 = await post('elevenst_addresses')
+  eq('마지막에 보낸 주소 기억(출고지 12 · 반품지 22 — 목록 첫째가 아님) · 새 DB 칸 없음(보내기 기록에서)', [ad2.body.last, ad2.body.defaults], [{ out: '12', in: '22' }, { out: '12', in: '22' }])
+  const listed = (await post('sends_list')).body.sends.find(s => s.id === rec.id)
+  eq('보낸 상품 목록: 11번가 줄 · 상품명 · 카테고리', [listed?.market, listed?.status, listed?.productName, listed?.categoryName], ['11st', 'registered', '매일 쓰는 머그', '주방용품>컵>머그컵'])
+
+  // 실패
+  st11.mode = 'reject'
+  const rj = await post('elevenst_send', UI11)
+  eq('등록 거절(resultCode 500) → failed + 판매처 문구(합니다체)', [rj.statusCode, rj.body.code, rj.body.message, db.marketplace_sends.at(-1).status], [502, 'market_rejected', '판매처에서 등록을 거절했습니다: 카테고리 번호가 올바르지 않습니다.', 'failed'])
+  st11.mode = 'limit'
+  const lim = await post('elevenst_send', UI11)
+  st11.mode = 'unapproved'
+  const una = await post('elevenst_send', UI11)
+  st11.mode = 'ok'
+  eq('하루 한도(400) · Seller API 미승인(AuthMessage 300) → 문구 · 기록 failed', [lim.body.code, una.body.code, una.body.message], ['daily_limit', 'not_approved', '11번가 Seller API 승인이 필요합니다. 셀러오피스에서 Open API 승인 상태를 확인하세요.'])
+  const adAfterFail = await post('elevenst_addresses')
+  eq('실패한 보내기는 주소를 기억하지 않음 (12·22 그대로)', adAfterFail.body.last, { out: '12', in: '22' })
+
+  // 고객(관리자 아님)이 testStop을 보내도 판매중지를 부르지 않는다
+  globalThis.__asCustomer = true
+  process.env.STUDIO_ENABLED = 'all'
+  try {
+    relay.calls = []
+    const cs = await post('elevenst_send', { ...UI11, testStop: true })
+    eq('고객: testStop 무시 — 판매중지 호출 없음 · 등록은 정상', [cs.statusCode, cs.body.stopped, relay.calls.some(c => /stopdisplay/.test(c.path))], [200, false, false])
+  } finally {
+    globalThis.__asCustomer = false
+    process.env.STUDIO_ENABLED = 'admin'
+  }
+
+  // 화면 배선
+  const shell = read('src/components/studio/StudioSendModal.vue'), sec = read('src/components/studio/StudioSendElevenst.vue'), lib = read('src/lib/studioMarketplace.js')
+  const tpl = t => t.slice(t.indexOf('<template>'), t.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
+  const shown = tpl(sec)
+  eq('보내기 창: 11번가 섹션 = 같은 모양(missing·busy·done·submit) · 연결되면 체크 가능(connected) · 버튼 "11번가로 보내기"', [/'11st': StudioSendElevenst/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(sec), R.channelRows({ '11st': { connected: true } }).find(r => r.key === '11st').state, R.sendButtonLabel(['11st'])], [true, true, 'connected', '11번가로 보내기'])
+  eq('섹션: 금액 기본값 없음(빈칸) · KC 기본값 없음 · 고시 기본 891045 · 제조국 기본 = 공용 상수 · 관리자만 테스트 판매중지 · 공용 파일만 import', [
+    sec.includes('feeType: \'01\', fee: null, jejuFee: null, islandFee: null, returnFee: null, exchangeFee: null'), sec.includes("kc: Object.fromEntries(KC_GROUPS.map(g => [g.code, '']))"), sec.includes('noticeType: DEFAULT_NOTICE_TYPE'), sec.includes('country: NOTICE_COUNTRY_DEFAULT'),
+    /<label v-if="isAdminOrStaff"[^>]*data-mk-11st-teststop/.test(shown), /from '\.\.\/\.\.\/\.\.\/api\/_elevenstFields\.js'/.test(sec), /api\/_elevenst\.js'/.test(sec),
+  ], [true, true, true, true, true, true, false])
+  eq('섹션: 사전 준비 안내 · KC 판매자 책임 · 무거운 고시 유형 안내 · 주소록 관리(셀러오피스 새 탭)·새로고침 · 실패하면 해당 칸으로 스크롤', [
+    /data-mk-11st-prep/.test(shown), /법적 책임은 판매자에게 있습니다/.test(shown), /data-mk-11st-notice-heavy/.test(shown), /:href="SELLER_OFFICE_URL" target="_blank" rel="noopener noreferrer" class="st-btn ml-auto" data-mk-11st-addr-manage>주소록 관리/.test(shown), /주소록 새로고침/.test(shown), /function scrollToProblem/.test(sec),
+  ], [true, true, true, true, true, true])
+  eq('문구 합니다체: 섹션 화면 글자에 대화체 없음 · "준비 중"·"곧" 없음', [talk.test(shown.replace(/<[^>]+>/g, ' ')), /준비 중|곧 /.test(shown)], [false, false])
+  eq('클라이언트 함수 3개 · 서버 action 3개', [/call\('elevenst_categories'\)/.test(lib), /call\('elevenst_addresses'\)/.test(lib), /call\('elevenst_send', payload\)/.test(lib), ['elevenst_categories', 'elevenst_addresses', 'elevenst_send'].every(a => read('api/marketplace.js').includes(`body.action === '${a}'`))], [true, true, true, true])
+  eq('범위: 11번가 주소록은 읽기만 — 주소 등록·수정 API 경로 없음', /registerOutAddress|updateOutAddress|registerRtnAddress|updateRtnAddress|addOutAddrBasiDlvCst/.test(read('api/_elevenst.js') + read('api/marketplace.js')), false)
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

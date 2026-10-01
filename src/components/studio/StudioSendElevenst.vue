@@ -1,0 +1,434 @@
+<template>
+  <div class="space-y-5 st-border rounded-[12px] p-4" data-mk-11st>
+    <h4 class="st-h-card">11번가</h4>
+
+    <!-- 실패 사유 — 섹션 맨 위 (해당 칸을 알 수 있으면 그 칸으로 스크롤) -->
+    <p v-if="sendError" ref="errorEl" class="text-[13px] font-bold st-danger-text break-keep st-surface st-border rounded-[10px] p-3" role="alert" data-mk-11st-error>등록에 실패했습니다. (사유: {{ sendError }})
+      <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">연결 설정으로 이동</router-link></p>
+
+    <!-- 판매자 사전 준비 -->
+    <div class="st-surface st-border rounded-[10px] p-3 text-[13px] break-keep space-y-1" data-mk-11st-prep>
+      <div class="font-bold st-ink">보내기 전 준비 사항</div>
+      <p class="st-muted">11번가 셀러오피스에 출고지와 반품/교환지 주소가 등록되어 있어야 합니다.</p>
+      <p class="st-muted">11번가 Open API(Seller API) 승인이 완료된 계정만 상품을 등록할 수 있습니다.</p>
+      <a :href="SELLER_OFFICE_URL" target="_blank" rel="noopener noreferrer" class="st-link" data-mk-11st-office>셀러오피스 열기</a>
+    </div>
+
+    <!-- 상품명 · 브랜드 -->
+    <div ref="nameEl" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <label class="block sm:col-span-2">
+        <span class="st-label">상품명 *</span>
+        <input v-model="f.productName" type="text" class="st-input w-full" :maxlength="PRODUCT_NAME_MAX" placeholder="상품명을 입력하세요" :disabled="!!done" data-mk-11st-name />
+        <span class="st-desc-sm block mt-1">{{ [...String(f.productName || '')].length }} / {{ PRODUCT_NAME_MAX }}자</span>
+      </label>
+      <label class="block">
+        <span class="st-label">브랜드</span>
+        <input v-model="f.brand" type="text" maxlength="100" class="st-input w-full" placeholder="없으면 비워 두세요" :disabled="!!done" data-mk-11st-brand />
+        <span class="st-desc-sm block mt-1">비워 두면 "알수없음"으로 등록됩니다.</span>
+      </label>
+    </div>
+
+    <!-- 카테고리 (최하위만) -->
+    <div ref="catEl" class="block" data-mk-11st-category-box>
+      <span class="st-label">카테고리 *</span>
+      <p v-if="catLoading" class="st-desc-sm" data-mk-11st-cat-loading>카테고리 목록을 불러오는 중…</p>
+      <template v-else-if="categories.length">
+        <input v-model="catQuery" type="text" class="st-input w-full mb-1.5" placeholder="카테고리 검색 (예: 머그컵)" :disabled="!!done" data-mk-11st-cat-search />
+        <select v-model="f.categoryId" class="st-input w-full" :disabled="!!done" data-mk-11st-category>
+          <option :value="null">카테고리 선택</option>
+          <option v-for="c in catOptions" :key="c.id" :value="c.id">{{ c.wholeName }}</option>
+        </select>
+        <span class="st-desc-sm block mt-1">검색 결과 {{ catMatches.length.toLocaleString('ko-KR') }}건<template v-if="catMatches.length > CAT_SHOWN"> · 앞 {{ CAT_SHOWN }}건 표시</template></span>
+      </template>
+      <p v-if="catError" class="mt-1 text-[12px] break-keep" :class="catSoft ? 'st-muted' : 'st-danger-text'" data-mk-11st-cat-error>{{ catError }}
+        <button type="button" class="st-link ml-1" data-mk-11st-cat-retry @click="loadCategories">다시 불러오기</button></p>
+    </div>
+
+    <!-- 판매가 · 재고 -->
+    <div ref="priceEl" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <label class="block">
+        <span class="st-label">판매가 *</span>
+        <input v-model.number="f.price" type="number" min="10" step="10" class="st-input w-full" placeholder="원 (10원 단위)" :disabled="!!done" data-mk-11st-price />
+      </label>
+      <label class="block">
+        <span class="st-label">재고 수량 *</span>
+        <input v-model.number="f.stock" type="number" min="1" step="1" class="st-input w-full" placeholder="개" :disabled="!!done" data-mk-11st-stock />
+        <span class="st-desc-sm block mt-1">11번가는 재고 0으로 등록할 수 없습니다.</span>
+      </label>
+    </div>
+
+    <!-- 대표 이미지 -->
+    <div ref="imageEl" class="block">
+      <span class="st-label">대표 이미지 *</span>
+      <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
+      <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-11st-images>
+        <button v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="f.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :disabled="!!done" :data-mk-11st-image="im.id" @click="f.repImageId = im.id">
+          <img :src="im.url" alt="" class="w-full h-full object-cover" loading="lazy" />
+        </button>
+      </div>
+      <label class="flex items-center gap-2 text-[12px] st-muted mt-2"><input v-model="f.fit" type="radio" value="contain" :disabled="!!done" /> 여백 채우기 <input v-model="f.fit" type="radio" value="cover" class="ml-3" :disabled="!!done" /> 중앙 자르기</label>
+      <span class="st-desc-sm block mt-1">1000×1000으로 변환되며, 11번가가 내려받아 저장합니다. 상세 이미지는 내 상품 {{ prepare.export.files.length }}장을 사용합니다.</span>
+    </div>
+
+    <!-- 배송 -->
+    <div ref="deliveryEl" class="block space-y-2" data-mk-11st-delivery>
+      <span class="st-label">배송 * (택배 · 전국 · 선결제)</span>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="block">
+          <span class="st-desc-sm block mb-1">배송비</span>
+          <label class="flex items-center gap-2 text-[13px] st-ink">
+            <input v-model="f.feeType" type="radio" value="01" :disabled="!!done" data-mk-11st-fee-free /> 무료
+            <input v-model="f.feeType" type="radio" value="02" class="ml-3" :disabled="!!done" data-mk-11st-fee-paid /> 고정 배송비
+          </label>
+          <input v-if="f.feeType === '02'" v-model.number="f.fee" type="number" min="10" step="10" class="st-input w-full mt-1.5" placeholder="기본 배송비 (원)" :disabled="!!done" data-mk-11st-base-fee />
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="block"><span class="st-desc-sm block mb-1">제주 추가</span><input v-model.number="f.jejuFee" type="number" min="0" step="10" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-11st-jeju /></label>
+          <label class="block"><span class="st-desc-sm block mb-1">도서산간 추가</span><input v-model.number="f.islandFee" type="number" min="0" step="10" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-11st-island /></label>
+        </div>
+        <label class="block"><span class="st-desc-sm block mb-1">반품 배송비 (편도)</span><input v-model.number="f.returnFee" type="number" min="0" step="10" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-11st-return-fee /></label>
+        <label class="block"><span class="st-desc-sm block mb-1">교환 배송비 (왕복)</span><input v-model.number="f.exchangeFee" type="number" min="0" step="10" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-11st-exchange-fee /></label>
+      </div>
+      <span class="st-desc-sm block">금액은 10원 단위로 입력하세요.</span>
+    </div>
+
+    <!-- 출고지 · 반품/교환지 (판매자 주소록 — 읽기만) -->
+    <div ref="addressEl" class="block" data-mk-11st-address-box>
+      <div class="flex flex-wrap items-center gap-2 mb-1">
+        <span class="st-label">출고지 · 반품/교환지 *</span>
+        <!-- 주소는 11번가 셀러오피스에서 바꾼다 — 바꾼 뒤 [주소록 새로고침] -->
+        <a :href="SELLER_OFFICE_URL" target="_blank" rel="noopener noreferrer" class="st-btn ml-auto" data-mk-11st-addr-manage>주소록 관리</a>
+        <button type="button" class="st-btn" :disabled="!!done || addrLoading || addrRefreshing" data-mk-11st-addr-refresh @click="refreshAddresses">{{ addrRefreshing ? '확인 중…' : '주소록 새로고침' }}</button>
+      </div>
+      <p v-if="addrLoading" class="st-desc-sm" data-mk-11st-addr-loading>주소록을 불러오는 중…</p>
+      <div v-else-if="outAddresses.length || inAddresses.length" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label class="block">
+          <span class="st-desc-sm block mb-1">출고지</span>
+          <select v-model="f.outAddr" class="st-input w-full" :disabled="!!done" data-mk-11st-out>
+            <option :value="null">출고지 선택</option>
+            <option v-for="a in outAddresses" :key="a.id" :value="a.id">{{ addressLabel(a) }}</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class="st-desc-sm block mb-1">반품/교환지</span>
+          <select v-model="f.inAddr" class="st-input w-full" :disabled="!!done" data-mk-11st-in>
+            <option :value="null">반품/교환지 선택</option>
+            <option v-for="a in inAddresses" :key="a.id" :value="a.id">{{ addressLabel(a) }}</option>
+          </select>
+        </label>
+      </div>
+      <p v-else-if="!addrError" class="st-desc-sm break-keep" data-mk-11st-addr-empty>11번가 셀러오피스에 출고지·반품/교환지를 등록한 뒤 [주소록 새로고침]을 누르세요.</p>
+      <p v-if="addrError" class="mt-1 text-[12px] break-keep" :class="addrSoft ? 'st-muted' : 'st-danger-text'" data-mk-11st-addr-error>{{ addrError }}
+        <button type="button" class="st-link ml-1" data-mk-11st-addr-retry @click="loadAddresses">다시 불러오기</button></p>
+    </div>
+
+    <!-- A/S · 반품/교환 안내 · 부가세 · 미성년자 -->
+    <div ref="guideEl" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <label class="block">
+        <span class="st-label">A/S 안내 *</span>
+        <input v-model="f.asDetail" type="text" maxlength="1000" class="st-input w-full" :disabled="!!done" data-mk-11st-as />
+      </label>
+      <label class="block">
+        <span class="st-label">반품/교환 안내 *</span>
+        <input v-model="f.rtngExchDetail" type="text" maxlength="1000" class="st-input w-full" :disabled="!!done" data-mk-11st-rtng />
+      </label>
+    </div>
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] st-ink">
+      <span class="st-label">부가세 *</span>
+      <label v-for="v in VAT_TYPES" :key="v.code" class="flex items-center gap-1.5"><input v-model="f.vat" type="radio" :value="v.code" :disabled="!!done" :data-mk-11st-vat="v.code" /> {{ v.name }}</label>
+      <label class="flex items-center gap-1.5"><input v-model="f.minorBlocked" type="checkbox" :disabled="!!done" data-mk-11st-minor /> 미성년자 구매 불가</label>
+    </div>
+    <p v-if="f.vat === '02'" class="st-desc-sm break-keep" data-mk-11st-vat-note>면세상품으로 등록하면 세무·법률적 책임은 판매자에게 있습니다.</p>
+
+    <!-- KC 인증 — 판매자가 직접 고른다 (기본값 없음) -->
+    <div ref="kcEl" class="block space-y-2" data-mk-11st-kc>
+      <span class="st-label">KC 인증 *</span>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <label v-for="g in KC_GROUPS" :key="g.code" class="block">
+          <span class="st-desc-sm block mb-1">{{ g.name }}</span>
+          <select v-model="f.kc[g.code]" class="st-input w-full" :disabled="!!done" :data-mk-11st-kc-group="g.code">
+            <option value="">선택</option>
+            <option v-for="c in KC_CHOICES[g.code]" :key="c.key" :value="c.key">{{ c.label }}</option>
+          </select>
+        </label>
+      </div>
+      <p class="st-desc-sm break-keep" data-mk-11st-kc-note>KC 인증 대상 여부는 판매자가 직접 확인하여 선택해야 합니다. 잘못 표시하여 발생하는 법적 책임은 판매자에게 있습니다.</p>
+    </div>
+
+    <!-- 상품정보제공고시 -->
+    <div ref="noticeEl" class="block space-y-2" data-mk-11st-notice>
+      <span class="st-label">상품정보제공고시 *</span>
+      <select v-model="f.noticeType" class="st-input w-full sm:w-80" :disabled="!!done" data-mk-11st-notice-type>
+        <option v-for="t in NOTICE_TYPES" :key="t.code" :value="t.code">{{ t.name }}</option>
+      </select>
+      <p v-if="heavyNotice" class="text-[13px] font-bold st-danger-text break-keep" data-mk-11st-notice-heavy>{{ noticeTypeName }}은 법정 표시 항목이 많습니다. 표시 내용이 사실과 다르면 판매자에게 법적 책임이 있으므로, 항목을 직접 확인한 뒤 등록하세요.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <label class="block"><span class="st-desc-sm block mb-1">제조자/수입자</span><input v-model="f.maker" type="text" :maxlength="NOTICE_VALUE_MAX" class="st-input w-full" :disabled="!!done" data-mk-11st-maker /></label>
+        <label class="block"><span class="st-desc-sm block mb-1">제조국</span><input v-model="f.country" type="text" :maxlength="NOTICE_VALUE_MAX" class="st-input w-full" :disabled="!!done" data-mk-11st-country /></label>
+        <label class="block"><span class="st-desc-sm block mb-1">A/S·상담 전화번호</span><input v-model="f.phone" type="text" :maxlength="NOTICE_VALUE_MAX" class="st-input w-full" :disabled="!!done" data-mk-11st-phone /></label>
+      </div>
+      <p class="st-desc-sm break-keep" data-mk-11st-notice-rest>나머지 항목({{ restLabels.join(' · ') }})은 "{{ NOTICE_DEFAULT_VALUE }}"로 등록됩니다. 값은 {{ NOTICE_VALUE_MAX }}자까지 입력할 수 있습니다.</p>
+    </div>
+
+    <!-- 관리자·스태프 테스트용 — 등록 직후 판매중지 -->
+    <label v-if="isAdminOrStaff" class="flex items-center gap-2 text-[13px] st-ink" data-mk-11st-teststop>
+      <input v-model="f.testStop" type="checkbox" :disabled="!!done" /> 테스트용: 등록 직후 판매중지 (관리자 전용)
+    </label>
+
+    <!-- 등록 정보 확인 -->
+    <section class="space-y-2" data-mk-11st-preview>
+      <h4 class="st-h-card">등록 정보 확인</h4>
+      <div class="st-border rounded-[10px] overflow-hidden">
+        <table class="sum-table">
+          <tbody>
+            <tr v-for="r in preview" :key="r.label" :data-mk-11st-preview-row="r.label">
+              <th>{{ r.label }}</th>
+              <td :class="r.value ? 'st-ink' : 'st-muted'">{{ r.value || '미입력' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-11st-done>등록되었습니다. 상품번호 {{ done.productNo }}<template v-if="done.stopped"> · 판매중지</template></p>
+    <p v-if="done?.stopError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-11st-stop-error>{{ done.stopError }}</p>
+  </div>
+</template>
+
+<script setup>
+// 보내기 창의 11번가 섹션 (2026-10-01) — 내 상품 한 줄(prepare = send_prepare 응답)을 11번가 상품으로 등록한다.
+// 스마트스토어 섹션(StudioSendSmartstore)과 같은 모양으로 밖에 내놓는다: missing(빠진 것)·busy·done·submit(). 창(StudioSendModal)이 11번가를 체크했을 때만 보인다.
+// 항목·코드는 공용 파일(api/_elevenstFields.js — 공식 문서·셀러오피스 표 그대로). 필수값은 화면(missing)이 먼저 막고 서버(buildElevenstProduct)가 다시 검사한다
+// 금액은 기본값 없이 비워 둔다(임의 숫자 없음). KC 인증은 판매자가 직접 고른다(기본값 없음)
+// 카테고리·주소록은 창이 들고 있는 목록(sendCache)을 같이 쓴다 — 창을 다시 열어도 다시 받지 않는다
+import { ref, computed, onMounted, inject, nextTick } from 'vue'
+import { listElevenstCategories, listElevenstAddresses, sendElevenstProduct, isNotReady } from '@/lib/studioMarketplace'
+import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
+import { isAdminOrStaff } from '@/lib/auth'
+import { pickKoreanName } from '../../../api/_coupangFields.js'
+import {
+  NOTICE_TYPES, DEFAULT_NOTICE_TYPE, NOTICE_VALUE_MAX, NOTICE_DEFAULT_VALUE, NOTICE_COUNTRY_DEFAULT, HEAVY_NOTICE_TYPES, noticeTypeOf, noticeItemsFor,
+  NOTICE_MAKER_CODES, NOTICE_COUNTRY_CODES, NOTICE_PHONE_CODES, KC_GROUPS, KC_CHOICES, kcGroupsFor, VAT_TYPES, PRODUCT_NAME_MAX, is10Won,
+  pickElevenstAddress, SELLER_OFFICE_URL, ORIGIN_CHINA,
+} from '../../../api/_elevenstFields.js'
+
+const CAT_SHOWN = 200
+const props = defineProps({ prepare: { type: Object, required: true } })
+
+const busy = ref('')
+const done = ref(null)
+const sendError = ref('')
+const errorGuide = ref(false)
+const errorEl = ref(null)
+const nameEl = ref(null), catEl = ref(null), priceEl = ref(null), imageEl = ref(null), deliveryEl = ref(null), addressEl = ref(null), guideEl = ref(null), kcEl = ref(null), noticeEl = ref(null)
+const categories = ref([])
+const catLoading = ref(false)
+const catError = ref('')
+const catSoft = ref(false)
+const catQuery = ref('')
+const outAddresses = ref([])
+const inAddresses = ref([])
+const addrLoading = ref(false)
+const addrRefreshing = ref(false)
+const addrError = ref('')
+const addrSoft = ref(false)
+const f = ref({
+  // 상품명 기본값 = 다른 판매처 섹션과 같은 규칙(한글만), 없으면 빈칸
+  productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
+  brand: '', categoryId: null, price: null, stock: null, repImageId: props.prepare?.images?.[0]?.id ?? null, fit: 'contain',
+  feeType: '01', fee: null, jejuFee: null, islandFee: null, returnFee: null, exchangeFee: null,
+  outAddr: null, inAddr: null,
+  asDetail: NOTICE_DEFAULT_VALUE, rtngExchDetail: NOTICE_DEFAULT_VALUE,
+  vat: '01', minorBlocked: false,
+  kc: Object.fromEntries(KC_GROUPS.map(g => [g.code, ''])), // 기본값 없음 — 판매자가 직접 고른다
+  noticeType: DEFAULT_NOTICE_TYPE, maker: NOTICE_DEFAULT_VALUE, country: NOTICE_COUNTRY_DEFAULT, phone: NOTICE_DEFAULT_VALUE,
+  testStop: false,
+})
+
+const catMatches = computed(() => {
+  const q = catQuery.value.trim().toLowerCase()
+  return q ? categories.value.filter(c => c.wholeName.toLowerCase().includes(q)) : categories.value
+})
+const catOptions = computed(() => {
+  const list = catMatches.value.slice(0, CAT_SHOWN)
+  const sel = categories.value.find(c => c.id === f.value.categoryId)
+  return sel && !list.includes(sel) ? [sel, ...list] : list
+})
+const categoryName = computed(() => categories.value.find(c => c.id === f.value.categoryId)?.wholeName || '')
+const addressLabel = a => `${a.name || '이름 없음'} · ${a.address}`
+const addressName = (list, id) => { const a = list.find(x => x.id === id); return a ? addressLabel(a) : '' }
+const noticeTypeName = computed(() => noticeTypeOf(f.value.noticeType)?.name || '')
+const heavyNotice = computed(() => HEAVY_NOTICE_TYPES.includes(f.value.noticeType))
+const restLabels = computed(() => (noticeTypeOf(f.value.noticeType)?.items || []).filter(([code]) => ![...NOTICE_MAKER_CODES, ...NOTICE_COUNTRY_CODES, ...NOTICE_PHONE_CODES].includes(code)).map(([, label]) => label))
+const noticeItems = computed(() => noticeItemsFor(f.value.noticeType, { maker: f.value.maker, country: f.value.country, phone: f.value.phone }) || [])
+
+const missing = computed(() => {
+  const v = f.value, out = []
+  if (!String(v.productName || '').trim()) out.push('상품명')
+  else if ([...String(v.productName).trim()].length > PRODUCT_NAME_MAX) out.push(`상품명 ${PRODUCT_NAME_MAX}자 이내`)
+  if (!v.categoryId) out.push('카테고리')
+  if (!is10Won(v.price, 10)) out.push('판매가 (10원 단위)')
+  if (!Number.isInteger(v.stock) || v.stock < 1) out.push('재고 수량 (1개 이상)')
+  if (!v.repImageId) out.push('대표 이미지')
+  if (v.feeType === '02' && !is10Won(v.fee, 10)) out.push('기본 배송비')
+  if (!is10Won(v.jejuFee) || !is10Won(v.islandFee)) out.push('제주·도서산간 추가 배송비')
+  if (!is10Won(v.returnFee) || !is10Won(v.exchangeFee)) out.push('반품·교환 배송비')
+  if (!v.outAddr) out.push('출고지')
+  if (!v.inAddr) out.push('반품/교환지')
+  if (!String(v.asDetail || '').trim()) out.push('A/S 안내')
+  if (!String(v.rtngExchDetail || '').trim()) out.push('반품/교환 안내')
+  if (!kcGroupsFor(v.kc)) out.push('KC 인증')
+  if (noticeItems.value.some(it => !it.name || [...it.name].length > NOTICE_VALUE_MAX)) out.push('상품정보제공고시')
+  return out
+})
+const won = n => (Number.isInteger(n) ? `${n.toLocaleString('ko-KR')}원` : '')
+const preview = computed(() => {
+  const v = f.value
+  return [
+    { label: '상품명', value: String(v.productName || '').trim() },
+    { label: '브랜드', value: String(v.brand || '').trim() || '알수없음' },
+    { label: '카테고리', value: categoryName.value },
+    { label: '판매가', value: is10Won(v.price, 10) ? won(v.price) : '' },
+    { label: '재고 수량', value: Number.isInteger(v.stock) && v.stock >= 1 ? `${v.stock.toLocaleString('ko-KR')}개` : '' },
+    { label: '대표 이미지', value: v.repImageId ? '대표 이미지 1장' : '' },
+    { label: '상세 이미지', value: `상세 이미지 ${props.prepare.export.files.length}장` },
+    { label: '배송비', value: v.feeType === '02' ? (is10Won(v.fee, 10) ? `${won(v.fee)} (선결제)` : '') : '무료' },
+    { label: '제주·도서산간', value: is10Won(v.jejuFee) && is10Won(v.islandFee) ? `제주 ${won(v.jejuFee)} · 도서산간 ${won(v.islandFee)}` : '' },
+    { label: '반품·교환 배송비', value: is10Won(v.returnFee) && is10Won(v.exchangeFee) ? `반품 ${won(v.returnFee)} · 교환 ${won(v.exchangeFee)}` : '' },
+    { label: '출고지', value: addressName(outAddresses.value, v.outAddr) },
+    { label: '반품/교환지', value: addressName(inAddresses.value, v.inAddr) },
+    { label: '원산지', value: `해외 · ${ORIGIN_CHINA.name}` },
+    { label: '상품정보제공고시', value: noticeTypeName.value },
+    { label: '판매상태', value: v.testStop && isAdminOrStaff.value ? '등록 후 판매중지 (테스트)' : '판매중' },
+  ]
+})
+
+// 같은 화면 안에서 다시 받지 않는 목록 — 받는 중에 다시 열면 같은 요청을 기다린다. 실패는 기억하지 않는다
+const sendCache = inject(SEND_CACHE_KEY, null)
+function cached(key, load) {
+  if (!sendCache) return load()
+  if (!sendCache[key]) {
+    const p = load()
+    sendCache[key] = p
+    p.then(r => { if (sendCache[key] === p) sendCache[`${key}Done`] = r },
+      () => { if (sendCache[key] === p) delete sendCache[key] }) // 원인은 부르는 쪽이 console.error로 남긴다
+  }
+  return sendCache[key]
+}
+async function loadCategories() {
+  const kept = sendCache?.elevenstCategoriesDone
+  if (kept) { categories.value = Array.isArray(kept.categories) ? kept.categories : []; return }
+  catLoading.value = true
+  catError.value = ''
+  try {
+    const r = await cached('elevenstCategories', listElevenstCategories)
+    categories.value = Array.isArray(r.categories) ? r.categories : []
+    if (!categories.value.length) catError.value = '카테고리 목록이 비어 있습니다.'
+  } catch (e) {
+    console.error('[StudioSendElevenst] 카테고리 조회 실패:', e.code, e)
+    catError.value = e.message
+    catSoft.value = isNotReady(e.code)
+  } finally {
+    catLoading.value = false
+  }
+}
+/** 처음 골라 둘 주소 — 마지막으로 등록에 성공한 주소(서버 r.last) → 목록 첫째 (api/_elevenstFields.js pickElevenstAddress). 고른 주소가 새 목록에도 있으면 그대로 */
+function applyAddresses(r) {
+  outAddresses.value = Array.isArray(r.outAddresses) ? r.outAddresses : []
+  inAddresses.value = Array.isArray(r.inAddresses) ? r.inAddresses : []
+  if (!outAddresses.value.some(a => a.id === f.value.outAddr)) f.value.outAddr = pickElevenstAddress(outAddresses.value, r.last?.out ?? null)
+  if (!inAddresses.value.some(a => a.id === f.value.inAddr)) f.value.inAddr = pickElevenstAddress(inAddresses.value, r.last?.in ?? null)
+}
+async function loadAddresses() {
+  const kept = sendCache?.elevenstAddressesDone
+  if (kept) { applyAddresses(kept); return }
+  addrLoading.value = true
+  addrError.value = ''
+  try {
+    applyAddresses(await cached('elevenstAddresses', listElevenstAddresses))
+  } catch (e) {
+    console.error('[StudioSendElevenst] 주소록 조회 실패:', e.code, e)
+    addrError.value = e.message
+    addrSoft.value = isNotReady(e.code)
+  } finally {
+    addrLoading.value = false
+  }
+}
+/** [주소록 새로고침] — 창이 들고 있는 목록(sendCache)을 버리고 다시 받는다 (11번가 주소록은 읽기만) */
+async function refreshAddresses() {
+  if (addrRefreshing.value || addrLoading.value) return
+  if (sendCache) { delete sendCache.elevenstAddresses; delete sendCache.elevenstAddressesDone }
+  addrRefreshing.value = true
+  addrError.value = ''
+  try {
+    applyAddresses(await cached('elevenstAddresses', listElevenstAddresses))
+  } catch (e) {
+    console.error('[StudioSendElevenst] 주소록 새로고침 실패:', e.code, e)
+    addrError.value = e.message
+    addrSoft.value = isNotReady(e.code)
+  } finally {
+    addrRefreshing.value = false
+  }
+}
+
+/** 실패 문구 → 해당 칸 (모르면 섹션 맨 위 사유 줄) */
+const FIELD_HINTS = [
+  [/상품명|보낼 수 없는 글자/, nameEl], [/카테고리/, catEl], [/판매가|재고/, priceEl], [/대표 이미지|상세 이미지|사진/, imageEl],
+  [/배송비/, deliveryEl], [/출고지|반품지|반품\/교환지|주소/, addressEl], [/A\/S 안내|반품\/교환 안내/, guideEl], [/KC/, kcEl], [/고시/, noticeEl],
+]
+function scrollToProblem(message) {
+  const hit = FIELD_HINTS.find(([re]) => re.test(String(message || '')))
+  const target = hit?.[1]?.value || errorEl.value
+  nextTick(() => target?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }))
+}
+
+/** 창의 [보내기]가 부른다 — 성공하면 결과, 실패하면 null(이유는 이 섹션 안에) */
+async function submit() {
+  if (busy.value || done.value || missing.value.length) return null
+  busy.value = 'send'
+  sendError.value = ''
+  errorGuide.value = false
+  const v = f.value
+  try {
+    const r = await sendElevenstProduct({
+      exportId: props.prepare.export.id, productName: String(v.productName).trim(), brand: String(v.brand || '').trim(),
+      categoryId: v.categoryId, categoryName: categoryName.value, price: v.price, stock: v.stock, repImageId: v.repImageId, fit: v.fit,
+      vat: v.vat, minorOk: !v.minorBlocked, kc: { ...v.kc },
+      delivery: { feeType: v.feeType, fee: v.feeType === '02' ? v.fee : null, jejuFee: v.jejuFee, islandFee: v.islandFee, returnFee: v.returnFee, exchangeFee: v.exchangeFee, outAddr: v.outAddr, inAddr: v.inAddr },
+      asDetail: String(v.asDetail).trim(), rtngExchDetail: String(v.rtngExchDetail).trim(),
+      notice: { type: v.noticeType, maker: String(v.maker).trim(), country: String(v.country).trim(), phone: String(v.phone).trim() },
+      ...(isAdminOrStaff.value && v.testStop ? { testStop: true } : {}), // 서버도 관리자만 받아들인다
+    })
+    done.value = r
+    // 같은 화면에서 창을 다시 열 때도 방금 보낸 출고지·반품지가 기본 (서버는 다음 조회부터 보내기 기록에서 읽는다)
+    const kept = sendCache?.elevenstAddressesDone
+    if (kept) sendCache.elevenstAddressesDone = { ...kept, last: { out: v.outAddr, in: v.inAddr } }
+    return r
+  } catch (e) {
+    console.error('[StudioSendElevenst] 11번가 보내기 실패:', e.code, e)
+    sendError.value = e.message
+    errorGuide.value = ['not_connected', 'bad_key', 'ip_not_allowed', 'not_approved'].includes(e.code)
+    scrollToProblem(e.message)
+    return null
+  } finally {
+    busy.value = ''
+  }
+}
+
+// 창을 다시 열 때 이미 받은 목록은 바로 채운다(깜빡임 없음) — 받지 않은 것만 화면에 붙은 뒤 서버에 묻는다
+if (sendCache?.elevenstCategoriesDone) categories.value = Array.isArray(sendCache.elevenstCategoriesDone.categories) ? sendCache.elevenstCategoriesDone.categories : []
+if (sendCache?.elevenstAddressesDone) applyAddresses(sendCache.elevenstAddressesDone)
+onMounted(() => {
+  if (!sendCache?.elevenstCategoriesDone) loadCategories()
+  if (!sendCache?.elevenstAddressesDone) loadAddresses()
+})
+defineExpose({ missing, busy, done, submit })
+</script>
+
+<style scoped>
+/* 스마트스토어·쿠팡 섹션의 요약 표와 같은 모양 */
+.sum-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sum-table th { width: 130px; padding: 7px 10px; text-align: left; font-weight: 700; color: var(--st-muted); background: var(--st-soft); border-bottom: 1px solid var(--st-line); white-space: nowrap; }
+.sum-table td { padding: 7px 10px; border-bottom: 1px solid var(--st-line); word-break: break-all; }
+.sum-table tr:last-child th, .sum-table tr:last-child td { border-bottom: 0; }
+</style>
