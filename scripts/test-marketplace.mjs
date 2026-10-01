@@ -2495,6 +2495,10 @@ function elevenstRelay(u, method, opts) {
       /commonPatch\('smartstore', props\.common, own\)/.test(ssv), /commonPatch\('11st', props\.common, own\)/.test(e11v), [ssv, e11v].every(s => /if \(!props\.common \|\| done\.value\) return/.test(s)), [ssv, e11v].every(s => !/props\.common/.test(s.slice(s.indexOf('async function submit()'), s.indexOf('async function submit()') + 3000))),
     ], [true, true, true, true])
   }
+  eq('보내기 탭: [여러 판매처로 한 번에 보내기] = 보낼 수 있는 곳 2곳 이상일 때만 · 판매처 없이 창을 엶(= 연결된 곳 모두 체크, 이미 보낸 곳 뺌) · 판매처별 버튼은 그대로', [
+    /<div v-if="sendableCount > 1"[^>]*data-ch-send-all-box>/.test(view), /data-ch-send-all @click="openSend\(''\)"/.test(view), /sendableCount = computed\(\(\) => rows\.value\.filter\(r => r\.state === 'connected'\)\.length\)/.test(view),
+    /opening\.value = market \|\| ALL/.test(view), /:data-ch-send="r\.key" @click="openSend\(r\.key\)"/.test(view),
+  ], [true, true, true, true, true])
   eq('섹션 4개 모두 sendError를 내놓음 (창 결과 표용 — 읽기만)', ['Coupang', 'Smartstore', 'Elevenst', 'Cafe24'].map(n => /defineExpose\(\{ missing, busy, done, submit, sendError \}\)/.test(read(`src/components/studio/StudioSend${n}.vue`))), [true, true, true, true])
 }
 

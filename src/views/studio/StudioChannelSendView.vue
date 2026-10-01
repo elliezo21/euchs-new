@@ -34,6 +34,11 @@
           </div>
         </div>
 
+        <!-- 여러 판매처 한 번에 (2026-10-01) — 보낼 수 있는 판매처가 2곳 이상일 때만. 창은 연결된 곳을 모두 체크한 채로 열린다(이미 보낸 곳은 뺌) -->
+        <div v-if="sendableCount > 1" class="mt-4 flex flex-wrap items-center gap-2" data-ch-send-all-box>
+          <button type="button" class="st-btn st-btn-primary ch-btn" :disabled="!!opening" data-ch-send-all @click="openSend('')"><Send class="w-3.5 h-3.5" :stroke-width="2" /> {{ opening === ALL ? '여는 중…' : '여러 판매처로 한 번에 보내기' }}</button>
+          <span class="st-desc-sm break-keep">상품명·판매가·재고·옵션은 한 번만 입력하고, 판매처마다 다른 칸만 따로 채웁니다.</span>
+        </div>
         <ul class="mt-4 st-border rounded-[10px] st-divide overflow-hidden" data-ch-markets>
           <li v-for="r in rows" :key="r.key" class="ch-row" :class="{ 'is-off': r.state !== 'connected' }" :data-ch-market="r.key" :data-ch-market-state="r.state">
             <span class="text-[14px] font-bold truncate" :class="r.state === 'connected' ? 'st-ink' : 'st-muted'">{{ r.name }}</span>
@@ -119,6 +124,7 @@ const coupangPhase = computed(() => linkPhase({ authLoading: isAuthLoading.value
 const rowPhase = key => (key === 'coupang' ? coupangPhase.value : marketLinksPhase.value)
 const rowWaiting = r => r.state === 'locked' && ['checking', 'failed'].includes(rowPhase(r.key))
 const rowsFailed = computed(() => rows.value.some(r => r.state === 'locked' && rowPhase(r.key) === 'failed'))
+const sendableCount = computed(() => rows.value.filter(r => r.state === 'connected').length) // 2곳 이상이면 [여러 판매처로 한 번에 보내기]
 function retryRows() {
   if (coupangPhase.value === 'failed') loadStatus()
   if (marketLinksPhase.value === 'failed') loadMarketLinks()
@@ -188,6 +194,7 @@ function gotoSent(id) {
 }
 
 // ── 보내기 (예전 내 상품 카드의 [판매처로 보내기]와 같은 길) ──
+const ALL = 'all' // [여러 판매처로 한 번에 보내기]로 여는 중 (opening 표시용 — 창에는 market ''를 넘겨 연결된 곳 모두 체크)
 const opening = ref('')
 const sendOpen = ref(false)
 const sendPrepare = ref(null) // null = 창 안에서 "보내기 준비 중"
@@ -225,7 +232,7 @@ async function openSend(market) {
   message.value = ''
   messageAdminUrl.value = ''
   if (!loggedIn.value) { await studioGate(resume); return } // 로그인 창 (서버를 부르지 않는다)
-  opening.value = market
+  opening.value = market || ALL
   try {
     // 창을 먼저 연다 — 기억한 준비 데이터가 있으면 그대로, 없으면 창 안에서 "보내기 준비 중"
     const kept = prepared.get(exportId)
