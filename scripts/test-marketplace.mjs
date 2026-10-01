@@ -175,6 +175,19 @@ const BASE = {
   eq('품번 없음 → 거절', C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], sku: '' }] }).ok, false)
   eq('GTIN 형식 틀림 → 거절', C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], gtin: '12ab' }] }).ok, false)
   eq('반품지 주소는 places에서', [b.body.returnCenterCode, b.body.returnZipCode, b.body.returnAddress, b.body.returnChargeName], ['200', '61000', '광주 북구', '반품지A'])
+  {
+    // 출고지≠반품지 (2026-10-01 점검) — 출고지·반품지는 쿠팡 API 두 개에서 따로 받아(kind) 템플릿 두 칸에 따로 저장 → 본문도 각각. 서로의 주소가 섞이지 않음
+    const MP = [
+      { kind: 'outbound', place_code: '100', name: '3PL 창고', address: { zip: '17000', address: '경기 용인 창고', addressDetail: 'B동', contact: '031-000-0000' } },
+      { kind: 'outbound', place_code: '101', name: '사무실 출고', address: { zip: '61000', address: '광주 사무실', addressDetail: '2층', contact: '062-000-0000' } },
+      { kind: 'return', place_code: '200', name: '판매자 사무실', address: { zip: '61000', address: '광주 북구 사무실', addressDetail: '3층', contact: '062-111-1111', deliverCode: 'CJGLS', deliverName: 'CJ대한통운' } },
+      { kind: 'return', place_code: '201', name: '창고 반품', address: { zip: '17000', address: '경기 용인 창고', addressDetail: 'B동', contact: '031-000-0000', deliverCode: 'CJGLS', deliverName: 'CJ대한통운' } },
+    ]
+    const tv = C.validateTemplate({ ...T, outbound_place_code: '100', return_center_code: '200' }, MP)
+    const mb = C.buildProductBody({ ...BASE, template: tv.value, places: MP })
+    eq('쿠팡 출고지≠반품지: 템플릿 출고지 100(창고)·반품지 200(사무실) → 본문 outboundShippingPlaceCode 100 · returnCenterCode 200 · 반품 주소·연락처 = 반품지 것', [tv.ok, mb.ok, mb.body.outboundShippingPlaceCode, mb.body.returnCenterCode, mb.body.returnChargeName, mb.body.returnAddress, mb.body.returnZipCode, mb.body.companyContactNumber], [true, true, 100, '200', '판매자 사무실', '광주 북구 사무실', '61000', '062-111-1111'])
+    eq('쿠팡: 출고지 코드를 반품지 칸에 넣은 템플릿(kind가 다름)은 저장 거절', [C.validateTemplate({ ...T, outbound_place_code: '200', return_center_code: '200' }, MP).ok, C.validateTemplate({ ...T, outbound_place_code: '100', return_center_code: '100' }, MP).ok], [false, false])
+  }
   eq('대표 이미지 + 상세 이미지 · 상세 내용', [b.body.items[0].images.map(i => i.imageType), b.body.items[0].contents[0].contentDetails.length], [['REPRESENTATION', 'DETAIL'], 1])
   eq('판매가 > 정가 → 거절', C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], salePrice: 13000 }] }).ok, false)
   eq('가격 없음 → 거절 (임의 숫자로 채우지 않음)', C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], salePrice: null, originalPrice: null }] }).ok, false)
@@ -250,7 +263,19 @@ globalThis.fetch = async (url, opts = {}) => {
   const rows = db[table]
   if (!rows) return json({ message: 'no table' }, 404)
   const body = opts.body ? JSON.parse(opts.body) : null
-  if (method === 'GET') return json(rows.filter(r => match(r, u.search)))
+  if (method === 'GET') {
+    let hit = rows.filter(r => match(r, u.search))
+    const q = new URLSearchParams(u.search), sel = q.get('select') || ''
+    // JSON 경로 select(별칭:칸->a->b)를 쓰는 조회만 PostgREST처럼 순서·개수·모양을 맞춘다 (스마트스토어 마지막 주소) — 다른 조회는 예전 그대로
+    const path = /^(\w+):(\w+)((?:->\w+)+)$/.exec(sel)
+    if (path) {
+      if (q.get('order') === 'created_at.desc') hit = hit.slice().reverse()
+      if (q.get('limit')) hit = hit.slice(0, Number(q.get('limit')))
+      const keys = path[3].split('->').filter(Boolean)
+      return json(hit.map(r => ({ [path[1]]: keys.reduce((o, k) => (o == null ? null : o[k] ?? null), r[path[2]]) })))
+    }
+    return json(hit)
+  }
   if (method === 'POST') {
     const list = (Array.isArray(body) ? body : [body]).map(b => ({ id: newId(), created_at: new Date().toISOString(), ...b }))
     for (const n of list) {
@@ -1568,6 +1593,28 @@ function smartstoreRelay(u, method, opts) {
     S.normalizeAddressBooks({ addressBooks: [{ addressBookNo: 7, name: 'n', addressType: 'RELEASE', address: '주소' }, { addressBookNo: 'x' }] }),
     S.defaultAddress([{ id: 1, type: 'REPRESENTATIVE' }, { id: 2, type: 'RELEASE' }, { id: 3, type: 'REFUND_OR_EXCHANGE' }], 'shipping'), S.defaultAddress([{ id: 2, type: 'RELEASE' }, { id: 3, type: 'REFUND_OR_EXCHANGE' }], 'return'), S.defaultAddress([], 'return'),
   ], [['3', '2'], [{ id: 7, name: 'n', type: 'RELEASE', address: '주소', phone: '', overseas: false }], 2, 3, null])
+  {
+    // 출고지≠반품지 (2026-10-01 운영: 출고지 기본이 "반품교환지"로 잡힘) — 유형 값 = 문서 enum AddressBookType.sellers 8개
+    const A = (id, type, overseas = false) => ({ id, type, overseas })
+    const P = SF.pickSmartstoreAddress
+    const ened = [A(1, 'REFUND_OR_EXCHANGE'), A(2, 'GENERAL'), A(3, 'RELEASE', true)]
+    eq('주소 유형 = 문서 enum 8개 그대로', Object.keys(SF.ADDRESS_TYPES), ['REPRESENTATIVE', 'BUSINESS', 'GENERAL', 'RELEASE', 'REFUND_OR_EXCHANGE', 'LOGISTICS_CENTER_RELEASE', 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE', 'OVERSEAS_BANK'])
+    eq('출고지≠반품지 기본값: 출고지 RELEASE·반품지 REFUND_OR_EXCHANGE(서로 다름) · 출고지 용도 없으면 반품/교환지가 아닌 국내(일반) · 물류센터 유형은 일반 유형보다 먼저 · 반품지에 출고지 전용 주소를 먼저 넣지 않음', [
+      [P([A(1, 'REFUND_OR_EXCHANGE'), A(2, 'RELEASE')], 'shipping'), P([A(1, 'REFUND_OR_EXCHANGE'), A(2, 'RELEASE')], 'return')],
+      [P(ened, 'shipping'), P(ened, 'return')],
+      [P([A(1, 'REFUND_OR_EXCHANGE'), A(2, 'GENERAL'), A(3, 'LOGISTICS_CENTER_RELEASE'), A(4, 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE')], 'shipping'), P([A(2, 'GENERAL'), A(3, 'LOGISTICS_CENTER_RELEASE'), A(4, 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE')], 'return')],
+      P([A(1, 'RELEASE'), A(2, 'REPRESENTATIVE')], 'return'),
+    ], [[2, 1], [2, 1], [3, 4], 2])
+    eq('기본값 예외: 용도 값이 없으면 예전 그대로(국내 첫째) · 해외만 있으면 목록 첫째 · 정산 계좌(OVERSEAS_BANK)는 고르지 않음 · 빈 목록 null', [
+      P([A(7, ''), A(8, '')], 'shipping'), P([A(7, ''), A(8, '')], 'return'), P([A(5, 'RELEASE', true), A(6, 'REFUND_OR_EXCHANGE', true)], 'return'),
+      P([A(9, 'OVERSEAS_BANK'), A(2, 'GENERAL')], 'shipping'), P([A(9, 'OVERSEAS_BANK')], 'return'), P([], 'shipping'), S.defaultAddress(null, 'return'),
+    ], [7, 7, 5, 2, null, null, null])
+    eq('마지막에 보낸 주소: 목록에 있으면 출고지·반품지 각각 그것(해외여도 — 고객이 고른 것) · 없으면 규칙 · 서버 defaultAddress도 같은 함수', [
+      P(ened, 'shipping', 1), P(ened, 'return', 2), P(ened, 'shipping', 3), P(ened, 'shipping', 99), P([A(9, 'OVERSEAS_BANK'), A(2, 'GENERAL')], 'shipping', 9),
+      S.defaultAddress(ened, 'shipping', { shipping: 1, return: 2 }), S.defaultAddress(ened, 'return', { shipping: 1, return: 2 }), S.defaultAddress(ened, 'return', null),
+    ], [1, 2, 3, 2, 2, 1, 2, 1])
+    eq('마지막 주소 읽기: claimDeliveryInfo 두 번호 · 없거나 이상하면 null', [SF.lastAddressesOf({ shippingAddressId: 102, returnAddressId: 103 }), SF.lastAddressesOf(null), SF.lastAddressesOf({ shippingAddressId: '102', returnAddressId: -1 })], [{ shipping: 102, return: 103 }, { shipping: null, return: null }, { shipping: null, return: null }])
+  }
   eq('주소록 해외 여부 = 문서 칸 overseasAddress(boolean) 그대로 · true일 때만 해외', S.normalizeAddressBooks({ addressBooks: [{ addressBookNo: 1, overseasAddress: true }, { addressBookNo: 2, overseasAddress: false }, { addressBookNo: 3 }, { addressBookNo: 4, overseasAddress: 'true' }] }).map(a => a.overseas), [true, false, false, false])
   // 관부가세 (2026-10-01 운영 1차 400 customsTaxType.required.overseas)
   const OVS = { ...IN, delivery: { ...IN.delivery, shippingAddressId: 104, shippingOverseas: true } }
@@ -1626,7 +1673,7 @@ function smartstoreRelay(u, method, opts) {
   eq('네이버 호출 헤더: Bearer 토큰 · 중계 비밀 · 시크릿·서명은 상품 API 요청에 없음', [relay.calls[1].headers.Authorization, relay.calls[1].headers['x-relay-secret'], JSON.stringify(relay.calls[1]).includes(SS_SALT)], ['Bearer ss-access-token', 'test-relay-secret', false])
   relay.calls = []
   const ad = await post('smartstore_addresses')
-  eq('주소록: 페이지 끝까지(totalPage) · 기본 출고지 102(RELEASE)·반품지 103(REFUND_OR_EXCHANGE)', [ad.statusCode, ad.body.addresses.map(a => a.id), ad.body.defaults, relay.calls.filter(c => c.path.endsWith('addressbooks-for-page')).map(c => c.query), ad.body.addresses.filter(a => a.overseas).map(a => a.id)], [200, [101, 102, 103, 104], { shipping: 102, return: 103 }, ['?page=1', '?page=2'], [104]])
+  eq('주소록: 페이지 끝까지(totalPage) · 기본 출고지 102(RELEASE)·반품지 103(REFUND_OR_EXCHANGE) · 보낸 적 없으면 last 비어 있음', [ad.statusCode, ad.body.addresses.map(a => a.id), ad.body.defaults, relay.calls.filter(c => c.path.endsWith('addressbooks-for-page')).map(c => c.query), ad.body.addresses.filter(a => a.overseas).map(a => a.id), ad.body.last], [200, [101, 102, 103, 104], { shipping: 102, return: 103 }, ['?page=1', '?page=2'], [104], { shipping: null, return: null }])
 
   // 입력이 틀리면 네이버를 부르지 않고 기록도 안 만든다
   relay.calls = []
@@ -1710,6 +1757,29 @@ function smartstoreRelay(u, method, opts) {
     const up = relay.calls.find(c => c.path.endsWith('/product-images/upload')), pr = relay.calls.find(c => c.path.endsWith('/external/v2/products'))
     const srcs = [...pr.body.originProduct.detailContent.matchAll(/<img src="([^"]+)"/g)].map(m => m[1])
     eq('같은 그림: 합치지 않고 장마다 업로드(대표 + 4장 = 5) · 상세 4장 순서 그대로 · 02·03·04 = 같은 주소 · 01과는 다름', [sr.statusCode, (up.raw.toString('latin1').match(/name="imageFiles"/g) || []).length, srcs.length, srcs[1] === srcs[2] && srcs[2] === srcs[3], srcs[0] !== srcs[1]], [200, 5, 4, true, true])
+  }
+
+  // 마지막에 보낸 출고지·반품지 기억 (2026-10-01) — 새 DB 칸 없이 등록 성공한 보내기의 본문에서 읽는다 · 출고지≠반품지 각각
+  {
+    const sent = await post('smartstore_send', { ...UI, delivery: { ...UI.delivery, shippingAddressId: 101, returnAddressId: 102 } })
+    const ad2 = await post('smartstore_addresses')
+    eq('마지막 등록 성공(출고지 101 사업장 · 반품지 102 출고지 유형) → 다음 주소록의 last·기본값이 그대로 (용도 규칙보다 먼저)', [sent.statusCode, ad2.body.last, ad2.body.defaults], [200, { shipping: 101, return: 102 }, { shipping: 101, return: 102 }])
+    ssRelay.mode = 'reject'
+    await post('smartstore_send', { ...UI, delivery: { ...UI.delivery, shippingAddressId: 103, returnAddressId: 103 } })
+    ssRelay.mode = 'ok'
+    const ad3 = await post('smartstore_addresses')
+    eq('등록에 실패한 보내기는 기억하지 않음 (last 그대로 101·102)', [db.marketplace_sends.at(-1).status, ad3.body.last], ['failed', { shipping: 101, return: 102 }])
+    const realFetch2 = globalThis.fetch
+    globalThis.fetch = async (url, o = {}) => (new URL(url).pathname === '/rest/v1/marketplace_sends' && (o.method || 'GET') === 'GET' ? json({ message: 'boom' }, 500) : realFetch2(url, o))
+    const ad4 = await post('smartstore_addresses')
+    globalThis.fetch = realFetch2
+    eq('기록 조회가 실패해도 주소록은 보임 · 기억 없이 기본 규칙(102·103)', [ad4.statusCode, ad4.body.addresses.length, ad4.body.last, ad4.body.defaults], [200, 4, { shipping: null, return: null }, { shipping: 102, return: 103 }])
+    eq('화면: 주소록 응답 last로 기본값 · 공용 규칙 pickSmartstoreAddress 하나 · 보낸 뒤 같은 화면의 목록(sendCache)에도 기억', [
+      /pickSmartstoreAddress\(addresses\.value, 'shipping', r\.last\?\.shipping \?\? null\)/.test(read('src/components/studio/StudioSendSmartstore.vue')),
+      /pickSmartstoreAddress\(addresses\.value, 'return', r\.last\?\.return \?\? null\)/.test(read('src/components/studio/StudioSendSmartstore.vue')),
+      /function pickDefaultAddress/.test(read('src/components/studio/StudioSendSmartstore.vue')),
+      read('src/components/studio/StudioSendSmartstore.vue').includes('last: { shipping: v.shippingAddressId, return: v.returnAddressId }'),
+    ], [true, true, false, true])
   }
 
   // 화면 배선

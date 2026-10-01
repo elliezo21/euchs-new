@@ -16,7 +16,7 @@
  */
 import bcrypt from 'bcryptjs'
 import { breakerFor, NOT_READY_MESSAGE, RELAY_IP } from './_coupang.js'
-import { DISPLAY_STATUSES, SS_DELIVERY_COMPANIES, ORIGIN_CODES, isCustomsTaxType } from './_smartstoreFields.js'
+import { DISPLAY_STATUSES, SS_DELIVERY_COMPANIES, ORIGIN_CODES, isCustomsTaxType, pickSmartstoreAddress } from './_smartstoreFields.js'
 
 export const SMARTSTORE_PATHS = { token: '/external/v1/oauth2/token' }
 const RELAY_TIMEOUT_MS = 25000
@@ -235,10 +235,9 @@ export function normalizeAddressBooks(json) {
     .filter(a => a && Number.isSafeInteger(Number(a.addressBookNo)) && Number(a.addressBookNo) > 0)
     .map(a => ({ id: Number(a.addressBookNo), name: String(a.name || ''), type: String(a.addressType || ''), address: String(a.address || [a.baseAddress, a.detailAddress].filter(Boolean).join(' ')), phone: String(a.phoneNumber1 || ''), overseas: a.overseasAddress === true }))
 }
-/** 기본으로 고를 주소 — 출고지는 RELEASE, 반품지는 REFUND_OR_EXCHANGE 첫째 (없으면 null — 고객이 고른다) */
-export function defaultAddress(list, kind) {
-  const want = kind === 'return' ? 'REFUND_OR_EXCHANGE' : 'RELEASE'
-  return (Array.isArray(list) ? list : []).find(a => a.type === want)?.id ?? null
+/** 기본으로 고를 주소 — 화면과 같은 규칙 하나(_smartstoreFields.pickSmartstoreAddress). last = 마지막 등록 성공 때의 { shipping, return } */
+export function defaultAddress(list, kind, last = null) {
+  return pickSmartstoreAddress(list, kind, kind === 'return' ? last?.return : last?.shipping)
 }
 
 /** 이미지 업로드 응답 → 주소 배열 (보낸 장 수와 다르면 null) */

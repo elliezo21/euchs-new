@@ -41,7 +41,7 @@
  *   cafe24_categories → { categories:[{ no, depth, parentNo, name, fullName }] }  (고객 쇼핑몰 상품분류 — 2026-09-30 카페24 보내기)
  *   cafe24_send       { exportId, productName, price, categoryNo?, repImageId, fit? } → 토큰 갱신(필요하면) → 이미지 업로드(대표 + 상세) → 상품 등록(진열·판매 안 함) → marketplace_sends(cafe24, registered) → { sendId, productNo, status, adminUrl }
  *   smartstore_categories → { categories:[{ id, name, wholeName }] }  (리프 카테고리 — 2026-10-01 스마트스토어 보내기)
- *   smartstore_addresses  → { addresses:[{ id, name, type, address, phone }], defaults:{ shipping, return } }  (판매자 주소록)
+ *   smartstore_addresses  → { addresses:[{ id, name, type, address, phone, overseas }], last:{ shipping, return }, defaults:{ shipping, return } }  (판매자 주소록 · last = 마지막 등록 성공 때 주소)
  *   smartstore_send   { exportId, productName, salePrice, stock, leafCategoryId, categoryName?, repImageId, fit?, display?('SUSPENSION' 기본|'ON'), delivery(+ shippingOverseas), afterService, origin, notice, customsTaxType?(해외 출고지면 필수) }
  *                     → 토큰 → marketplace_sends(smartstore, sending) → 이미지 업로드(대표 + 상세, 네이버 주소) → 상품 등록 → registered(원상품번호·채널상품번호) → { sendId, originProductNo, channelProductNo, status }
  * GET ?t={토큰}  (로그인 없음 — 쿠팡이 이미지를 내려받는 짧은 주소, _marketplaceCrypto 토큰 30분) → 파일 바이트 그대로 (302 아님)
@@ -65,6 +65,7 @@ import {
   smartstoreToken, SmartstoreError, smartstoreApi, SS_PATHS, buildSmartstoreProduct, normalizeSsCategories, normalizeAddressBooks, defaultAddress, uploadedImageUrls, productNosOf,
   imageMime, planUploads, buildImageMultipart, UPLOAD_IMAGE_MAX, DETAIL_IMAGE_MAX, DISPLAY_STATUSES,
 } from './_smartstore.js'
+import { lastAddressesOf } from './_smartstoreFields.js'
 import {
   Cafe24Error, authorizeUrl, makeState, verifyState, verifyLaunch, exchangeCode, refreshAccess, missingScopes, needsRefresh, isMallId, normalizeMallId, appCredentials, redirectKeyFor, CAFE24_REDIRECT_URIS,
   cafe24Api, accessNeedsRefresh, isWon, cleanProductName, isCategoryNo, buildCafe24Product, isDisplayFlag, buildCafe24ProductImage, productImagePath, productNoOf, normalizeCategories, uploadedPaths, responseShape, CATEGORY_PAGE, CATEGORY_MAX_PAGES, cafe24AdminProductUrl,
@@ -672,7 +673,21 @@ async function smartstoreAddresses(ctx, body, res) {
       if (page === ADDRESS_PAGES_MAX) console.error(`[marketplace] 스마트스토어 주소록이 ${ADDRESS_PAGES_MAX}페이지를 넘음 — 앞부분만 ${ctx.userId}`)
     }
   } catch (e) { return smartstoreFail(res, e, 'addresses') }
-  return res.status(200).json({ addresses, defaults: { shipping: defaultAddress(addresses, 'shipping'), return: defaultAddress(addresses, 'return') } })
+  const last = await lastSmartstoreAddresses(ctx)
+  return res.status(200).json({ addresses, last, defaults: { shipping: defaultAddress(addresses, 'shipping', last), return: defaultAddress(addresses, 'return', last) } })
+}
+/**
+ * 마지막으로 등록에 성공한(상품 번호가 있는) 스마트스토어 보내기의 출고지·반품지 — 새 DB 칸 없이 그때 보낸 본문(request_json.body)에서 읽는다
+ * 못 읽으면 기억 없이 기본 규칙만 (주소록은 그대로 보여 준다) — 원인은 로그로
+ */
+async function lastSmartstoreAddresses(ctx) {
+  try {
+    const rows = await sb(ctx.cfg, `marketplace_sends?select=claim:request_json->body->originProduct->deliveryInfo->claimDeliveryInfo&user_id=eq.${ctx.userId}&market=eq.${SMARTSTORE}&seller_product_id=not.is.null&order=created_at.desc&limit=1`)
+    return lastAddressesOf(rows?.[0]?.claim)
+  } catch (e) {
+    console.error('[marketplace] 스마트스토어 마지막 출고지·반품지 조회 실패 — 기본 규칙으로:', ctx.userId, e.message)
+    return lastAddressesOf(null)
+  }
 }
 /** 화면 값 → 등록 재료 (이미지 주소는 올린 뒤에 채운다) */
 function smartstoreInput(body) {

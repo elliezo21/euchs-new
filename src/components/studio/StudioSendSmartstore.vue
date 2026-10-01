@@ -189,12 +189,11 @@ import { ref, computed, onMounted, inject, nextTick } from 'vue'
 import { listSmartstoreCategories, listSmartstoreAddresses, sendSmartstoreProduct, isNotReady } from '@/lib/studioMarketplace'
 import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
-import { SS_DELIVERY_COMPANIES, DISPLAY_STATUSES, CUSTOMS_TAX_TYPES } from '../../../api/_smartstoreFields.js'
+import { SS_DELIVERY_COMPANIES, DISPLAY_STATUSES, CUSTOMS_TAX_TYPES, ADDRESS_TYPES, pickSmartstoreAddress } from '../../../api/_smartstoreFields.js'
 
 const CAT_SHOWN = 200 // 선택 목록에 한 번에 보이는 카테고리 수 (검색으로 좁힌다)
 const DETAIL_REF = '상세페이지 참조'
 const DISPLAY_LABEL = { SUSPENSION: '전시중지', ON: '전시중' }
-const ADDRESS_TYPE = { RELEASE: '출고지', REFUND_OR_EXCHANGE: '반품/교환지', REPRESENTATIVE: '사업장', BUSINESS: '추가 사업장', GENERAL: '일반', LOGISTICS_CENTER_RELEASE: '물류센터 출고지', LOGISTICS_CENTER_REFUND_OR_EXCHANGE: '물류센터 반품/교환지' }
 const props = defineProps({ prepare: { type: Object, required: true } })
 
 const busy = ref('')
@@ -235,7 +234,7 @@ const catOptions = computed(() => {
   return sel && !list.includes(sel) ? [sel, ...list] : list
 })
 const categoryName = computed(() => categories.value.find(c => c.id === f.value.leafCategoryId)?.wholeName || '')
-const addressLabel = a => `${a.name}${ADDRESS_TYPE[a.type] ? ` (${ADDRESS_TYPE[a.type]})` : ''}${a.overseas ? ' · 해외' : ''} · ${a.address}`
+const addressLabel = a => `${a.name}${ADDRESS_TYPES[a.type] ? ` (${ADDRESS_TYPES[a.type]})` : ''}${a.overseas ? ' · 해외' : ''} · ${a.address}`
 // 고른 출고지가 해외 주소인지 — 주소록 응답 overseasAddress(서버 normalizeAddressBooks의 overseas) 그대로
 const shippingOverseas = computed(() => addresses.value.find(a => a.id === f.value.shippingAddressId)?.overseas === true)
 const customsName = code => CUSTOMS_TAX_TYPES.find(t => t.code === code)?.name || ''
@@ -313,19 +312,14 @@ async function loadCategories() {
   }
 }
 /**
- * 처음 골라 둘 주소 (2026-10-01 운영 1차: 주소록의 해외(항주) 출고지가 기본으로 잡혀 관부가세 400) — 우리 고객은 국내에서 출고한다
- *   국내(overseas false) 주소 중 용도가 맞는 것(출고지 RELEASE · 반품지 REFUND_OR_EXCHANGE) → 없으면 국내 첫 번째
- *   국내 주소가 하나도 없을 때만 목록 첫 번째(해외) — 그때는 관부가세 칸이 나온다. 해외 주소도 목록에는 그대로 둔다(고를 수 있음)
+ * 처음 골라 둘 주소 — 규칙은 서버와 같은 함수 하나(api/_smartstoreFields.js pickSmartstoreAddress)
+ *   마지막으로 등록에 성공한 출고지·반품지(서버 r.last) → 국내 + 용도 유형 → 다른 용도가 아닌 국내 주소 → 국내 첫째 → 목록 첫째
+ *   (2026-10-01 운영: 해외(항주) 출고지가 기본 → 관부가세 400 / 출고지 기본이 "반품교환지"로 잡힘). 해외 주소도 목록에는 그대로 둔다(고를 수 있음)
  */
-function pickDefaultAddress(list, kind) {
-  const want = kind === 'return' ? 'REFUND_OR_EXCHANGE' : 'RELEASE'
-  const domestic = list.filter(a => a.overseas !== true)
-  return (domestic.find(a => a.type === want) || domestic[0] || list[0])?.id ?? null
-}
 function applyAddresses(r) {
   addresses.value = Array.isArray(r.addresses) ? r.addresses : []
-  if (f.value.shippingAddressId == null) f.value.shippingAddressId = pickDefaultAddress(addresses.value, 'shipping')
-  if (f.value.returnAddressId == null) f.value.returnAddressId = pickDefaultAddress(addresses.value, 'return')
+  if (f.value.shippingAddressId == null) f.value.shippingAddressId = pickSmartstoreAddress(addresses.value, 'shipping', r.last?.shipping ?? null)
+  if (f.value.returnAddressId == null) f.value.returnAddressId = pickSmartstoreAddress(addresses.value, 'return', r.last?.return ?? null)
 }
 async function loadAddresses() {
   const kept = sendCache?.smartstoreAddressesDone
@@ -361,6 +355,9 @@ async function submit() {
       ...(shippingOverseas.value ? { customsTaxType: v.customsTaxType } : {}), // 국내 출고지면 보내지 않는다
     })
     done.value = r
+    // 같은 화면에서 창을 다시 열 때도 방금 보낸 출고지·반품지가 기본 (서버는 다음 조회부터 보내기 기록에서 읽는다)
+    const kept = sendCache?.smartstoreAddressesDone
+    if (kept) sendCache.smartstoreAddressesDone = { ...kept, last: { shipping: v.shippingAddressId, return: v.returnAddressId } }
     return r
   } catch (e) {
     console.error('[StudioSendSmartstore] 스마트스토어 보내기 실패:', e.code, e)
