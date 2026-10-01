@@ -32,6 +32,7 @@
       <div class="font-bold st-ink">보내기 전 준비 사항</div>
       <p class="st-muted">11번가 셀러오피스에 출고지와 반품/교환지 주소가 등록되어 있어야 합니다.</p>
       <p class="st-muted">11번가 Open API(Seller API) 승인이 완료된 계정만 상품을 등록할 수 있습니다.</p>
+      <p class="st-muted" data-mk-11st-prep-settle>11번가 셀러오피스에서 정산대금 수령방법·입금계좌 인증이 완료되어 있어야 합니다.</p>
       <a :href="SELLER_OFFICE_URL" target="_blank" rel="noopener noreferrer" class="st-link" data-mk-11st-office>셀러오피스 열기</a>
     </div>
 
@@ -267,7 +268,7 @@ import { pickKoreanName } from '../../../api/_coupangFields.js'
 import {
   NOTICE_TYPES, DEFAULT_NOTICE_TYPE, NOTICE_VALUE_MAX, NOTICE_DEFAULT_VALUE, NOTICE_COUNTRY_DEFAULT, HEAVY_NOTICE_TYPES, noticeTypeOf, noticeItemsFor,
   NOTICE_MAKER_CODES, NOTICE_COUNTRY_CODES, NOTICE_PHONE_CODES, KC_GROUPS, KC_CHOICES, KC_CERT_TYPES, KC_CERT_KEY_MAX, kcFor, VAT_TYPES, PRODUCT_NAME_MAX, is10Won,
-  pickElevenstAddress, SELLER_OFFICE_URL, ORIGIN_CHINA, ORIGIN_KINDS, ORIGIN_DOMESTIC, ORIGIN_COUNTRIES, originFor, feeHasBase,
+  pickElevenstAddress, SELLER_OFFICE_URL, ORIGIN_CHINA, ORIGIN_KINDS, ORIGIN_DOMESTIC, ORIGIN_COUNTRIES, originFor, feeHasBase, bundleDeliveryYn, BUNDLE_OFF_NOTE,
   elevenstFormFromProduct, elevenstFormFromShipping, productTemplateFromElevenstForm, shippingTemplateFromElevenstForm,
 } from '../../../api/_elevenstFields.js'
 
@@ -367,6 +368,7 @@ const preview = computed(() => {
     { label: '상세 이미지', value: `상세 이미지 ${props.prepare.export.files.length}장` },
     { label: '배송비', value: v.feeType === '02' ? (is10Won(v.fee, 10) ? `${won(v.fee)} (선결제)` : '')
       : v.feeType === '03' ? (is10Won(v.fee, 10) && is10Won(v.freeOver, 10) ? `${won(v.fee)} · ${won(v.freeOver)} 이상 무료 (선결제)` : '') : '무료' },
+    { label: '묶음배송', value: bundleDeliveryYn(v.feeType) === 'N' ? BUNDLE_OFF_NOTE : '가능' }, // 보내는 값(bndlDlvCnYn)과 같은 규칙
     { label: '제주·도서산간', value: is10Won(v.jejuFee) && is10Won(v.islandFee) ? `제주 ${won(v.jejuFee)} · 도서산간 ${won(v.islandFee)}` : '' },
     { label: '반품·교환 배송비', value: is10Won(v.returnFee) && is10Won(v.exchangeFee) ? `반품 ${won(v.returnFee)} · 교환 ${won(v.exchangeFee)}` : '' },
     { label: '출고지', value: addressName(outAddresses.value, v.outAddr) },

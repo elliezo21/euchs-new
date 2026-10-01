@@ -1935,6 +1935,12 @@ function elevenstRelay(u, method, opts) {
     const T = (s, t, w) => E11.translateElevenstApi(s, t, w)
     const all = [T(200, '<AuthMessage><resultCode>300</resultCode></AuthMessage>'), T(200, '<AuthMessage><resultCode>100</resultCode></AuthMessage>'), T(200, '<ClientMessage><resultCode>400</resultCode></ClientMessage>', '등록'), T(200, '<ClientMessage><resultCode>500</resultCode><message>카테고리 오류</message></ClientMessage>', '등록'), T(503, ''), T(0, ''), T(200, '<ClientMessage><resultCode>200</resultCode></ClientMessage>')]
     eq('오류 번역(합니다체): 300 = Seller API 미승인 · 100 = 인증 실패 · 400 = 하루 500개 한도 · 500 = 판매처 문구 · 대화체 없음 (중계 준비 문구는 모든 판매처 공용이라 제외)', [all.map(x => x && x.code), all[3].message, all.filter(Boolean).filter(x => !/^relay_/.test(x.code) && talk.test(x.message)).length], [['not_approved', 'bad_key', 'daily_limit', 'market_rejected', 'market_server', 'relay_unreachable', null], '판매처에서 등록을 거절했습니다: 카테고리 오류', 0])
+    // 2026-10-01 실전 거절 원문 — 정산계좌 인증 (화면 문구만 바꾸고 원문은 result_json에)
+    const raw = '<ClientMessage><resultCode>500</resultCode><message>상품등록실패 : 추가정보가 인증되지 않아 정산대금 수령방법 및 입금계좌를 확인할 수 없습니다. 셀러오피스 상품등록 페이지에서 정산대금 수령방법 및 입금계좌를 인증해주세요.</message></ClientMessage>'
+    const st = T(200, raw, '등록'), st2 = T(200, '<ClientMessage><resultCode>500</resultCode><message>입금계좌 확인 불가</message></ClientMessage>', '등록')
+    const mj = read('api/marketplace.js')
+    eq('정산계좌 오류: "정산대금"·"입금계좌"가 있으면 고객 문구 바꿈(code settlement_unverified) · 다른 500은 그대로 · 등록 응답 경로도 같은 규칙 + 원문은 result_json.message · 준비 사항 안내 한 줄', [st.code, st.message, st2.code, all[3].code, /const settle = SETTLEMENT_ERROR_RE\.test\(cm\.message\)/.test(mj), /result_json: \{ code: cm\.code, step: 'product', message: cm\.message \}/.test(mj), /result_json: \{ code: e\.code, status: e\.status, step: 'product', raw: e\.raw \}/.test(mj), /data-mk-11st-prep-settle>11번가 셀러오피스에서 정산대금 수령방법·입금계좌 인증이 완료되어 있어야 합니다\.</.test(read('src/components/studio/StudioSendElevenst.vue'))],
+      ['settlement_unverified', '11번가 정산계좌 인증이 필요합니다. 셀러오피스 상품등록 페이지에서 정산대금 수령방법과 입금계좌를 인증한 뒤 다시 보내십시오.', 'settlement_unverified', 'market_rejected', true, true, true, true])
   }
 
   // 3) 등록 본문 — 공식 필수 항목 · EUC-KR · 해외 항목 없음
@@ -1948,11 +1954,19 @@ function elevenstRelay(u, method, opts) {
   const x = b.ok ? dec(b.buf) : ''
   const tags = [...x.matchAll(/<([A-Za-z0-9]+)>/g)].map(m => m[1]).filter((t, i, a) => a.indexOf(t) === i)
   eq('등록 본문: EUC-KR 바이트 · XML 선언 EUC-KR · 바이트를 되읽으면 같은 글자', [b.ok, x.startsWith('<?xml version="1.0" encoding="EUC-KR"?><Product>'), x === b.xml], [true, true, true])
-  eq('등록 본문: 문서 필수 칸 모두 · 순서 고정', tags, ['Product', 'selMthdCd', 'dispCtgrNo', 'prdTypCd', 'prdNm', 'brand', 'rmaterialTypCd', 'orgnTypCd', 'orgnTypDtlsCd', 'suplDtyfrPrdClfCd', 'prdStatCd', 'minorSelCnYn', 'prdImage01', 'htmlDetail', 'ProductCertGroup', 'crtfGrpTypCd', 'crtfGrpObjClfCd', 'ProductCert', 'certTypeCd', 'certKey', 'selPrc', 'prdSelQty', 'dlvCnAreaCd', 'dlvWyCd', 'dlvCstInstBasiCd', 'bndlDlvCnYn', 'dlvCstPayTypCd', 'jejuDlvCst', 'islandDlvCst', 'addrSeqOut', 'addrSeqIn', 'rtngdDlvCst', 'exchDlvCst', 'asDetail', 'rtngExchDetail', 'dlvClf', 'ProductNotification', 'type', 'item', 'code', 'name'])
+  eq('등록 본문: 문서 필수 칸 모두 · 순서 고정', tags, ['Product', 'selMthdCd', 'dispCtgrNo', 'prdTypCd', 'prdNm', 'brand', 'rmaterialTypCd', 'orgnTypCd', 'orgnTypDtlsCd', 'suplDtyfrPrdClfCd', 'prdStatCd', 'minorSelCnYn', 'prdImage01', 'htmlDetail', 'ProductCertGroup', 'crtfGrpTypCd', 'crtfGrpObjClfCd', 'ProductCert', 'certTypeCd', 'certKey', 'selPrdClfCd', 'aplBgnDy', 'aplEndDy', 'selPrc', 'prdSelQty', 'dlvCnAreaCd', 'dlvWyCd', 'dlvCstInstBasiCd', 'bndlDlvCnYn', 'dlvCstPayTypCd', 'jejuDlvCst', 'islandDlvCst', 'addrSeqOut', 'addrSeqIn', 'rtngdDlvCst', 'exchDlvCst', 'asDetail', 'rtngExchDetail', 'dlvClf', 'ProductNotification', 'type', 'item', 'code', 'name'])
   eq('등록 본문 값: 고정가 01 · 일반배송 01 · 상품명 CDATA · 브랜드 없음 = 알수없음 · 원산지 해외 02 + 중국 1287 · 새상품 · 택배 · 전국 · 선결제 · 업체배송 02 · 출고지 11 · 반품지 22 · 고시 891045 + 5항목', [
     E11.xmlTag(x, 'selMthdCd'), E11.xmlTag(x, 'prdTypCd'), /<prdNm><!\[CDATA\[매일 쓰는 머그\]\]><\/prdNm>/.test(x), E11.xmlTag(x, 'brand'), E11.xmlTag(x, 'orgnTypCd'), E11.xmlTag(x, 'orgnTypDtlsCd'), E11.xmlTag(x, 'prdStatCd'),
     E11.xmlTag(x, 'dlvWyCd'), E11.xmlTag(x, 'dlvCnAreaCd'), E11.xmlTag(x, 'dlvCstPayTypCd'), E11.xmlTag(x, 'dlvClf'), E11.xmlTag(x, 'addrSeqOut'), E11.xmlTag(x, 'addrSeqIn'), E11.xmlTag(x, 'type'), (x.match(/<item>/g) || []).length,
   ], ['01', '01', true, '알수없음', '02', '1287', '01', '01', '01', '03', '02', '11', '22', '891045', 5])
+  {
+    // 2026-10-01 실전 거절 "판매시작일(aplBgnDy)이 누락되었습니다." — 문서 apiSeq 1003: 0:100 직접입력 · YYYY/MM/DD · 2999/12/31(최대 3년)
+    const k = new Date(Date.now() + 9 * 3600 * 1000), today = `${k.getUTCFullYear()}/${String(k.getUTCMonth() + 1).padStart(2, '0')}/${String(k.getUTCDate()).padStart(2, '0')}`
+    const late = dec(E11.buildElevenstProduct({ ...IN, now: new Date('2026-10-01T15:30:00Z') }).buf) // UTC 15:30 = KST 다음 날 00:30
+    eq('판매기간: selPrdClfCd 0:100 · aplBgnDy = KST 오늘 YYYY/MM/DD · aplEndDy 2999/12/31 · selTermUseYn 없음 · UTC 저녁이면 KST 다음 날 · summary 같은 값',
+      [E11.xmlTag(x, 'selPrdClfCd'), E11.xmlTag(x, 'aplBgnDy'), E11.xmlTag(x, 'aplEndDy'), /selTermUseYn/.test(x), E11.xmlTag(late, 'aplBgnDy'), F.kstDaySlash(new Date('2026-10-01T14:59:00Z')), b.summary.aplBgnDy, b.summary.aplEndDy],
+      ['0:100', today, '2999/12/31', false, '2026/10/02', '2026/10/01', today, '2999/12/31'])
+  }
   eq('KC: ProductCertGroup 4개(01 인증대상 01 · 02·03 대상 아님 03 · 04 대상 아님 05) · ProductCert 1개(102 + 인증번호 CDATA)', [E11.xmlBlocks(x, 'ProductCertGroup').map(g => `${E11.xmlTag(g, 'crtfGrpTypCd')}:${E11.xmlTag(g, 'crtfGrpObjClfCd')}`), E11.xmlBlocks(x, 'ProductCert').map(c => `${E11.xmlTag(c, 'certTypeCd')}:${E11.xmlTag(c, 'certKey')}`), /<certKey><!\[CDATA\[HU07123-12001\]\]><\/certKey>/.test(x)], [['01:01', '02:03', '03:03', '04:05'], ['102:HU07123-12001'], true])
   {
     const ko = dec(E11.buildElevenstProduct({ ...IN, origin: { kind: '01', code: '1009' } }).buf), rf = dec(E11.buildElevenstProduct({ ...IN, origin: { kind: '03' } }).buf)
@@ -1977,6 +1991,10 @@ function elevenstRelay(u, method, opts) {
     const cx = c.ok ? dec(c.buf) : ''
     const ctags = [...cx.matchAll(/<([A-Za-z0-9]+)>/g)].map(m => m[1])
     eq('조건부 무료: dlvCstInstBasiCd 03 · dlvCst1 3000 · PrdFrDlvBasiAmt 30000 (dlvCst1 바로 뒤) · 고정 배송비(02)는 PrdFrDlvBasiAmt 없음', [c.ok, E11.xmlTag(cx, 'dlvCstInstBasiCd'), E11.xmlTag(cx, 'dlvCst1'), E11.xmlTag(cx, 'PrdFrDlvBasiAmt'), ctags[ctags.indexOf('dlvCst1') + 1], /PrdFrDlvBasiAmt/.test(dec(E11.buildElevenstProduct({ ...IN, delivery: { ...IN.delivery, feeType: '02', fee: 3000, freeOver: 30000 } }).buf))], [true, '03', '3000', '30000', 'PrdFrDlvBasiAmt', false])
+    // 2026-10-01 실전 거절 "상품 조건무 무료일 경우 묶음배송이 불가능합니다. <bndlDlvCnYn/> 를 N으로 설정해주세요."
+    const fx = dec(E11.buildElevenstProduct({ ...IN, delivery: { ...IN.delivery, feeType: '02', fee: 3000 } }).buf)
+    eq('묶음배송: 조건부 무료(03) = bndlDlvCnYn N · 무료(01)·고정(02) = Y · summary도 같은 값 · 등록 정보 확인 표 "묶음배송 불가(조건부 무료)"', [E11.xmlTag(cx, 'bndlDlvCnYn'), E11.xmlTag(x, 'bndlDlvCnYn'), E11.xmlTag(fx, 'bndlDlvCnYn'), c.summary.bndlDlvCnYn, b.summary.bndlDlvCnYn, F.bundleDeliveryYn('03'), F.BUNDLE_OFF_NOTE, /label: '묶음배송', value: bundleDeliveryYn\(v\.feeType\) === 'N' \? BUNDLE_OFF_NOTE/.test(read('src/components/studio/StudioSendElevenst.vue'))],
+      ['N', 'Y', 'Y', 'N', 'Y', 'N', '묶음배송 불가(조건부 무료)', true])
     const bad = [{ feeType: '03', fee: 3000 }, { feeType: '03', fee: 3000, freeOver: 30005 }, { feeType: '03', freeOver: 30000 }, { feeType: '04', fee: 3000 }].map(d => E11.buildElevenstProduct({ ...IN, delivery: { ...IN.delivery, ...d } }))
     eq('조건부 무료 검사: 기준 금액 없음·10원 단위 아님 → 거절 · 기본 배송비 없음 → 거절 · 모르는 종류 → 거절 (합니다체)', [bad.map(r => r.ok), bad.map(r => r.message), bad.filter(r => talk.test(r.message)).length], [[false, false, false, false], ['무료배송 기준 금액을 10원 단위로 입력하세요.', '무료배송 기준 금액을 10원 단위로 입력하세요.', '기본 배송비를 10원 단위로 입력하세요.', '배송비 종류를 선택하세요.'], 0])
     const ni = E11.buildElevenstProduct({ ...IN, notice: { ...IN.notice, items: { 11800: '머그컵 MG-1', 99999: '다른 유형 항목' } } })

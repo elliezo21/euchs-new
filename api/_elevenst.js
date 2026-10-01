@@ -18,6 +18,7 @@
 import { breakerFor, NOT_READY_MESSAGE, RELAY_IP } from './_coupang.js'
 import {
   NOTICE_VALUE_MAX, noticeItemsFor, noticeTypeOf, kcFor, originFor, VAT_TYPES, DELIVERY_FEE_TYPES, feeHasBase, PRODUCT_NAME_MAX, PRICE_MAX, is10Won,
+  bundleDeliveryYn, SETTLEMENT_ERROR_RE, SETTLEMENT_MESSAGE, SALE_PERIOD_CLF, SALE_END_DAY, kstDaySlash,
 } from './_elevenstFields.js'
 
 export const ELEVENST_PATHS = {
@@ -206,7 +207,7 @@ export function translateElevenstApi(status, text = '', what = '요청') {
   if (status >= 400) return { code: 'market_rejected', message: `판매처에서 ${what}을 거절했습니다. (HTTP ${status})` }
   const rc = xmlTag(t, 'resultCode')
   if (rc === '400') return { code: 'daily_limit', message: '11번가 하루 상품 등록 한도(500개)를 넘었습니다. 내일 다시 시도하세요.' }
-  if (rc === '500') { const m = xmlTag(t, 'message'); return { code: 'market_rejected', message: m ? `판매처에서 ${what}을 거절했습니다: ${m.slice(0, 500)}` : `판매처에서 ${what}을 거절했습니다.` } }
+  if (rc === '500') { const m = xmlTag(t, 'message'); if (SETTLEMENT_ERROR_RE.test(m || '')) return { code: 'settlement_unverified', message: SETTLEMENT_MESSAGE }; return { code: 'market_rejected', message: m ? `판매처에서 ${what}을 거절했습니다: ${m.slice(0, 500)}` : `판매처에서 ${what}을 거절했습니다.` } }
   return null
 }
 
@@ -271,6 +272,7 @@ export function buildElevenstProduct(p) {
   const longItem = items.find(it => [...it.name].length > NOTICE_VALUE_MAX)
   if (longItem) return { ok: false, message: `상품정보제공고시 "${longItem.label}" 값은 ${NOTICE_VALUE_MAX}자까지 입력할 수 있습니다.` }
   const brand = clean(p?.brand, 100) || '알수없음' // 문서: 브랜드가 없으면 "알수없음"
+  const saleBegin = kstDaySlash(p?.now instanceof Date ? p.now : new Date()) // now = 테스트용 (부르는 쪽은 안 넘김)
 
   const xml = [
     '<?xml version="1.0" encoding="EUC-KR"?>',
@@ -290,6 +292,9 @@ export function buildElevenstProduct(p) {
     elC('htmlDetail', elevenstDetailHtml(p.detailUrls, name)),
     ...kc.groups.map(g => `<ProductCertGroup>${el('crtfGrpTypCd', g.crtfGrpTypCd)}${el('crtfGrpObjClfCd', g.crtfGrpObjClfCd)}${g.crtfGrpExptTypCd ? el('crtfGrpExptTypCd', g.crtfGrpExptTypCd) : ''}</ProductCertGroup>`),
     ...kc.certs.map(c => `<ProductCert>${el('certTypeCd', c.certTypeCd)}${elC('certKey', c.certKey)}</ProductCert>`), // 인증대상 그룹만
+    el('selPrdClfCd', SALE_PERIOD_CLF), // 판매기간 직접입력 (고정가판매 selMthdCd 01) — selTermUseYn은 안 보냄
+    el('aplBgnDy', saleBegin), // 판매시작일 = 보내는 날 한국시간
+    el('aplEndDy', SALE_END_DAY), // 2999/12/31 = 11번가가 최대 3년으로 처리
     el('selPrc', String(p.price)),
     el('prdSelQty', String(p.stock)),
     el('dlvCnAreaCd', '01'), // 전국
@@ -298,7 +303,7 @@ export function buildElevenstProduct(p) {
     el('dlvCstInstBasiCd', d.feeType),
     ...(feeHasBase(d.feeType) ? [el('dlvCst1', String(d.fee))] : []), // 02 고정 · 03 조건부 무료의 기본 배송비
     ...(d.feeType === '03' ? [el('PrdFrDlvBasiAmt', String(d.freeOver))] : []), // 03 조건부 무료 — 이 금액 이상이면 무료
-    el('bndlDlvCnYn', 'Y'),
+    el('bndlDlvCnYn', bundleDeliveryYn(d.feeType)), // 03 조건부 무료 = N (11번가 규칙)
     el('dlvCstPayTypCd', '03'), // 선결제
     el('jejuDlvCst', String(d.jejuFee)),
     el('islandDlvCst', String(d.islandFee)),
@@ -314,7 +319,7 @@ export function buildElevenstProduct(p) {
   ].join('')
   const enc = encodeEucKr(xml)
   if (enc.bad.length) return { ok: false, message: `11번가에 보낼 수 없는 글자가 있습니다: ${enc.bad.slice(0, 5).join(' ')} — 상품명·안내 문구에서 빼고 다시 보내세요.` }
-  const summary = { prdNm: name, dispCtgrNo: cat, selPrc: p.price, prdSelQty: p.stock, addrSeqOut: outAddr, addrSeqIn: inAddr, dlvCstInstBasiCd: d.feeType, noticeType: n.type, origin: origin.label, kc: kc.groups, certTypes: kc.certs.map(c => c.certTypeCd) }
+  const summary = { prdNm: name, dispCtgrNo: cat, selPrc: p.price, prdSelQty: p.stock, addrSeqOut: outAddr, addrSeqIn: inAddr, dlvCstInstBasiCd: d.feeType, bndlDlvCnYn: bundleDeliveryYn(d.feeType), aplBgnDy: saleBegin, aplEndDy: SALE_END_DAY, noticeType: n.type, origin: origin.label, kc: kc.groups, certTypes: kc.certs.map(c => c.certTypeCd) }
   return { ok: true, xml, buf: enc.buf, summary }
 }
 /** 마지막 등록의 { out, in } 주소 번호 (기록 request_json.summary) — 없거나 이상하면 null */

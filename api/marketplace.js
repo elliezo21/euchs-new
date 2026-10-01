@@ -67,7 +67,7 @@ import {
   verifyElevenstKey, ElevenstError, elevenstCall, ELEVENST_PATHS, ELEVENST_CATEGORY_URL, decodeXmlBytes, normalizeElevenstCategories, normalizeElevenstAddresses,
   translateElevenstApi, buildElevenstProduct, elevenstDetailImageUrls, parseClientMessage, lastElevenstAddresses,
 } from './_elevenst.js'
-import { pickElevenstAddress, ELEVENST_SEND_PUBLIC, feeHasBase } from './_elevenstFields.js'
+import { pickElevenstAddress, ELEVENST_SEND_PUBLIC, feeHasBase, SETTLEMENT_ERROR_RE, SETTLEMENT_MESSAGE } from './_elevenstFields.js'
 import {
   smartstoreToken, SmartstoreError, smartstoreApi, SS_PATHS, buildSmartstoreProduct, normalizeSsCategories, normalizeAddressBooks, defaultAddress, uploadedImageUrls, productNosOf,
   imageMime, planUploads, buildImageMultipart, UPLOAD_IMAGE_MAX, DETAIL_IMAGE_MAX, DISPLAY_STATUSES,
@@ -956,8 +956,9 @@ async function elevenstSend(ctx, body, res) {
   const cm = parseClientMessage(xml)
   if (!cm.ok) {
     console.warn(`[marketplace] 11번가 등록 응답이 성공 아님 send=${sendId}: code=${cm.code} ${String(xml).slice(0, 300)}`)
-    const message = cm.message ? `판매처에서 등록을 거절했습니다: ${cm.message.slice(0, 500)}` : '판매처가 상품 번호를 주지 않았습니다. 셀러오피스에서 상품이 등록되었는지 확인하세요.'
-    return fail(502, 'market_rejected', message, { result_json: { code: cm.code, step: 'product', message: cm.message } })
+    const settle = SETTLEMENT_ERROR_RE.test(cm.message) // 정산계좌 인증 — 화면 문구만 바꾸고 원문은 result_json.message에 그대로
+    const message = settle ? SETTLEMENT_MESSAGE : cm.message ? `판매처에서 등록을 거절했습니다: ${cm.message.slice(0, 500)}` : '판매처가 상품 번호를 주지 않았습니다. 셀러오피스에서 상품이 등록되었는지 확인하세요.'
+    return fail(502, settle ? 'settlement_unverified' : 'market_rejected', message, { result_json: { code: cm.code, step: 'product', message: cm.message } })
   }
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { seller_product_id: cm.productNo, status: 'registered', result_json: { productNo: cm.productNo, resultCode: cm.code, message: cm.message } }, prefer: 'return=minimal' })
   console.info(`[marketplace] 11번가 상품 등록 ${ctx.userId} send=${sendId} prdNo=${cm.productNo} code=${cm.code} images=${ex.files.length + 1}`)

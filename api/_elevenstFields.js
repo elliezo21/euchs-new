@@ -129,6 +129,21 @@ export const VAT_TYPES = [{ code: '01', name: '과세상품' }, { code: '02', na
 //   key = 등록 템플릿의 배송비 방식 (api/_listingTemplates.js SHIP_FEE_TYPES)
 export const DELIVERY_FEE_TYPES = [{ code: '01', name: '무료', key: 'free' }, { code: '02', name: '고정 배송비', key: 'fixed' }, { code: '03', name: '조건부 무료', key: 'conditional' }]
 export const feeHasBase = code => code === '02' || code === '03' // 기본 배송비(dlvCst1)를 받는 종류
+// 묶음배송(bndlDlvCnYn) — 조건부 무료(03)는 N이어야 한다. 무료·고정은 Y (2026-10-01 실전 거절: "상품 조건무 무료일 경우 묶음배송이 불가능합니다. <bndlDlvCnYn/> 를 N으로 설정해주세요.")
+export const bundleDeliveryYn = code => (code === '03' ? 'N' : 'Y')
+export const BUNDLE_OFF_NOTE = '묶음배송 불가(조건부 무료)'
+// 판매기간 — 문서(apiSeq 1003): selPrdClfCd 0:100 = 직접입력(고정가판매일 때만) · aplBgnDy 판매시작일 YYYY/MM/DD · aplEndDy 2999/12/31 = 최대 3년으로 처리
+//   selTermUseYn은 보내지 않는다(문서상 Y = 항목삭제 표시 — 직접입력과 충돌) (2026-10-01 실전 거절: "판매시작일(aplBgnDy)이 누락되었습니다.")
+export const SALE_PERIOD_CLF = '0:100'
+export const SALE_END_DAY = '2999/12/31'
+/** 보내는 날 한국시간 날짜 'YYYY/MM/DD' */
+export function kstDaySlash(now = new Date()) {
+  const k = new Date(now.getTime() + 9 * 3600 * 1000)
+  return `${k.getUTCFullYear()}/${String(k.getUTCMonth() + 1).padStart(2, '0')}/${String(k.getUTCDate()).padStart(2, '0')}`
+}
+// 정산계좌 인증 — 11번가가 등록을 거절할 때 message에 이 말이 들어 있다 (2026-10-01 실전 거절). 원문은 기록에 그대로 남기고 화면 문구만 바꾼다
+export const SETTLEMENT_ERROR_RE = /정산대금|입금계좌/
+export const SETTLEMENT_MESSAGE = '11번가 정산계좌 인증이 필요합니다. 셀러오피스 상품등록 페이지에서 정산대금 수령방법과 입금계좌를 인증한 뒤 다시 보내십시오.'
 export const PRODUCT_NAME_MAX = 100 // 상품명 100자
 export const PRICE_MAX = 999999990 // 10억 원 미만 · 10원 단위
 export const is10Won = (n, min = 0, max = PRICE_MAX) => Number.isInteger(n) && n >= min && n <= max && n % 10 === 0
