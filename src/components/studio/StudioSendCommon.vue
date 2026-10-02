@@ -44,6 +44,7 @@
       </div>
       <label class="flex items-center gap-2 text-[12px] st-muted mt-2"><input v-model="common.fit" type="radio" value="contain" :disabled="disabled" /> 여백 채우기 <input v-model="common.fit" type="radio" value="cover" class="ml-3" :disabled="disabled" /> 중앙 자르기</label>
       <span class="st-desc-sm block mt-1">1000×1000으로 자동 변환됩니다. 상세 이미지는 내 상품 {{ prepare.export.files.length }}장을 사용합니다.</span>
+      <span class="st-desc-sm block mt-1" data-mk-cm-image-note>대표 이미지는 여기에서만 고르고, 체크한 판매처 모두에 같은 사진으로 등록합니다.</span>
     </div>
   </div>
 </template>

@@ -92,8 +92,8 @@
       <StudioSendOptions :model="opts" :skus="prepare.source?.skus || []" :sku-total="prepare.source?.skuTotal || 0" :ordered="prepare.ordered || []" :disabled="!!done" :range="optionRange" :note="OPTION_NOTE" data-mk-11st-options />
     </div>
 
-    <!-- 대표 이미지 -->
-    <div v-show="showOwn('image')" ref="imageEl" class="block">
+    <!-- 대표 이미지 — 공통 정보가 있으면 거기 한 곳에서만 고른다(2026-10-02 ②-1). 이 칸은 공통 정보가 없을 때(다시 보내기 등)만 -->
+    <div v-if="!common" ref="imageEl" class="block">
       <span class="st-label">대표 이미지 *</span>
       <div v-if="!repImages.length" class="st-desc">{{ REP_IMAGE_EMPTY }}</div>
       <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-11st-images>
@@ -381,7 +381,7 @@ const missing = computed(() => {
     if (!optionsOut.value) out.push('판매할 옵션')
     else out.push(...elevenstOptionProblems(optionsOut.value, is10Won(v.price, 10) ? v.price : null).map(m => `옵션: ${m}`))
   } else if (!Number.isInteger(v.stock) || v.stock < 1) out.push('재고 수량 (1개 이상)')
-  if (!v.repImageId) out.push('대표 이미지')
+  if (!v.repImageId) out.push(props.common ? '대표 이미지 (공통 정보)' : '대표 이미지')
   if (feeHasBase(v.feeType) && !is10Won(v.fee, 10)) out.push('기본 배송비')
   if (v.feeType === '03' && !is10Won(v.freeOver, 10)) out.push('무료배송 기준 금액')
   if (!is10Won(v.jejuFee) || !is10Won(v.islandFee)) out.push('제주·도서산간 추가 배송비')

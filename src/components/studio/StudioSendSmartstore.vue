@@ -74,8 +74,8 @@
     <!-- 옵션 (조합형) — 옵션 종류·값을 넣으면 조합 목록이 만들어진다(가져온 옵션이 없으면 꺼진 채). 규칙·근거 api/_marketOptions.js -->
     <StudioSendOptions v-show="showOwn('stock')" :model="opts" :skus="prepare.source?.skus || []" :sku-total="prepare.source?.skuTotal || 0" :ordered="prepare.ordered || []" :disabled="!!done" :range="optionRange" data-mk-ss-options />
 
-    <!-- 대표 이미지 -->
-    <div v-show="showOwn('image')" class="block">
+    <!-- 대표 이미지 — 공통 정보가 있으면 거기 한 곳에서만 고른다(2026-10-02 ②-1). 이 칸은 공통 정보가 없을 때(다시 보내기 등)만 -->
+    <div v-if="!common" class="block">
       <span class="st-label">대표 이미지 *</span>
       <div v-if="!repImages.length" class="st-desc">{{ REP_IMAGE_EMPTY }}</div>
       <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-ss-images>
@@ -323,7 +323,7 @@ const missing = computed(() => {
     if (!optionsOut.value) out.push('판매할 옵션')
     else out.push(...smartstoreOptionProblems(optionsOut.value, isWon(v.salePrice, 1) ? v.salePrice : null).map(m => `옵션: ${m}`))
   } else if (!isWon(v.stock, 0)) out.push('재고 수량')
-  if (!v.repImageId) out.push('대표 이미지')
+  if (!v.repImageId) out.push(props.common ? '대표 이미지 (공통 정보)' : '대표 이미지')
   if (!SS_FEE_TYPES.includes(v.feeType)) out.push('배송비') // 서버 검사와 같은 목록(api/_smartstoreFields.js)
   if ((v.feeType === 'PAID' || v.feeType === 'CONDITIONAL_FREE') && !isWon(v.baseFee, 1)) out.push('기본 배송비')
   if (v.feeType === 'CONDITIONAL_FREE' && !isWon(v.freeOver, 1)) out.push('무료배송 기준 금액')

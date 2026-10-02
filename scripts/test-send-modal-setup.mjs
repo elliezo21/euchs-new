@@ -184,7 +184,7 @@ if (built?.Coupang && built?.Modal) {
   const m1 = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE) })
   eq('1 창 폭: 화면 폭 90% · 최대 1400px (예전 max-w-2xl 아님)', [/data-modal-size="full"/.test(m1.html), m1.html.includes('w-[90vw] max-w-[1400px]'), /max-w-2xl/.test(m1.html)], [true, true, false])
   // 옵션을 불러오기 전(2026-10-02)이라 옵션 종류(색상)·1688 가격 칸은 없다 — 나머지 칸은 그대로
-  eq('1 옵션 표: 가로 스크롤 상자 없음 · 칸마다 이름표(카드형에서 보임) · 모든 칸이 그려짐', [/overflow-x-auto/.test(m1.html), ['사진', '정가(원) *', '판매가(원) *', '할인', '재고 수량 *', '품번 *', 'GTIN'].filter(l => !m1.html.includes('data-label="' + l + '"')), /data-mk-s-items-mode="table"/.test(m1.html), ['색상', '1688 가격'].filter(l => m1.html.includes('data-label="' + l + '"'))], [false, [], true, []])
+  eq('1 옵션 표: 가로 스크롤 상자 없음 · 칸마다 이름표(카드형에서 보임) · 모든 칸이 그려짐', [/overflow-x-auto/.test(m1.html), ['옵션별 사진', '정가(원) *', '판매가(원) *', '할인', '재고 수량 *', '품번 *', 'GTIN'].filter(l => !m1.html.includes('data-label="' + l + '"')), /data-mk-s-items-mode="table"/.test(m1.html), ['색상', '1688 가격'].filter(l => m1.html.includes('data-label="' + l + '"'))], [false, [], true, []])
 
   const n1 = await render(built.Coupang, { prepare: withTitle(RAW, ZH, ZH) })
   eq('2 상품명: 작업 이름·가져온 제목이 모두 번역 전이면 세 칸 다 빈칸 + placeholder (예외 없음)', [n1.error, val(n1.html, 'data-mk-s-name'), val(n1.html, 'data-mk-s-general'), val(n1.html, 'data-mk-s-display'), /placeholder="상품명을 입력하세요"[^>]*data-mk-s-name/.test(n1.html)], [null, '', '', '', true])
@@ -386,17 +386,17 @@ if (built?.Elevenst) {
   const hidden = (html, attr) => new RegExp('<(label|div)[^>]*style="display:none;?"[^>]*>(?:(?!</(label|div)>)[\\s\\S])*' + attr).test(html)
   const ssNo = await withC(built.Smartstore, ssCacheC, null), ssYes = await withC(built.Smartstore, ssCacheC, COMMON())
   eq('스마트스토어 섹션(common 없음): 예전 그대로 — 공통 안내 없음 · 가려진 칸 없음', [ssNo.error, /data-mk-ss-common/.test(ssNo.html), /display:none/.test(ssNo.html)], [null, false, false])
-  eq('스마트스토어 섹션(common 있음): [공통 정보 사용] 3개(상품명·판매가·재고·옵션) · 칸에 공통 값(이름·판매가·옵션 재고·추가금액) · 상품명·판매가·옵션·대표 이미지 칸은 가려짐 · 카테고리·배송은 보임', [
+  eq('스마트스토어 섹션(common 있음): [공통 정보 사용] 3개(상품명·판매가·재고·옵션) · 칸에 공통 값(이름·판매가·옵션 재고·추가금액) · 상품명·판매가·옵션 칸은 가려짐 · 대표 이미지 칸은 없음(공통 정보 한 곳 — ②-1) · 카테고리·배송은 보임', [
     ssYes.error, /data-mk-ss-common/.test(ssYes.html), (ssYes.html.match(/data-mk-use-common-check="/g) || []).length, val(ssYes.html, 'data-mk-ss-name'), val(ssYes.html, 'data-mk-ss-price'), val(ssYes.html, 'data-mk-opt-stock="0"'), val(ssYes.html, 'data-mk-opt-price="1"'),
-    hidden(ssYes.html, 'data-mk-ss-name'), hidden(ssYes.html, 'data-mk-ss-price'), hidden(ssYes.html, 'data-mk-ss-images'), /<div[^>]*style="display:none;?"[^>]*data-mk-ss-options|data-mk-ss-options[^>]*style="display:none/.test(ssYes.html), hidden(ssYes.html, 'data-mk-ss-category-box'),
+    hidden(ssYes.html, 'data-mk-ss-name'), hidden(ssYes.html, 'data-mk-ss-price'), /data-mk-ss-images/.test(ssYes.html) === false, /<div[^>]*style="display:none;?"[^>]*data-mk-ss-options|data-mk-ss-options[^>]*style="display:none/.test(ssYes.html), hidden(ssYes.html, 'data-mk-ss-category-box'),
     /data-mk-ss-preview-row="판매가"[\s\S]{0,200}12,900원/.test(ssYes.html), /data-mk-ss-preview-row="재고 수량"[\s\S]{0,200}10개 \(옵션 재고 합계\)/.test(ssYes.html),
   ], [null, true, 3, '공통 머그', '12900', '7', '1000', true, true, true, true, false, true, true])
   const cache11C = { elevenstCategoriesDone: { categories: [] }, elevenstAddressesDone: { outAddresses: [], inAddresses: [] } }
   const e11No = await withC(built.Elevenst, cache11C, null), e11Yes = await withC(built.Elevenst, cache11C, COMMON())
   eq('11번가 섹션(common 없음): 예전 그대로 — 공통 안내 없음 · 가려진 칸 없음', [e11No.error, /data-mk-11st-common/.test(e11No.html), /display:none/.test(e11No.html)], [null, false, false])
-  eq('11번가 섹션(common 있음): [공통 정보 사용] 3개 · 칸에 공통 값(price 칸) · 상품명·판매가·대표 이미지 가려짐 · 브랜드는 보임 · 요약 표 판매가', [
+  eq('11번가 섹션(common 있음): [공통 정보 사용] 3개 · 칸에 공통 값(price 칸) · 상품명·판매가 가려짐 · 대표 이미지 칸 없음 · 브랜드는 보임 · 요약 표 판매가', [
     e11Yes.error, /data-mk-11st-common/.test(e11Yes.html), (e11Yes.html.match(/data-mk-use-common-check="/g) || []).length, val(e11Yes.html, 'data-mk-11st-name'), val(e11Yes.html, 'data-mk-11st-price'), val(e11Yes.html, 'data-mk-opt-price="1"'),
-    hidden(e11Yes.html, 'data-mk-11st-name'), hidden(e11Yes.html, 'data-mk-11st-price'), hidden(e11Yes.html, 'data-mk-11st-images'), hidden(e11Yes.html, 'data-mk-11st-brand'), /data-mk-11st-preview-row="판매가"[\s\S]{0,200}12,900원/.test(e11Yes.html),
+    hidden(e11Yes.html, 'data-mk-11st-name'), hidden(e11Yes.html, 'data-mk-11st-price'), /data-mk-11st-images/.test(e11Yes.html) === false, hidden(e11Yes.html, 'data-mk-11st-brand'), /data-mk-11st-preview-row="판매가"[\s\S]{0,200}12,900원/.test(e11Yes.html),
   ], [null, true, 3, '공통 머그', '12900', '1000', true, true, true, false, true])
   const cm = await render(built.Common, { common: COMMON(), prepare: PREPARE(true, SOURCE), markets: ['smartstore', '11st'], coupang: true })
   eq('공통 정보 칸: 예외 없음 · 상품명·판매가·옵션 표(공용 영역)·대표 이미지 · 쿠팡 안내 한 줄 · 추가금액 범위 = 두 판매처가 겹치는 곳(-6,450 ~ +6,450)', [
@@ -415,8 +415,8 @@ if (built?.Elevenst) {
     [...cpYes.html.matchAll(/<span[^>]*data-mk-s-opt="g0"[^>]*>([^<]*)</g)].map(m => m[1].trim()), spanText(cpYes.html, 'data-mk-s-price="0"'), spanText(cpYes.html, 'data-mk-s-price="1"'), spanText(cpYes.html, 'data-mk-s-stock="0"'), spanText(cpYes.html, 'data-mk-s-stock="1"'),
     /<input[^>]*data-mk-s-price=/.test(cpYes.html), /data-mk-s-item-add/.test(cpYes.html),
   ], [null, true, 2, true, ['블랙', '화이트'], '12,900', '13,900', '7', '3', false, false])
-  eq('쿠팡 섹션(common 있음): 상품명·대표 이미지 칸은 가려짐 · 품번 = 1688 상품번호-001·002 · 카테고리 메타 전 = 연결 안 됨 표시', [
-    hidden(cpYes.html, 'data-mk-s-name'), /<section[^>]*style="display:none;?"[^>]*>(?:(?!<\/section>)[\s\S])*data-mk-s-images/.test(cpYes.html), val(cpYes.html, 'data-mk-s-sku="0"'), val(cpYes.html, 'data-mk-s-sku="1"'), /data-mk-s-option-unlinked="g0"/.test(cpYes.html),
+  eq('쿠팡 섹션(common 있음): 상품명 칸은 가려짐 · 대표 이미지 칸은 없음(공통 정보에서만 — 다시 보내기·공통 없음일 때만 쿠팡 칸) · 품번 = 1688 상품번호-001·002 · 카테고리 메타 전 = 연결 안 됨 표시', [
+    hidden(cpYes.html, 'data-mk-s-name'), /data-mk-s-images/.test(cpYes.html) === false && /data-mk-s-images/.test(cpNo.html), val(cpYes.html, 'data-mk-s-sku="0"'), val(cpYes.html, 'data-mk-s-sku="1"'), /data-mk-s-option-unlinked="g0"/.test(cpYes.html),
   ], [true, true, '123456789012-001', '123456789012-002', true])
   const cpPrev = await render(built.Coupang, { prepare: { ...PREPARE(true, SOURCE), existing: { coupang: { mode: 'modify', sendId: 's1', sellerProductId: '99', status: 'approved', extra: 0, optionLinks: [{ from: '색상', to: '색상' }], itemNames: ['블랙'] } } }, common: COMMON() })
   eq('쿠팡에 이미 있는 상품: 지난번 연결(색상→색상)을 그대로 · 옵션 구성이 바뀌면(블랙 → 블랙·화이트) 확인 문구 + 체크 칸', [

@@ -126,7 +126,7 @@
           <table class="opt-table" data-mk-s-items>
             <thead>
               <tr>
-                <th class="c-img">사진</th>
+                <th class="c-img" title="옵션별 사진">옵션별 사진</th>
                 <th v-if="f.manualNames">옵션 이름 *</th>
                 <th v-for="t in f.optionTypes" :key="t.key">{{ t.mapped || t.label }}</th>
                 <th v-for="a in extraAttrs" :key="a.name">{{ attrLabel(a) }}</th>
@@ -142,10 +142,10 @@
             </thead>
             <tbody>
               <tr v-for="(it, i) in f.items" :key="it.uid" :data-mk-s-item="i">
-                <td class="c-img" data-label="사진">
-                  <button type="button" class="opt-img" :class="{ 'is-picking': pickFor === i }" :title="it.imageId ? '옵션 이미지 변경' : '옵션 이미지 선택 · 비우면 대표 이미지'" :data-mk-s-item-image="i" @click="pickFor = pickFor === i ? -1 : i">
+                <td class="c-img" data-label="옵션별 사진">
+                  <button type="button" class="opt-img" :class="{ 'is-picking': pickFor === i }" :title="it.imageId ? '옵션별 사진 바꾸기' : '옵션별 사진 고르기 · 고르지 않으면 쿠팡이 대표 이미지를 보여 줍니다'" :data-mk-s-item-image="i" @click="pickFor = pickFor === i ? -1 : i">
                     <img v-if="imageOf(it.imageId)" :src="imageOf(it.imageId).url" alt="" loading="lazy" />
-                    <span v-else class="st-muted text-[11px]">대표</span>
+                    <span v-else class="st-muted text-[11px]">선택</span>
                   </button>
                 </td>
                 <td v-if="f.manualNames" class="c-name" data-label="옵션 이름 *">
@@ -178,7 +178,8 @@
           </table>
         </div>
         <div v-if="pickFor >= 0 && f.items[pickFor]" class="st-surface st-border rounded-[10px] p-3 space-y-2" data-mk-s-item-picker>
-          <div class="flex items-center gap-2 text-[13px]"><b class="st-ink">{{ itemNames[pickFor] || `옵션 ${pickFor + 1}` }}</b><span class="st-muted">옵션 이미지</span><button type="button" class="st-link-muted text-[12px] ml-auto" @click="setItemImage(null)">대표 이미지 사용</button></div>
+          <div class="flex items-center gap-2 text-[13px]"><b class="st-ink">{{ itemNames[pickFor] || `옵션 ${pickFor + 1}` }}</b><span class="st-muted">옵션별 사진</span><button type="button" class="st-link-muted text-[12px] ml-auto" @click="setItemImage(null)">옵션별 사진 빼기</button></div>
+          <p class="st-desc-sm break-keep" data-mk-s-option-image-note>구매자가 쿠팡에서 이 옵션을 고르면 보이는 사진입니다. 대표 이미지(상품 목록·첫 화면 사진)와 다릅니다. 고르지 않으면 대표 이미지가 보입니다.</p>
           <div class="grid grid-cols-6 sm:grid-cols-8 gap-1.5">
             <button v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[6px] overflow-hidden st-border" :class="f.items[pickFor].imageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" @click="setItemImage(im.id)"><img :src="im.url" alt="" class="w-full h-full object-cover" loading="lazy" /></button>
           </div>
@@ -226,8 +227,8 @@
         </div>
       </section>
 
-      <!-- 7. 대표 이미지 -->
-      <section v-show="showOwn('image')" class="space-y-2">
+      <!-- 7. 대표 이미지 — 공통 정보가 있으면 거기 한 곳에서만 고른다(2026-10-02 ②-1). 이 칸은 다시 보내기(반려 고치기 — 공통 정보 없음)일 때만 -->
+      <section v-if="!common" class="space-y-2">
         <h4 class="st-h-card">대표 이미지 *</h4>
         <div v-if="!repImages.length" class="st-desc">{{ REP_IMAGE_EMPTY }}</div>
         <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-s-images>
@@ -560,7 +561,7 @@ const missing = computed(() => {
   if (!/^\d+$/.test(v.categoryCode)) out.push('카테고리')
   if (!v.templateId) out.push('배송/반품 템플릿')
   else if (!templateCourierOk.value) out.push('배송/반품 템플릿의 택배사 (판매처 > 기본 설정에서 다시 저장)')
-  if (!v.repImageId) out.push('대표 이미지')
+  if (!v.repImageId) out.push(props.common ? '대표 이미지 (공통 정보)' : '대표 이미지')
   out.push(...requiredOptionNotes.value)
   if (commonItems.value) {
     // 공통 정보 옵션 → 쿠팡 옵션 이름 연결 (studioCoupangLink.linkProblems) · 옵션을 켰는데 조합이 없으면 보낼 옵션이 없다
@@ -613,7 +614,7 @@ const missing = computed(() => {
   for (const d of docList.value) if (d.needed && !v.docs[d.templateName]) out.push(`구비서류 ${d.templateName}`)
   if (optionChange.value && !optionChangeOk.value) out.push(OPTION_CHANGE_MISSING)
   const limit = props.prepare?.limits?.optionImages
-  if (Number.isInteger(limit) && optionImageIds.value.length > limit) out.push(`옵션 이미지 ${limit}장 초과 (현재 ${optionImageIds.value.length}장)`)
+  if (Number.isInteger(limit) && optionImageIds.value.length > limit) out.push(`옵션별 사진 ${limit}장 초과 (현재 ${optionImageIds.value.length}장)`)
   return [...new Set(out)]
 })
 
@@ -796,7 +797,7 @@ async function submit() {
     const size = JSON.stringify(payload).length
     if (size > SEND_BODY_MAX) {
       console.error('[StudioSendCoupang] 요청 본문이 너무 큼:', size, '옵션 사진', optionImages.length, '구비서류', payload.documents.length)
-      sendError.value = '이미지와 서류의 합계 용량이 너무 큽니다. 옵션 이미지 수를 줄이거나 서류 파일 용량을 줄이세요.'
+      sendError.value = '이미지와 서류의 합계 용량이 너무 큽니다. 옵션별 사진 수를 줄이거나 서류 파일 용량을 줄이세요.'
       return null
     }
     done.value = await sendProduct(payload)

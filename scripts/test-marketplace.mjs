@@ -3905,6 +3905,20 @@ function elevenstRelay(u, method, opts) {
   ], [true, true, true])
 }
 
+// ── 28-2. 대표 이미지 고르기는 한 곳 (2026-10-02 ②-1) — 공통 정보가 있으면 판매처 칸에는 대표 이미지 고르기가 없다 · 쿠팡 "옵션별 사진"은 다른 기능 ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const secs = ['Coupang', 'Smartstore', 'Elevenst', 'Zigzag'].map(n => read(`src/components/studio/StudioSend${n}.vue`))
+  eq('공통 대상 판매처 4곳: 대표 이미지 칸 = 공통 정보가 없을 때만(v-if="!common") · 빠짐 목록은 "대표 이미지 (공통 정보)" · 공통 정보 칸에 안내 한 줄', [
+    secs.map(s => /<(section|div) v-if="!common"[^>]*>\s*(<span class="st-label">대표 이미지 \*<\/span>|<h4 class="st-h-card">대표 이미지 \*<\/h4>)/.test(s)), secs.every(s => s.includes("out.push(props.common ? '대표 이미지 (공통 정보)' : '대표 이미지')")),
+    /data-mk-cm-image-note[^>]*>대표 이미지는 여기에서만 고르고/.test(read('src/components/studio/StudioSendCommon.vue')),
+  ], [[true, true, true, true], true, true])
+  const cp = secs[0]
+  eq('쿠팡 옵션별 사진: 이름 "옵션별 사진"(대표 이미지와 다름) · 안내 한 줄 · 예전 "대표 이미지 사용"·"옵션 이미지" 글자 없음', [
+    cp.includes('<th class="c-img" title="옵션별 사진">옵션별 사진</th>'), cp.includes('data-mk-s-option-image-note'), /대표 이미지 사용|>옵션 이미지<|'옵션 이미지/.test(cp),
+  ], [true, true, false])
+}
+
 // ── 29. 실패 뒤 다시 열 때 입력값 유지 (2026-10-02 운영: 공통 판매가·재고·카테고리·지그재그 배송비가 비어 있었음) ──
 {
   const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')

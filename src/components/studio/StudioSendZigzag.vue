@@ -60,7 +60,7 @@
     </div>
 
     <!-- 대표 이미지 -->
-    <div v-show="showOwn('image')" ref="imageEl" class="block">
+    <div v-if="!common" ref="imageEl" class="block">
       <span class="st-label">대표 이미지 *</span>
       <div v-if="!repImages.length" class="st-desc">{{ REP_IMAGE_EMPTY }}</div>
       <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-zz-images>
@@ -277,7 +277,7 @@ const missing = computed(() => {
     const o = zigzagOptionRows(optionsOut.value, v.price, optionsOut.value ? undefined : v.stock)
     if (!o.ok) out.push(useOptions.value ? `옵션: ${o.message}` : '재고 수량')
   }
-  if (!v.repImageId) out.push('대표 이미지')
+  if (!v.repImageId) out.push(props.common ? '대표 이미지 (공통 정보)' : '대표 이미지')
   if (v.feeType !== 'FREE' && !isWon(v.baseFee, 1)) out.push('기본 배송비')
   if (v.feeType === 'CONDITIONAL_FREE' && !isWon(v.freeOver, 1)) out.push('무료배송 조건 금액')
   if (!isWon(v.jejuFee) || !isWon(v.isolatedFee)) out.push('제주·도서산간 추가 배송비')
