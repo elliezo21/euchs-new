@@ -3728,6 +3728,15 @@ function elevenstRelay(u, method, opts) {
   const B = await import('../src/lib/studioBulkSend.js')
   eq('여러 상품 보내기: 상한을 넘은 판매처는 준비 안 됨 · 이유에 판매처 이름', B.readiness({ smartstore: [DL.detailImageMissing(50, DL.detailImageOver('smartstore', 50))], coupang: [] }, ['coupang', 'smartstore']),
     { ready: false, reasons: ['스마트스토어 · 상세 이미지 30장까지 보낼 수 있어요 (지금 50장 · 20장 초과)'] })
+  // 실패 표시 (2026-10-02 운영: 실패한 3곳이 맨 위 판매처 줄에 아무 표시 없음) — 보내기 전 검사 실패는 전송 기록을 만들지 않는다(기존 설계 그대로) → 창에서 보인다
+  eq('실패 표시: 맨 위 판매처 줄 = 이번 결과가 실패면 sendStatusLabel(\'failed\') 배지(기록 배지보다 먼저) · 결과 표 = status failed · 여러 상품 보내기 결과 표도 같은 문구', [
+    sm.includes(`<span v-if="failedNow(r.key)" :class="SEND_BADGE_CLASS.failed" class="shrink-0" :data-mk-s-market-failed="r.key">{{ sendStatusLabel('failed') }}</span>`), sm.indexOf('failedNow(r.key)') < sm.indexOf('v-else-if="sentMap[r.key]"'),
+    sm.includes('const failedNow = key => !!results.value[key] && !results.value[key].ok && !sections[key]?.done'),
+    (await import('../src/lib/studioMarketplaceRules.js')).sendResultRows(['smartstore'], { smartstore: { ok: false, reason: '상세 이미지는 30장까지 보낼 수 있습니다.' } })[0].status, bm.includes("sendStatusLabel('failed')"),
+  ], [true, true, true, 'failed', true])
+  eq('보내기 전 검사 실패는 기록 없음(기존 설계): 스마트스토어·11번가 장 수 검사가 전송 기록(sending) 만들기보다 앞', [
+    api.indexOf('detailImageOver(SMARTSTORE') < api.indexOf("market: SMARTSTORE, status: 'sending'"), api.indexOf('detailImageOver(ELEVENST') < api.indexOf("market: ELEVENST, status: 'sending'"),
+  ], [true, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

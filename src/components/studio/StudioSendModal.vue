@@ -21,7 +21,9 @@
             <span v-else-if="r.state === 'planned'" class="st-badge shrink-0" :data-mk-s-market-planned="r.key">{{ PLANNED_LABEL }}</span>
             <!-- 이 상품이 이미 전송된 판매처 — 상태만 표시. [일괄 전송]이면 처음 체크에서 빠지고, 판매처 버튼([○○로 보내기])으로 열면 체크된 채
                  아래 "판매처에 있는 상품을 수정합니다" 안내가 보인다(2026-10-02 다시 보내기 = 수정) -->
-            <span v-if="sentMap[r.key]" :class="SEND_BADGE_CLASS[sentMap[r.key].status] || 'st-badge'" class="shrink-0" :data-mk-s-market-sent="r.key">{{ sendStatusLabel(sentMap[r.key].status) }}</span>
+            <!-- 이번 [보내기]에서 실패한 판매처 (2026-10-02) — 보내기 전 검사에서 막혀 전송 기록이 없는 실패도 여기서 "실패"로 보인다. 사유는 결과 표·그 판매처 칸 -->
+            <span v-if="failedNow(r.key)" :class="SEND_BADGE_CLASS.failed" class="shrink-0" :data-mk-s-market-failed="r.key">{{ sendStatusLabel('failed') }}</span>
+            <span v-else-if="sentMap[r.key]" :class="SEND_BADGE_CLASS[sentMap[r.key].status] || 'st-badge'" class="shrink-0" :data-mk-s-market-sent="r.key">{{ sendStatusLabel(sentMap[r.key].status) }}</span>
           </li>
         </ul>
         <!-- 이미 판매처에 있는 상품 (2026-10-02 — 예전 "중복 등록" 확인을 걷어냄): 체크한 판매처마다 한 줄.
@@ -190,6 +192,8 @@ const sectionBusy = computed(() => picked.value.some(key => !!sections[key]?.bus
 const allDone = computed(() => picked.value.length > 0 && picked.value.every(key => !!sections[key]?.done))
 // 체크된 판매처 중 지난 [보내기]에서 실패하고 아직 등록 안 된 곳 → 버튼 [실패 건 재전송]
 const failedKeys = computed(() => picked.value.filter(k => results.value[k] && !results.value[k].ok && !sections[k]?.done))
+// 맨 위 판매처 줄 배지 — 이번 창에서 보냈다가 실패했고 아직 등록 안 된 곳 (체크를 풀어도 결과는 보인다)
+const failedNow = key => !!results.value[key] && !results.value[key].ok && !sections[key]?.done
 const resultRows = computed(() => (runKeys.value.length > 1 ? sendResultRows(runKeys.value, results.value) : []))
 const buttonLabel = computed(() => bulkSendLabel(picked.value, failedKeys.value, !!props.prepare?.resend, existing.value, doneKeys.value))
 
