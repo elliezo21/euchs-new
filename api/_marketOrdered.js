@@ -7,7 +7,7 @@
  *     num_iid / itemId = 1688 상품 번호(offer_id) · specId = 1688 SKU spec_id(발주용) · sku = "색상 / 사이즈" 글자
  *     skus = [{ color, size, quantity }] (그 줄의 옵션) · quantity = 줄 수량(skus 수량 합)
  *   결제가 확인된 주문만 = _studioBg.ORDER_OK_STATUSES (orderPipeline 코드 3 이상과 같은 목록)
- * [잇기] studio_projects.offer_id = 1688 상품 번호 · 1688 저장본(studio_product_snapshots.raw.item.skus.sku[].spec_id)과 specId로 정확히 맞춘다(화면 studioSourceOptions)
+ * [잇기] studio_projects.offer_id = 1688 상품 번호로 이 상품의 주문 줄만 고른다. 화면은 주문서 옵션 이름·수량을 그대로 쓴다(2026-10-02 ②-1 보완 — 1688 옵션 목록과 맞추지 않음, studioSourceOptions.orderedOptions)
  */
 const str = v => (typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '')
 const int = v => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0 }

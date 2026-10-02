@@ -97,7 +97,7 @@ import { ref, reactive, computed, nextTick } from 'vue'
 import StudioSourceOptionPicker from './StudioSourceOptionPicker.vue'
 import {
   OPTION_GROUP_MAX, OPTION_VALUE_LEN, addGroup, removeGroup, setGroupName, addValues, removeValue, renameValue,
-  deleteChecked, restoreDeleted, restorableCount, excludedComboCount, bulkSet, checkAll, optionEditorFromSource, replaceOptionEditor,
+  deleteChecked, restoreDeleted, restorableCount, excludedComboCount, bulkSet, checkAll, optionEditorFromSource, optionEditorFromOrdered, replaceOptionEditor,
 } from '@/lib/studioOptionEditor'
 
 const props = defineProps({
@@ -118,8 +118,9 @@ const editInput = ref(null)
 
 const clearMsg = gid => { delete msgs[gid] }
 // 불러온 옵션으로 지금 모양을 바꾼다 (같은 객체를 고친다 — 공통 정보면 판매처 섹션이 commonPatch로 따라온다)
-function onPick({ skus, quantity }) {
-  replaceOptionEditor(props.model, optionEditorFromSource(skus, { stock: quantity })) // 주문한 옵션이면 재고 = 주문 수량(셀러가 산 수량), 1688 옵션이면 비움
+function onPick({ from, skus, ordered }) {
+  // 주문한 옵션 = 주문서 옵션 이름·수량 그대로(재고 = 산 수량) · 1688 옵션 = 옵션 이름만(재고 비움)
+  replaceOptionEditor(props.model, from === 'ordered' ? optionEditorFromOrdered(ordered) : optionEditorFromSource(skus))
   for (const k of Object.keys(drafts)) delete drafts[k]
   for (const k of Object.keys(msgs)) delete msgs[k]
   listMsg.value = ''

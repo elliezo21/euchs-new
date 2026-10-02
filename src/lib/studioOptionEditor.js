@@ -84,20 +84,36 @@ export function rebuildRows(m) {
  */
 export function optionEditorFromSource(skus, { stock = {} } = {}) {
   const src = marketOptionsFromSource(skus)
+  return optionEditorFromList(src.groupNames, src.rows, { stock })
+}
+
+/**
+ * [주문한 옵션 불러오기] (2026-10-02 ②-1 보완) — 주문서 옵션 이름·수량 그대로 → 편집 모양 (1688 옵션 목록과 맞추지 않는다)
+ * @param {{ groupNames:string[], rows:[{ values:string[], quantity:number }] }} o  studioSourceOptions.orderedOptions 결과
+ */
+export function optionEditorFromOrdered(o) {
+  const rows = (Array.isArray(o?.rows) ? o.rows : []).map(r => ({ values: r.values, originals: r.values.map(() => '') }))
+  const stock = Object.fromEntries((o?.rows || []).map((r, i) => [i, r.quantity]))
+  return optionEditorFromList(o?.groupNames || [], rows, { stock })
+}
+
+/** 옵션 종류 이름 + 줄(values·originals) → 편집 모양. 원천에 없는 조합은 처음부터 뺀다(excluded) · stock = 줄 순서별 재고 처음 값 */
+function optionEditorFromList(groupNames, list, { stock = {} } = {}) {
+  const src = { groupNames: Array.isArray(groupNames) ? groupNames : [], rows: Array.isArray(list) ? list : [] }
   const m = emptyOptionEditor()
   if (!src.rows.length) return m
   m.groups = src.groupNames.map(name => ({ id: nextId(m, 'g'), name, values: [] }))
   const chipOf = src.groupNames.map(() => new Map()) // 종류마다 원문(없으면 한글) → 칩
   const sourceRows = src.rows.map((r, si) => {
     const ids = m.groups.map((g, gi) => {
-      const label = clean(r.values[gi]), original = clean(r.originals[gi])
+      const label = clean(r.values[gi]), original = clean(r.originals?.[gi])
       const k = original || `ko:${label}`
       if (!chipOf[gi].has(k)) { const v = { id: nextId(m, 'v'), label, original }; chipOf[gi].set(k, v); g.values.push(v) }
       return chipOf[gi].get(k).id
     })
     return { ids, row: r, stock: Number.isInteger(stock?.[si]) && stock[si] >= 0 ? stock[si] : null }
   })
-  // 1688 SKU가 없는 조합 = 전체 조합 − 원천 줄
+  // 원천(1688 SKU·주문서)에 없는 조합 = 전체 조합 − 원천 줄
   const present = new Set(sourceRows.map(s => keyOf(s.ids)))
   m.excluded = combos(m.groups).map(c => c.map(v => v.id)).filter(ids => !present.has(keyOf(ids)))
   // 옵션 이름·값만 가져온다 — 1688 가격·재고는 쓰지 않는다(2026-10-02 ②-1: 재고는 셀러가 산 수량 — 비워 둔다). 같은 조합이 두 번이면 첫 줄

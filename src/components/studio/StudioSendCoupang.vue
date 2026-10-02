@@ -401,7 +401,7 @@ function fillFromResend(r) {
 }
 
 /** 가져온 상품(1688)의 옵션 줄(고른 것만 — list) → 옵션 표. 옵션 이름·값만 가져온다 — 판매가·재고는 비워 둔다(1688 판매가·재고는 쓰지 않는다 — 2026-10-02 ②-1) */
-function fillFromSource(list, quantity = {}) {
+function fillFromSource(list) {
   const s = source.value
   if (!s || !Array.isArray(list) || !list.length) return
   // 옵션 이름·값은 한글만 넣는다(규칙: koreanizeSkus) — 못 옮긴 값은 비워 두고 가져온 글자를 칸 아래에 보여 준다
@@ -414,17 +414,33 @@ function fillFromSource(list, quantity = {}) {
     it.name = kr.rows[i].name
     it.original = kr.rows[i].original
     for (const v of row.values) { const key = v?.name?.zh || v?.name?.ko; if (key) it.originals[key] = v?.value?.zh || '' }
-    // 재고 = 셀러가 산 수량 — [주문한 옵션 불러오기]면 그 옵션의 주문 수량, [1688 옵션 불러오기]면 비움 (2026-10-02 ②-1). 고칠 수 있다
-    it.stock = Number.isInteger(quantity?.[i]) && quantity[i] >= 0 ? quantity[i] : null
     it.sku = `${s.offerId}-${row.skuId || String(i + 1).padStart(3, '0')}`.slice(0, 50)
     it.imageId = matchOptionImage(row.imageUrl, props.prepare.images)
     return it
   })
 }
+/**
+ * [주문한 옵션 불러오기] (2026-10-02 ②-1 보완) — 주문서 옵션 이름·수량 그대로 옵션 표로(1688 옵션 목록과 맞추지 않는다). 재고 = 주문 수량(셀러가 산 수량, 고칠 수 있음)
+ * @param {{ groupNames:string[], rows:[{ values:string[], quantity:number }] }} o  studioSourceOptions.orderedOptions 결과
+ */
+function fillFromOrdered(o) {
+  if (!o?.rows?.length) return
+  f.value.optionTypes = o.groupNames.map((g, gi) => ({ key: `o${gi}`, label: g, names: [g], isColor: isColorOption([g]), mapped: '' }))
+  const used = new Set()
+  f.value.items = o.rows.map(r => {
+    const it = blankItem()
+    it.fromSource = true
+    it.opt = Object.fromEntries(o.groupNames.map((_, gi) => [`o${gi}`, r.values[gi] || '']))
+    it.stock = Number.isInteger(r.quantity) && r.quantity >= 0 ? r.quantity : null
+    it.sku = nextSku(used) // 1688 상품번호-001… (주문서에는 1688 SKU 번호가 없을 수 있다)
+    return it
+  })
+}
 const optionValueList = () => f.value.items.flatMap(it => Object.values(it.opt || {})).filter(Boolean)
 /** [주문한 옵션 불러오기]·[1688 옵션 불러오기] (StudioSourceOptionPicker) → 옵션 표를 고른 옵션으로. 카테고리 메타가 이미 있으면 옵션 이름 연결도 다시 (loadMeta와 같은 규칙) */
-function onPickSource({ skus, quantity }) {
-  fillFromSource(skus, quantity)
+function onPickSource({ from, skus, ordered }) {
+  if (from === 'ordered') fillFromOrdered(ordered)
+  else fillFromSource(skus)
   if (!meta.value) return
   for (const it of f.value.items) for (const a of meta.value.attributes) if (!(a.name in it.attributes)) it.attributes[a.name] = ''
   for (const t of f.value.optionTypes) {
