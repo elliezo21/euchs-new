@@ -7,7 +7,7 @@
           <div class="st-xlabel">받는 방식</div>
           <div class="grid grid-cols-2 gap-2">
             <button type="button" class="st-opt" :class="mode === 'sections' ? 'is-active' : ''" data-export-mode="sections" @click="mode = 'sections'">
-              <b>섹션별 여러 장</b><span>섹션마다 한 장씩 (판매처에 나눠 올릴 때)</span>
+              <b>여러 장으로 나눠서</b><span>이어 붙인 뒤 세로 {{ SLICE_MAX_PX.toLocaleString() }}px 안쪽으로 나눠요 (판매처에 올릴 때)</span>
             </button>
             <button type="button" class="st-opt" :class="mode === 'long' ? 'is-active' : ''" data-export-mode="long" @click="mode = 'long'">
               <b>한 장으로 길게</b><span>고른 섹션을 위에서부터 이어 붙여 한 장</span>
@@ -55,8 +55,8 @@
           <template v-else>받을 섹션을 골라 주세요</template>
         </div>
         <p v-if="plan.tooLarge.length" class="text-[13px] font-bold st-danger-text break-keep" data-export-too-large>
-          <template v-if="mode === 'long'">한 장으로 만들기에는 너무 길어요 ({{ plan.tooLarge[0].height.toLocaleString() }}px). [섹션별 여러 장]으로 받거나 1배로 받아 주세요.</template>
-          <template v-else>{{ plan.tooLarge.map(f => labels[f.sectionIds[0]]).join(', ') }} 섹션은 {{ scale }}배로 만들기에는 너무 길어요. 1배로 받거나 섹션을 빼 주세요.</template>
+          <template v-if="mode === 'long'">한 장으로 만들기에는 너무 길어요 ({{ plan.tooLarge[0].height.toLocaleString() }}px). [여러 장으로 나눠서]로 받거나 1배로 받아 주세요.</template>
+          <template v-else>{{ scale }}배로 만들기에는 너무 커요. 1배로 받아 주세요.</template>
         </p>
         <!-- 개발용 비교 보기 (개발 서버에서만 — 손님 화면에는 없다) -->
         <div v-if="devCompare" class="flex items-center gap-2 p-2 rounded-[8px] st-dev-box" data-export-dev>
@@ -158,14 +158,14 @@
 <script setup>
 // [다운로드] 창 (13-1, 예전 이름 [내보내기]) · [작업 저장] 창 (saveOnly) — 같은 그리기·보관 길을 쓴다.
 //   [다운로드]  = 고른 설정으로 파일을 만들어 내려받고, 내 상품에도 한 벌 보관 (받을 때마다 새 카드)
-//   [작업 저장] = 받지 않고 기본 설정(섹션별·JPG·1배·전체)으로 만들어 내 상품에 저장만. 같은 작업을 다시 저장하면 그 카드를 새 결과물로 바꾼다(commitSave)
-// 받는 방식(구간별 여러 장 기본·한 장으로 길게) · 형식(JPG 품질 92 기본·PNG) · 크기(1배 780px 기본·2배) · 받을 구간.
+//   [작업 저장] = 받지 않고 기본 설정(여러 장으로 나눠서·JPG·1배·전체)으로 만들어 내 상품에 저장만. 같은 작업을 다시 저장하면 그 카드를 새 결과물로 바꾼다(commitSave)
+// 받는 방식(여러 장으로 나눠서 기본 — 이어 붙여 세로 SLICE_MAX_PX마다, 섹션 경계 우선 · 한 장으로 길게) · 형식(JPG 품질 92 기본·PNG) · 크기(1배 780px 기본·2배) · 받을 구간.
 // 그리기는 편집기가 넘긴 render(file, { format, scale, onStep }) → { blob, notes } (studioExport 엔진 + 편집기의 사진·글꼴).
-// 파일은 하나씩 만들어 바로 내려받는다 (작업이름_01.jpg …). 실패하면 어느 구간인지와 원인, [다시 시도] = 멈춘 파일부터.
+// 파일은 하나씩 만들어 바로 내려받는다 (작업이름_01.jpg …). 실패하면 어느 섹션(또는 몇 번째 장)인지와 원인, [다시 시도] = 멈춘 파일부터.
 // 적용 중(5단계 완성 사진 만드는 중)인 사진이 고른 구간에 있으면 먼저 묻는다 — 다 되면 받기 / 지금 받기(화면 모습 그대로).
 import { ref, computed, watch } from 'vue'
 import StudioModal from '@/components/studio/StudioModal.vue'
-import { exportPlan, exportFileName, fileBaseName, EXPORT_FORMATS, EXPORT_SCALES } from '@/lib/studioExport'
+import { exportPlan, exportFileName, fileBaseName, EXPORT_FORMATS, EXPORT_SCALES, SLICE_MAX_PX } from '@/lib/studioExport'
 import { summarizeNotes } from '@/lib/studioPreview' // 같은 알림은 한 줄로 (review-1)
 import { beginArchive, archiveFile, archiveThumb, makeThumb, archiveKey, commitSave } from '@/lib/studioExportArchive'
 
@@ -199,10 +199,17 @@ const doneCount = ref(0)
 const stopAsked = ref(false)
 const compareId = ref(null)
 let runPlan = null // 받기를 누른 때의 파일 목록 (도중에 설정을 바꿔도 이어 받기는 같은 목록)
+// 걸린 시간 (2026-10-02 — 작업 저장이 50장에 약 5분 걸린 일): 끝나면 콘솔 한 줄 "N장 · 전체 · 그리기 · 보관 ms"
+let timing = { t0: 0, render: 0, archive: 0 }
+const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+function logTiming(files) {
+  const t = timing
+  console.info(`[StudioExportModal] ${props.saveOnly ? '작업 저장' : '다운로드'} ${doneCount.value}/${files.length}장 · 전체 ${Math.round(now() - t.t0)}ms · 그리기 ${Math.round(t.render)}ms · 보관 ${Math.round(t.archive)}ms`)
+}
 
 const orderedPicked = computed(() => props.page.sections.filter(s => picked.value.has(s.id)).map(s => s.id))
 const plan = computed(() => exportPlan(props.page, { mode: mode.value, scale: scale.value, sectionIds: orderedPicked.value }))
-const tooLargeIds = computed(() => new Set(plan.value.tooLarge.flatMap(f => (mode.value === 'long' ? [] : f.sectionIds))))
+const tooLargeIds = computed(() => new Set()) // 나눈 장은 세로 SLICE_MAX_PX 안쪽이라 섹션 줄에 표시할 일이 없다 (너무 큰 경우 = 아래 한 줄 안내)
 const canStart = computed(() => plan.value.files.length > 0 && plan.value.tooLarge.length === 0)
 const baseName = computed(() => fileBaseName(props.title))
 const pendingCount = computed(() => orderedPicked.value.reduce((n, id) => n + (props.pendingBySection[id] || 0), 0))
@@ -324,7 +331,10 @@ async function run(from) {
     progress.value = { file: 0, files: runPlan.files.length, step: 0, steps: 0, label: '' }
     phase.value = 'running' // 보관 기록을 만드는 동안에도 고르기 화면이 보이지 않게
     stopAsked.value = false
+    timing = { t0: now(), render: 0, archive: 0 }
+    const ta = now()
     await startArchive(runPlan)
+    timing.archive += now() - ta
   } else if (archive.value.state !== 'soon' && archiveId) {
     archive.value = { ...archive.value, state: 'saving' } // [다시 시도] — 같은 보관 기록에 이어서
   }
@@ -335,25 +345,29 @@ async function run(from) {
   for (let i = from; i < files.length; i++) {
     if (stopAsked.value || !props.open) break
     const file = files[i]
-    const label = file.no === null ? `${file.sectionIds.length}개 섹션을 한 장으로` : props.labels[file.sectionIds[0]] ?? ''
+    const label = file.no === null ? `${file.sectionIds.length}개 섹션을 한 장으로` : props.labels[file.sectionIds[0]] ?? `${file.no}번째 장`
     progress.value = { file: i, files: files.length, step: 0, steps: file.sectionIds.length, label }
     try {
+      const tr = now()
       const out = await props.render(file, {
         format: fmt, scale: sc,
-        onStep: (step, steps, sid) => { progress.value = { ...progress.value, step, steps, label: file.no === null ? props.labels[sid] ?? '' : label } },
+        onStep: (step, steps, sid) => { progress.value = { ...progress.value, step, steps, label: props.labels[sid] ?? label } },
       })
+      timing.render += now() - tr
       notes.value.push(...out.notes)
       const name = exportFileName(base, file, FORMAT_OF[fmt].ext)
       if (!props.saveOnly) download(out.blob, name)
       doneCount.value++
+      const ta = now()
       await archiveOne(file, out.blob, name)
+      timing.archive += now() - ta
       if (!props.saveOnly && i < files.length - 1) await sleep(400) // 여러 파일을 한꺼번에 내려받지 않게 조금씩 띄운다
     } catch (e) {
       console.error('[StudioExportModal] 이미지 만들기 실패:', file, e)
       const sid = e?.sectionId ?? (file.sectionIds.length === 1 ? file.sectionIds[0] : null)
       error.value = {
-        where: sid ? `${props.labels[sid] ?? ''} 섹션` : '이미지',
-        message: `${e?.message || String(e)}${e?.kind === 'tooLarge' ? ' — 섹션별 여러 장이나 1배로 받아 주세요.' : ''}`,
+        where: sid ? `${props.labels[sid] ?? ''} 섹션` : file.no ? `${file.no}번째 장` : '이미지',
+        message: `${e?.message || String(e)}${e?.kind === 'tooLarge' ? ' — [여러 장으로 나눠서]나 1배로 받아 주세요.' : ''}`,
         fileIndex: i,
       }
       phase.value = 'error'
@@ -362,6 +376,7 @@ async function run(from) {
     }
   }
   finishArchive()
+  logTiming(files)
   if (props.saveOnly) return finishSave(files.length)
   phase.value = doneCount.value || !stopAsked.value ? 'done' : 'setup'
 }

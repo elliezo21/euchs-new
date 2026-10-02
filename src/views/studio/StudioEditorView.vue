@@ -584,7 +584,7 @@ import StudioExportModal from '@/components/studio/StudioExportModal.vue'
 import StudioPreview from '@/components/studio/StudioPreview.vue'
 import StudioCropScreen from '@/components/studio/StudioCropScreen.vue'
 import StudioBgRefineScreen from '@/components/studio/StudioBgRefineScreen.vue'
-import { renderSection, renderPage, canvasToBlob } from '@/lib/studioExport'
+import { renderSection, renderPage, renderSlice, canvasToBlob } from '@/lib/studioExport'
 import { loadWithResign } from '@/lib/studioImageCache'
 import { geometryOf, drawGeometry, shapeMark, readShape } from '@/lib/studioCrop'
 import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
@@ -2211,12 +2211,16 @@ const exportDeps = {
     }
   },
 }
-/** [내보내기] 창이 부른다 — 파일 하나(구간 하나 또는 한 장으로 길게) → { blob, notes } */
+// 여러 장으로 나눌 때 다음 장에 걸친 섹션 그림 (studioExport.renderSlice — 같은 페이지·배율일 때만 다시 씀)
+const exportSliceCache = { entry: null }
+/** [다운로드]·[작업 저장] 창이 부른다 — 파일 하나(나눈 한 장 · 한 장으로 길게) → { blob, notes }. 미리보기·비교 보기는 섹션 하나({ sectionIds:[id] }) */
 async function exportRender(file, { format, scale, onStep }) {
   if (!page.value) throw new Error('페이지가 없어요')
-  const out = file.sectionIds.length === 1 && file.no !== null
-    ? await renderSection(page.value, file.sectionIds[0], exportDeps, { scale })
-    : await renderPage(page.value, file.sectionIds, exportDeps, { scale, onStep })
+  const out = file.range
+    ? await renderSlice(page.value, file, exportDeps, { scale, onStep, cache: exportSliceCache })
+    : file.sectionIds.length === 1 && file.no !== null
+      ? await renderSection(page.value, file.sectionIds[0], exportDeps, { scale })
+      : await renderPage(page.value, file.sectionIds, exportDeps, { scale, onStep })
   try {
     return { blob: await canvasToBlob(out.canvas, format), notes: out.notes }
   } finally {

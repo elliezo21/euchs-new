@@ -98,7 +98,7 @@ function dateLabel(iso) {
   return `${k.slice(0, 4)}.${k.slice(5, 7)}.${k.slice(8, 10)} ${k.slice(11, 16)}`
 }
 function kindLabel(x) {
-  return `${x.mode === 'long' ? '한 장으로 길게' : `섹션별 ${x.count}장`} · ${x.format === 'png' ? 'PNG' : 'JPG'} · ${x.scale}배`
+  return `${x.mode === 'long' ? '한 장으로 길게' : `여러 장 ${x.count}장`} · ${x.format === 'png' ? 'PNG' : 'JPG'} · ${x.scale}배`
 }
 
 async function load() {

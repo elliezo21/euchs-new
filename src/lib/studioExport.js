@@ -38,7 +38,17 @@ export const EXPORT_FORMATS = {
   png: { mime: 'image/png', ext: 'png', quality: undefined, label: 'PNG' },
 }
 export const EXPORT_SCALES = [1, 2]
-export const EXPORT_MODES = ['sections', 'long'] // 구간별 여러 장(기본, 결정 5) / 한 장으로 길게
+export const EXPORT_MODES = ['sections', 'long'] // 여러 장으로 나눠서(기본 — 값 이름 'sections'는 예전 그대로, 서버·DB도 같은 값) / 한 장으로 길게
+/**
+ * 여러 장으로 나눠서 (2026-10-02 — 예전 "섹션 1개 = 1장"을 바꿈): 고른 섹션을 위에서부터 이어 붙인 뒤 세로 SLICE_MAX_PX(받을 이미지 px)마다 나눈다.
+ *   자르는 곳은 되도록 섹션 경계(다음 섹션의 위) — 한 섹션이 기준보다 길면 그 안에서 자른다. 한 장은 SLICE_MIN_PX보다 짧게 만들지 않는다.
+ *   기준 길이 근거 (보고서 docs/reports/2026-10-02-*-detail-slices.md):
+ *     쿠팡 상세(DETAIL) 한 변 최대 5000px·최소 500px·10MB (쿠팡 반려 사유 2026-09-28 — api/_coupangFields.js DETAIL_MAX) = 확인한 값 중 가장 엄격한 상한
+ *     세로 3000px 넘으면 나누기 권장 = 판매처 공식 문서가 아니라 여러 판매 안내 글의 공통 권장값 (미확인 — 공식 문서로 확인 못 함)
+ *   → 3000: 쿠팡 상한 5000 안쪽 + 한 장 용량이 작아 업로드가 가볍다. 값을 바꾸려면 이 줄만
+ */
+export const SLICE_MAX_PX = 3000
+export const SLICE_MIN_PX = 500 // 쿠팡 DETAIL 최소 500px — 이보다 짧은 조각은 쿠팡에서 흰 여백을 붙여야 한다
 export const GAP_COLOR = '#ffffff'
 /**
  * 캔버스 한계 (데스크톱 크롬 기준 — 편집은 PC에서만): 한 변 32,767px, 넓이 268,435,456px(16,384²).
@@ -69,7 +79,32 @@ export function stackLayout(page, sections) {
 }
 
 /**
- * 내보낼 파일 목록 — 구간 번호는 페이지 안의 자리(01부터, 빼 둔 구간이 있어도 그대로)
+ * 이어 붙인 페이지를 자를 곳 (받을 이미지 px). 순수 함수
+ * @param {number} total 이어 붙인 높이(px) @param {number[]} boundaries 섹션 경계(다음 섹션의 위, px — 오름차순)
+ * @returns {[number, number][]} [위, 아래] 목록 — 빈틈·겹침 없이 0~total
+ */
+export function sliceRanges(total, boundaries, { maxPx = SLICE_MAX_PX, minPx = SLICE_MIN_PX } = {}) {
+  if (!(total > 0)) return []
+  if (!(maxPx >= minPx * 2)) throw new Error(`sliceRanges: maxPx(${maxPx})는 minPx(${minPx})의 2배 이상이어야 해요`)
+  const out = []
+  let s = 0
+  while (total - s > maxPx) {
+    const lim = s + maxPx
+    let cut = null
+    for (const b of boundaries) if (b >= s + minPx && b <= lim && total - b >= minPx) cut = b // 기준 안에서 가장 아래 경계
+    if (cut === null) cut = Math.min(lim, total - minPx) // 경계가 없으면 섹션 안에서 (마지막 장이 너무 짧지 않게)
+    out.push([s, cut])
+    s = cut
+  }
+  out.push([s, total])
+  return out
+}
+
+/**
+ * 내보낼 파일 목록
+ *   여러 장(sections) = 고른 섹션을 이어 붙여 세로로 나눈 장마다 하나 — no = 장 번호(01부터), range = 이어 붙인 그림에서의 [위, 아래](받을 이미지 px),
+ *     sectionIds = 그 장에 걸친 섹션, pick = 고른 섹션 전체(이어 붙인 순서)
+ *   한 장(long) = no null
  * @param {{ mode: 'sections'|'long', scale: number, sectionIds: string[] }} opts
  * @returns {{ files: { no: number|null, sectionIds: string[], width: number, height: number, fits: boolean }[], tooLarge: object[] }}
  */
@@ -85,12 +120,17 @@ export function exportPlan(page, { mode, scale, sectionIds }) {
       const H = Math.round(height * scale)
       files = [{ no: null, sectionIds: chosen.map(x => x.s.id), width: W, height: H, fits: canvasFits(W, H) }]
     }
-  } else {
-    files = chosen.map(({ s, no }) => {
-      const { width, height } = sectionPixelSize(page, s, scale)
-      return { no, sectionIds: [s.id], width, height, fits: canvasFits(width, height) }
-    })
-  }
+  } else if (chosen.length) {
+    const list = chosen.map(x => x.s)
+    const { tops, height } = stackLayout(page, list)
+    const outTop = tops.map(t => Math.round(t * scale))
+    const outBottom = list.map((s, i) => outTop[i] + Math.round(s.height * scale))
+    const pick = list.map(s => s.id)
+    files = sliceRanges(Math.round(height * scale), outTop.slice(1)).map(([y0, y1], i) => ({
+      no: i + 1, sectionIds: list.filter((s, k) => outTop[k] < y1 && outBottom[k] > y0).map(s => s.id), pick, range: { y0, y1 },
+      width: W, height: y1 - y0, fits: canvasFits(W, y1 - y0),
+    }))
+  } else files = []
   return { files, tooLarge: files.filter(f => !f.fits) }
 }
 
@@ -103,7 +143,7 @@ export function fileBaseName(title) {
   const cut = [...s].slice(0, FILE_BASE_MAX).join('').trim()
   return cut === '' ? '상세페이지' : cut
 }
-/** 파일 이름 — 구간별: 작업이름_01.jpg (페이지 안 구간 번호 두 자리), 한 장: 작업이름_전체.jpg */
+/** 파일 이름 — 여러 장: 작업이름_01.jpg (장 번호 두 자리), 한 장: 작업이름_전체.jpg */
 export function exportFileName(base, file, ext) {
   return file.no === null ? `${base}_전체.${ext}` : `${base}_${String(file.no).padStart(2, '0')}.${ext}`
 }
@@ -663,6 +703,56 @@ export async function renderPage(page, sectionIds, deps, { scale = 1, onStep } =
     r.canvas.height = 0
   }
   return { canvas, notes }
+}
+
+/**
+ * 여러 장으로 나눈 한 장 (exportPlan의 sections 파일) — 걸친 섹션만 그려 자기 자리에 붙인다(섹션 사이 = gap, 흰색).
+ * cache = { entry } 를 넘기면 다음 장에 걸친 섹션 그림을 남겨 두었다가 다시 쓴다(한 섹션을 두 번 그리지 않음) — 같은 페이지·배율일 때만
+ * onStep(i, n, sectionId) = 이 장의 몇 번째 섹션 그리는 중
+ */
+export async function renderSlice(page, file, deps, { scale = 1, onStep, cache = null } = {}) {
+  const want = new Set(file.pick)
+  const sections = page.sections.filter(s => want.has(s.id))
+  if (sections.length === 0) throw new ExportError('받을 섹션을 골라 주세요', {})
+  const { y0, y1 } = file.range
+  const W = Math.round(page.width * scale), H = y1 - y0
+  if (!canvasFits(W, H)) throw new ExportError(`이미지가 너무 길어요 (${W}×${H}px)`, { kind: 'tooLarge' })
+  const { tops } = stackLayout(page, sections)
+  const hit = sections.map((s, i) => ({ s, top: Math.round(tops[i] * scale), h: Math.round(s.height * scale) })).filter(x => x.top < y1 && x.top + x.h > y0)
+  const canvas = deps.createCanvas(W, H)
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = GAP_COLOR
+  ctx.fillRect(0, 0, W, H)
+  const notes = []
+  const prev = cache?.entry && cache.entry.page === page && cache.entry.scale === scale ? cache.entry : null
+  if (cache && cache.entry && cache.entry !== prev) freeCacheEntry(cache)
+  for (let i = 0; i < hit.length; i++) {
+    const { s, top, h } = hit[i]
+    onStep?.(i, hit.length, s.id)
+    let c
+    if (prev && prev.id === s.id) c = prev.canvas
+    else {
+      if (cache?.entry) freeCacheEntry(cache)
+      const r = await renderSection(page, s.id, deps, { scale })
+      notes.push(...r.notes)
+      c = r.canvas
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.drawImage(c, 0, top - y0)
+    const carry = top + h > y1 && cache // 다음 장에도 걸친다 → 남겨 둔다
+    if (carry) cache.entry = { page, scale, id: s.id, canvas: c }
+    else {
+      if (cache?.entry?.canvas === c) cache.entry = null
+      c.width = 0
+      c.height = 0
+    }
+  }
+  return { canvas, notes }
+}
+function freeCacheEntry(cache) {
+  cache.entry.canvas.width = 0
+  cache.entry.canvas.height = 0
+  cache.entry = null
 }
 
 /** 캔버스 → 파일 (toBlob이 비면 = 캔버스를 만들지 못함·오염) */
