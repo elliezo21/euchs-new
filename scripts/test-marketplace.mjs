@@ -1291,7 +1291,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   // 3) 반려 사유는 카드에 그대로 · 4) [고쳐서 다시 보내기]
   const R15 = await import('../src/lib/studioMarketplaceRules.js')
   const sl = read('src/components/studio/StudioSendList.vue'), cp15 = read('src/components/studio/StudioSendCoupang.vue')
-  eq('보낸 상품 카드: 반려 사유 그대로 · 반려 항목에만 [수정 후 다시 보내기] · 보내면 목록 다시 읽기 · 로그아웃 때 비움', [/\{\{ s\.status === 'rejected' \? '반려 사유: ' : '' \}\}\{\{ s\.reason \}\}/.test(sl), /<button v-if="canResend\(s\)"[^>]*data-mk-send-resend/.test(sl), sl.includes("'수정 후 다시 보내기'"), /@sent="onResent"/.test(sl), /resendPrepare\.value = null/.test(sl)], [true, true, true, true, true])
+  eq('보낸 상품 목록(2026-10-02): 사유 칸 = 기록된 사유 그대로 · 실패·반려 최근 기록에만 [고쳐서 재전송](fixAction) · 보내면 목록 다시 읽기 · 로그아웃 때 비움', [/:data-mk-send-reason="s\.id">\{\{ s\.reason \}\}</.test(sl), /<button v-if="fixAction\(p, s\)"[^>]*data-mk-send-resend/.test(sl), sl.includes("const FIX_LABEL = '고쳐서 재전송'"), /@sent="onResent"/.test(sl), /resendPrepare\.value = null/.test(sl)], [true, true, true, true, true])
   eq('[고쳐서 다시 보내기]는 반려 + 쿠팡 상품 번호가 있을 때만', [R15.canResend({ status: 'rejected', sellerProductId: '16397573540' }), R15.canResend({ status: 'rejected', sellerProductId: null }), R15.canResend({ status: 'failed', sellerProductId: '1' }), R15.canResend({ status: 'approval_pending', sellerProductId: '1' }), R15.canResend(null)], [true, false, false, false, false])
   eq('버튼 글자: 다시 보내기 = "다시 승인 요청" · 아니면 예전 그대로', [R15.sendActionLabel(['coupang'], true), R15.sendActionLabel(['coupang'], false), R15.sendActionLabel([], false)], ['다시 승인 요청', '쿠팡으로 보내기', '선택한 판매처로 보내기'])
   eq('쿠팡 섹션: 다시 보내기면 resendId를 같이 보냄 · 템플릿 택배사 검사 · 요약 표에 상세 이미지', [cp15.includes('...(resend.value ? { resendId: resend.value.sendId } : {}),'), cp15.includes("else if (!templateCourierOk.value) out.push('배송/반품 템플릿의 택배사 (판매처 > 기본 설정에서 다시 저장)')"), cp15.includes("detailFiles: props.prepare?.export?.files || []")], [true, true, true])
@@ -1520,14 +1520,14 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('창: 준비 데이터 없음 = "상품 정보 불러오는 중…" + 자리표시 · 못 받음 = 이유 + [다시 시도](retry) · "준비 중" 글자 없음 · 두 진입 모두 load-error·retry 연결', [
     /data-mk-s-loading[\s\S]*상품 정보 불러오는 중…[\s\S]*st-skeleton/.test(shellTpl), /v-else-if="loadError"[\s\S]*\{\{ loadError \}\}[\s\S]*data-mk-s-load-retry @click="\$emit\('retry'\)"/.test(shellTpl), /준비 중/.test(shellTpl),
     /defineEmits\(\['close', 'sent', 'retry'\]\)/.test(shell), /loadError: \{ type: String, default: '' \}/.test(shell),
-    /:load-error="sendLoadError"[^>]*@retry="loadPrepare\(sendExportId\)"/.test(sv), /:load-error="resendError"[^>]*@retry="loadResend\(resendId\)"/.test(sl),
+    /:load-error="sendLoadError"[^>]*@retry="loadPrepare\(sendExportId\)"/.test(sv), /:load-error="resendError"[^>]*@retry="loadFix"/.test(sl),
   ], [true, true, false, true, true, true, true])
   eq('창: 준비 데이터가 늦게 와도 그때 섹션을 만들고 처음 체크를 정함 (prepare.markets를 본 뒤)', [
     /watch\(\(\) => props\.open, v => \{ if \(v\) resetForPrepare\(\) \}\)/.test(shell), /watch\(\(\) => props\.prepare, \(p, old\) => \{ if \(props\.open && p && p !== old\) resetForPrepare\(\) \}\)/.test(shell),
     shell.includes('checked.value = props.prepare ? initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend, sent: sentMap.value }) : {}'),
   ], [true, true, true])
-  const resend = body(sl, 'function openResend(s)')
-  eq('다시 보내기: 창을 먼저 열고(기다리지 않음) 창 안에서 받음 · 로그아웃이면 늦은 응답 버림', [/resendOpen\.value = true\s+loadResend\(s\.id\)/.test(resend), /await/.test(resend), /resendSeq\+\+/.test(body(sl, 'function clear()'))], [true, false, true])
+  const resend = body(sl, 'function openFix(p, s)')
+  eq('다시 보내기: 창을 먼저 열고(기다리지 않음) 창 안에서 받음 · 로그아웃이면 늦은 응답 버림', [/resendOpen\.value = true\s+loadFix\(\)/.test(resend), /await/.test(resend), /resendSeq\+\+/.test(body(sl, 'function clear()'))], [true, false, true])
   eq('카페24 분류: 창이 들고 있는 목록(sendCache)을 같이 씀 · 받는 중이면 같은 요청 · 실패는 기억 안 함 · 로그인 바뀜이면 비움', [
     /const sendCache = inject\(SEND_CACHE_KEY, null\)/.test(sec), /if \(!sendCache\.cafe24Categories\) \{\s+const p = listCafe24Categories\(\)/.test(sec), /delete sendCache\.cafe24Categories/.test(sec),
     /const done = sendCache\?\.cafe24CategoriesDone\s+if \(done\)/.test(sec), /provide\(SEND_CACHE_KEY, sendCache\)/.test(shell), /addEventListener\('euchs-auth-changed', clearSendCache\)/.test(shell) && /removeEventListener\('euchs-auth-changed', clearSendCache\)/.test(shell),
@@ -2699,6 +2699,61 @@ function elevenstRelay(u, method, opts) {
     ], [true, true, false, false])
   }
   eq('섹션 4개 모두 sendError를 내놓음 (창 결과 표용 — 읽기만)', ['Coupang', 'Smartstore', 'Elevenst', 'Cafe24'].map(n => /defineExpose\(\{ missing, busy, done, submit, sendError \}\)/.test(read(`src/components/studio/StudioSend${n}.vue`))), [true, true, true, true])
+}
+
+// ── 보낸 상품 목록형 (2026-10-02) — studioSentList.js 순수 함수 + 화면 규칙 ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const SL = await import('../src/lib/studioSentList.js')
+  const now = Date.parse('2026-10-02T03:00:00Z') // 한국 시각 10월 2일 12시
+  const sends = [
+    { id: 'a1', exportId: 'A', market: 'coupang', status: 'approval_pending', sellerProductId: '111', productName: '여름 원피스', createdAt: '2026-10-02T01:00:00Z' },
+    { id: 'a2', exportId: 'A', market: 'smartstore', status: 'registered', sellerProductId: '222', channelProductNo: '9001', productName: '여름 원피스', createdAt: '2026-09-30T00:00:00Z' },
+    { id: 'a3', exportId: 'A', market: 'smartstore', status: 'failed', sellerProductId: null, productName: null, reason: '이미지 오류', createdAt: '2026-09-20T00:00:00Z' },
+    { id: 'b1', exportId: 'B', market: '11st', status: 'failed', sellerProductId: null, productName: '가방', reason: '카테고리 오류', createdAt: '2026-09-01T00:00:00Z' },
+    { id: 'c1', exportId: 'C', market: 'coupang', status: 'rejected', sellerProductId: '333', productName: 'Apple 케이스', reason: '이미지', createdAt: '2026-09-26T00:00:00Z' },
+    { id: 'd1', exportId: 'D', status: 'approved', sellerProductId: '444', productName: '나무 도마', createdAt: '2026-06-01T00:00:00Z' },
+    { id: 'e1', exportId: null, market: 'smartstore', status: 'sending', productName: '전송중 상품', createdAt: '2026-10-02T02:00:00Z' },
+  ]
+  const P = SL.groupSentProducts(sends)
+  const A = P.find(p => p.key === 'A')
+  const keys = list => list.map(p => p.key)
+  const f = o => keys(SL.filterSentProducts(P, { now, ...o }))
+  eq('보낸 상품: 상품별로 묶음(최근 전송순) · 판매처마다 최근 기록 1건 · 상품명 = 이름 있는 최근 기록 · 판매처 없는 예전 기록 = 쿠팡 · 내 상품 id 없으면 기록 하나가 상품 하나', [
+    keys(P), A.history.map(s => s.id), Object.fromEntries(Object.entries(A.byMarket).map(([k, s]) => [k, s.id])), A.productName, P.find(p => p.key === 'D').byMarket.coupang?.id, P[0].exportId,
+  ], [['send:e1', 'A', 'C', 'B', 'D'], ['a1', 'a2', 'a3'], { coupang: 'a1', smartstore: 'a2' }, '여름 원피스', 'd1', null])
+  eq('상태 카드 4개 = 전체·등록·승인 완료·승인 대기·실패·반려 · 숫자 = 그 상태가 판매처 칸(최근 기록)에 하나라도 있는 상품 수 · 지난 실패(뒤에 등록됨)는 안 셈', [
+    SL.STATUS_GROUPS.map(g => g.label), SL.statusCounts(P), SL.STATUS_FILTERS.map(g => g.key),
+  ], [['전체', '등록·승인 완료', '승인 대기', '실패·반려'], { all: 5, done: 2, pending: 1, failed: 2 }, ['all', 'done', 'pending', 'failed', 'sending']])
+  eq('상태 거르기: 실패·반려 · 전송 중 · 등록·승인 완료 · 승인 대기', [f({ status: 'failed' }), f({ status: 'sending' }), f({ status: 'done' }), f({ status: 'pending' })], [['C', 'B'], ['send:e1'], ['A', 'D'], ['A']])
+  eq('판매처 거르기: 그 판매처 기록이 있는 상품만 · 판매처 + 상태는 같은 기록(스마트스토어 지난 실패는 안 걸림) · 쿠팡 + 등록·승인 완료', [f({ market: 'smartstore' }), f({ market: 'smartstore', status: 'failed' }), f({ market: 'coupang', status: 'done' }), f({ market: '11st' })], [['send:e1', 'A'], [], ['D'], ['B']])
+  eq('보낸 기간: 오늘(한국 날짜) · 최근 7·30·90일 · 전체 · 판매처 + 기간도 같은 기록', [f({ period: 'today' }), f({ period: '7' }), f({ period: '30' }), f({ period: '90' }), f({ period: 'all' }).length, f({ market: 'smartstore', period: 'today' }), SL.kstDay('2026-10-01T15:30:00Z')], [['send:e1', 'A'], ['send:e1', 'A', 'C'], ['send:e1', 'A', 'C'], ['send:e1', 'A', 'C', 'B'], 5, ['send:e1'], '2026-10-02'])
+  eq('검색: 상품명(대소문자 무시·앞뒤 공백 무시) · 판매처 상품번호(어느 기록이든, 스마트스토어 채널상품번호 포함) · 빈 검색 = 전체', [
+    f({ field: 'name', text: ' 원피스 ' }), f({ field: 'name', text: 'apple' }), f({ field: 'no', text: '9001' }), f({ field: 'no', text: '33' }), f({ field: 'no', text: '원피스' }), f({ field: 'name', text: '' }).length,
+  ], [['A'], ['C'], ['A'], ['C'], [], 5])
+  eq('정렬: 최근 전송순 · 상품명순(가나다) · 원래 배열은 그대로', [keys(SL.sortSentProducts([...P].reverse(), 'recent')), keys(SL.sortSentProducts(P.filter(p => p.key !== 'C'), 'name')), keys(P)], [['send:e1', 'A', 'C', 'B', 'D'], ['B', 'D', 'A', 'send:e1'], ['send:e1', 'A', 'C', 'B', 'D']])
+  const many = Array.from({ length: 45 }, (_, i) => i)
+  eq('페이지: 20·50·100 (기본 50) · 넘친 페이지 = 끝 · 없는 크기 = 50', [SL.PAGE_SIZES, SL.DEFAULT_PAGE_SIZE, SL.pageSlice(many, 3, 20).items.length, SL.pageSlice(many, 9, 20).page, SL.pageSlice(many, 1, 7).items.length, SL.pageSlice([], 1, 20)], [[20, 50, 100], 50, 5, 3, 45, { items: [], page: 1, pages: 1 }])
+  eq('칩 색 묶음: 완료 ok · 승인 대기·전송 중 wait · 실패·반려 bad', ['registered', 'approved', 'approval_pending', 'sending', 'failed', 'rejected', 'x'].map(SL.chipTone), ['ok', 'ok', 'wait', 'wait', 'bad', 'bad', ''])
+  const B = P.find(p => p.key === 'B'), C = P.find(p => p.key === 'C')
+  const lone = { key: 'send:z', exportId: null, byMarket: { smartstore: { id: 'z', market: 'smartstore', status: 'failed' } } }
+  const noPid = { key: 'Q', exportId: 'Q', byMarket: { coupang: { id: 'q', market: 'coupang', status: 'rejected', sellerProductId: null } } }
+  eq('[고쳐서 재전송]: 쿠팡 반려 + 상품번호 = resend(예전 다시 승인 요청 길) · 그 밖 실패·반려 = send(그 판매처만 체크) · 지난 실패·완료·내 상품 id 없음 = 없음', [
+    SL.fixAction(C, C.byMarket.coupang), SL.fixAction(B, B.byMarket['11st']), SL.fixAction(noPid, noPid.byMarket.coupang), SL.fixAction(A, A.history[2]), SL.fixAction(A, A.byMarket.coupang), SL.fixAction(lone, lone.byMarket.smartstore),
+  ], ['resend', 'send', 'send', '', '', ''])
+  const sl = read('src/components/studio/StudioSendList.vue'), slib = read('src/lib/studioSentList.js')
+  const tpl = sl.slice(sl.indexOf('<template>'), sl.lastIndexOf('</template>'))
+  eq('화면: 판매처 칸 3개(쿠팡·스마트스토어·11번가) · 칩 문구 = sendStatusLabel만(새 문구 표 없음) · 보낸 적 없음 "미등록" · 칩 색 값 · 상태 카드 = 상태 고르기와 같은 값', [
+    SL.SENT_COLUMNS, /SEND_STATUS_LABEL|const \w+_LABEL = \{/.test(sl + slib), (tpl.match(/\{\{ sendStatusLabel\(/g) || []).length >= 3, /<span v-else class="st-desc-sm">미등록<\/span>/.test(tpl),
+    ['#DCFCE7', '#166534', '#FEF3C7', '#92400E', '#FEE2E2', '#991B1B'].every(c => sl.includes(c)), /function pickStatusCard\(key\) \{ status\.value = status\.value === key && key !== 'all' \? 'all' : key \}/.test(sl),
+  ], [['coupang', 'smartstore', '11st'], false, true, true, true, true])
+  eq('화면: 필터·검색·정렬·페이지는 화면 안에서만(localStorage 없음) · 새로고침 = 기존 syncSends만 · 고쳐서 재전송 = 기존 창(sendToMarketplace·resendToMarketplace) · [판매처에서 보기]는 adminUrl 있을 때만 · 폰 44px', [
+    /localStorage|sessionStorage/.test(sl + slib), /await syncSends\(\)/.test(sl), /callStudioApi|fetch\(/.test(sl + slib), /fixHow\.value === 'resend' \? await resendToMarketplace\(id\) : await sendToMarketplace\(fixExportId\.value\)/.test(sl),
+    /<StudioSendModal [^>]*:market="fixMarket" :sent="fixSent"/.test(tpl), /v-if="chipTone\(s\.status\) === 'ok' && s\.adminUrl"/.test(tpl), /@media \(max-width: 767\.98px\) \{\s+\.sl-tap \{ height: 44px; min-height: 44px; \}/.test(sl),
+  ], [false, true, false, true, true, true, true])
+  eq('화면: PC 표(md 이상)·폰 카드(md 미만) · 폰 [필터] 펼치기 · 펼친 줄 = 그 상품의 모든 기록 · 로그아웃 구독', [
+    /class="hidden md:block st-card overflow-hidden" data-sl-table/.test(tpl), /class="md:hidden flex flex-col gap-3" data-sl-cards/.test(tpl), /:class="filtersOpen \? 'flex' : 'hidden md:flex'"/.test(tpl), /<tr v-for="s in p\.history"/.test(tpl), /euchs-auth-changed/.test(sl),
+  ], [true, true, true, true, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

@@ -1,6 +1,6 @@
 <template>
   <div class="px-4 sm:px-12 py-6 max-w-[1560px]" data-ch-sent-view>
-    <!-- 예전 내 작업 화면의 [보낸 상품] 그대로 — 판매처별 배지·반려 사유·[고쳐서 다시 보내기]·[상태 새로고침] -->
+    <!-- 보낸 상품 목록형 (2026-10-02) — 상태 카드·검색·필터·판매처 칸·펼친 전송 이력·[고쳐서 재전송]·[쿠팡 상태 새로고침] -->
     <StudioSendList v-if="loggedIn" ref="sendList" :exports="exportItems" @update="onUpdate" />
     <!-- 로그인 전 (누구나 구경 — 2026-09-30): 보낸 기록을 부르지 않는다 -->
     <StudioLoginNeeded v-else title="보낸 상품의 진행 상태를 한곳에서 봐요" desc="로그인하면 판매처로 보낸 상품의 승인·반려 상태와 사유를 볼 수 있어요." />
