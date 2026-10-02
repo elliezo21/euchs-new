@@ -131,7 +131,6 @@
                 <th v-for="t in f.optionTypes" :key="t.key">{{ t.mapped || t.label }}</th>
                 <th v-for="a in extraAttrs" :key="a.name">{{ attrLabel(a) }}</th>
                 <th v-if="!f.optionTypes.length && !extraAttrs.length">구매옵션 *</th>
-                <th v-if="hasCny" class="c-cny">1688 가격</th>
                 <th class="c-price">정가(원) *</th>
                 <th class="c-price">판매가(원) *</th>
                 <th class="c-rate">할인</th>
@@ -161,7 +160,6 @@
                 <td v-if="!f.optionTypes.length && !extraAttrs.length" data-label="구매옵션 *">
                   <div class="flex gap-1"><input v-model.trim="it.freeAttrName" class="st-input opt-in" placeholder="종류" :maxlength="ATTR_NAME_MAX" /><input v-model.trim="it.freeAttrValue" class="st-input opt-in" placeholder="값" :maxlength="ATTR_VALUE_MAX" /></div>
                 </td>
-                <td v-if="hasCny" class="c-cny st-muted whitespace-nowrap" data-label="1688 가격" :data-mk-s-cny="i">{{ it.priceCny ? `${it.priceCny}위안` : '확인 필요' }}</td>
                 <td class="c-price" data-label="정가(원) *"><input v-model.number="it.originalPrice" type="number" min="1" class="st-input opt-in" /></td>
                 <td class="c-price" data-label="판매가(원) *">
                   <span v-if="commonItems" class="text-[13px] whitespace-nowrap" :class="it.salePrice > 0 ? 'st-ink' : 'st-danger-text font-bold'" :data-mk-s-price="i">{{ it.salePrice > 0 ? it.salePrice.toLocaleString('ko-KR') : '확인 필요' }}</span>
@@ -170,7 +168,7 @@
                 <td class="c-rate whitespace-nowrap st-ink" data-label="할인" :data-mk-s-rate="i">{{ rateText(it) }}</td>
                 <td class="c-stock" data-label="재고 수량 *">
                   <span v-if="commonItems" class="text-[13px]" :class="Number.isInteger(it.stock) ? 'st-ink' : 'st-danger-text font-bold'" :data-mk-s-stock="i">{{ Number.isInteger(it.stock) ? it.stock.toLocaleString('ko-KR') : '입력 필요' }}</span>
-                  <input v-else v-model.number="it.stock" type="number" min="0" :max="STOCK_MAX" class="st-input opt-in" :title="it.stock1688 === null ? '' : `1688 재고 ${it.stock1688}`" :data-mk-s-stock="i" />
+                  <input v-else v-model.number="it.stock" type="number" min="0" :max="STOCK_MAX" class="st-input opt-in" :data-mk-s-stock="i" />
                 </td>
                 <td class="c-sku" data-label="품번 *"><input v-model.trim="it.sku" class="st-input opt-in font-mono" maxlength="50" :data-mk-s-sku="i" /></td>
                 <td class="c-gtin" data-label="GTIN"><input v-model.trim="it.gtin" class="st-input opt-in font-mono" maxlength="14" placeholder="8~14자리" /></td>
@@ -308,7 +306,7 @@
 import { ref, reactive, computed, watch, inject, onMounted, onBeforeUnmount } from 'vue'
 import StudioSourceOptionPicker from '@/components/studio/StudioSourceOptionPicker.vue'
 import StudioTagChips from '@/components/studio/StudioTagChips.vue'
-import { optionTableMode, SEND_CACHE_KEY, repImageCandidates, defaultRepImageId, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
+import { optionTableMode, SEND_CACHE_KEY, repImageCandidates, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
 import { COUPANG_GROUPS, initialUse } from '@/lib/studioSendCommon'
 import StudioSendUseCommon from '@/components/studio/StudioSendUseCommon.vue'
 import {
@@ -355,7 +353,7 @@ const bulk = ref({ originalPrice: null, salePrice: null, stock: null })
 let uid = 0
 const f = ref(blank())
 
-function blankItem() { return { uid: ++uid, name: '', original: '', originals: {}, originalPrice: null, salePrice: null, stock: null, stock1688: null, sku: '', gtin: '', opt: {}, attributes: {}, freeAttrName: '', freeAttrValue: '', imageId: null, priceCny: null } }
+function blankItem() { return { uid: ++uid, name: '', original: '', originals: {}, originalPrice: null, salePrice: null, stock: null, sku: '', gtin: '', opt: {}, attributes: {}, freeAttrName: '', freeAttrValue: '', imageId: null } }
 function blank() {
   return {
     saleMode: '', outboundDays: null, productName: '', displayName: '', generalName: '', noBrand: true, brand: '', brandId: '', manufacture: '', manualNames: false, modelNo: '', categoryCode: '', categoryName: '',
@@ -365,25 +363,22 @@ function blank() {
 const source = computed(() => props.prepare?.source || null)
 const resend = computed(() => props.prepare?.resend || null)
 const template = computed(() => (props.prepare?.templates || []).find(t => t.id === f.value.templateId) || null)
-const hasCny = computed(() => !!source.value && f.value.items.some(it => it.fromSource))
 const sourceNote = computed(() => {
   const n = f.value.items.filter(it => it.fromSource).length
   if (!n) return '' // 옵션은 처음부터 채우지 않는다 (2026-10-02) — 불러온 뒤에만 안내
-  return `불러온 옵션 ${n}개입니다. 1688 가격은 참고용이며 판매가는 직접 입력합니다.`
+  return `불러온 옵션 ${n}개입니다. 판매가는 직접 입력합니다.`
 })
 
 // 처음 값 — 창이 열릴 때마다 이 섹션이 새로 만들어진다(StudioSendModal이 key로 다시 띄움). 맨 아래에서 한 번 부른다
 function init() {
   const p = props.prepare
-  // 상품명 기본값은 한글만 — 작업 이름(지금 이름 → 내 상품을 만들 때 이름) → 가져온 상품 제목의 한글(번역 캐시). 없으면 빈칸 + placeholder
-  f.value.productName = pickKoreanName([p?.export?.projectTitle, p?.export?.title, source.value?.title?.ko])
+  // 상품명·대표 이미지는 비워 둔다 (2026-10-02 ②-1 — 판매처에 올리는 값은 셀러가 정한다. 1688 제목·작업 이름을 넣지 않고 대표 이미지도 미리 고르지 않는다)
   f.value.templateId = (p?.templates || []).find(t => t.is_default)?.id || p?.templates?.[0]?.id || ''
-  f.value.repImageId = defaultRepImageId(p?.images)
   // 고쳐서 다시 보내기 — 그 전송에서 보냈던 값으로 채운다 (템플릿·대표 이미지·옵션 사진은 지금 것에서 다시 고른다)
   if (resend.value?.form) return fillFromResend(resend.value.form)
   // 1688 옵션은 처음부터 채우지 않는다 (2026-10-02 — 사입 셀러는 실제로 들여온 옵션만 판다). [주문한 옵션 불러오기]·[1688 옵션 불러오기] → onPickSource
   applyRememberedMode()
-  if (nameSeed.value) { f.value.generalName = suggestGeneralName({ title: nameSeed.value, optionValues: optionValueList() }); suggestTags() }
+  // 제품명·검색태그도 미리 채우지 않는다 (2026-10-02 ②-1 — 1688 제목에서 만든 값) — [이름 추천]·[태그 추천]을 누를 때만
 }
 function fillFromResend(r) {
   const v = f.value
@@ -404,7 +399,7 @@ function fillFromResend(r) {
   loadMeta({ keep: { noticeCategory: r.noticeCategory, notices: r.notices, certifications: r.certifications, mapped: true } })
 }
 
-/** 가져온 상품(1688)의 옵션 줄(고른 것만 — list) → 옵션 표. 가격(원)은 비워 둔다 — 임의 숫자로 채우지 않는다 */
+/** 가져온 상품(1688)의 옵션 줄(고른 것만 — list) → 옵션 표. 옵션 이름·값만 가져온다 — 판매가·재고는 비워 둔다(1688 판매가·재고는 쓰지 않는다 — 2026-10-02 ②-1) */
 function fillFromSource(list) {
   const s = source.value
   if (!s || !Array.isArray(list) || !list.length) return
@@ -418,9 +413,6 @@ function fillFromSource(list) {
     it.name = kr.rows[i].name
     it.original = kr.rows[i].original
     for (const v of row.values) { const key = v?.name?.zh || v?.name?.ko; if (key) it.originals[key] = v?.value?.zh || '' }
-    it.priceCny = row.priceCny
-    if (row.priceCny === null) console.error('[StudioSendCoupang] 1688 옵션 가격을 읽지 못함 — "확인 필요"로 표시:', s.offerId, row.skuId)
-    it.stock1688 = row.stock // 참고용 — 재고 수량 칸은 비워 둔다(1688 판매자 재고는 내 재고가 아니다). 고객이 직접 넣는다
     it.sku = `${s.offerId}-${row.skuId || String(i + 1).padStart(3, '0')}`.slice(0, 50)
     it.imageId = matchOptionImage(row.imageUrl, props.prepare.images)
     return it
@@ -656,7 +648,7 @@ const optWrap = ref(null)
 const optWidth = ref(0)
 const viewport = ref(typeof window !== 'undefined' && Number(window.innerWidth) > 0 ? window.innerWidth : 0)
 const flexCols = computed(() => (f.value.manualNames ? 1 : 0) + (f.value.optionTypes.length + extraAttrs.value.length || 1))
-const optMode = computed(() => optionTableMode({ width: optWidth.value, viewport: viewport.value, flexCols: flexCols.value, hasCny: hasCny.value }))
+const optMode = computed(() => optionTableMode({ width: optWidth.value, viewport: viewport.value, flexCols: flexCols.value }))
 let optObserver = null
 function measure() {
   viewport.value = window.innerWidth
@@ -937,7 +929,6 @@ defineExpose({ missing, busy, done, submit, sendError, applyPreset, pickedCatego
 .opt-table td { padding: 6px 5px; vertical-align: middle; border-bottom: 1px solid var(--st-line); }
 .opt-table tr:last-child td { border-bottom: 0; }
 .opt-table .c-img { width: 52px; }
-.opt-table .c-cny { width: 80px; overflow: hidden; text-overflow: ellipsis; }
 .opt-table .c-price { width: 96px; }
 .opt-table .c-rate { width: 52px; }
 .opt-table .c-stock { width: 84px; }

@@ -179,8 +179,7 @@
 // 스토어·카테고리·고시 템플릿·배송주소록은 창이 들고 있는 목록(sendCache)을 같이 쓴다 — 창을 다시 열어도 다시 받지 않는다
 import { ref, reactive, computed, watch, onMounted, inject, nextTick } from 'vue'
 import { getZigzagMeta, sendZigzagProduct, isNotReady } from '@/lib/studioMarketplace'
-import { SEND_CACHE_KEY, repImageCandidates, defaultRepImageId, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
-import { pickKoreanName } from '../../../api/_coupangFields.js'
+import { SEND_CACHE_KEY, repImageCandidates, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
 import {
   FEE_TYPES, DISPLAY_STATUSES, BUNDLE_TYPES, TAX_TYPES, PARALLEL_TYPES, SHIPPING_DAYS_MIN, SHIPPING_DAYS_MAX, ITEM_MAX,
   ESSENTIAL_DEFAULT, ESSENTIAL_COUNTRY_DEFAULT, essentialDefaults, zigzagOptionRows, buildZigzagProduct, DISPLAY_LABEL, needsPartialReturn,
@@ -211,8 +210,9 @@ const metaError = ref('')
 const metaSoft = ref(false)
 const catQuery = ref('')
 const f = ref({
-  productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
-  categoryId: null, price: null, listPrice: null, stock: null, repImageId: defaultRepImageId(props.prepare?.images), fit: 'contain',
+  // 상품명·대표 이미지는 비워 둔다 (2026-10-02 ②-1 — 판매처에 올리는 값은 셀러가 정한다)
+  productName: '',
+  categoryId: null, price: null, listPrice: null, stock: null, repImageId: null, fit: 'contain',
   display: 'HIDDEN', feeType: 'FREE', baseFee: null, freeOver: null, jejuFee: null, isolatedFee: null, returnFee: null, partialReturnFee: null, exchangeFee: null, shippingDays: null,
   bundle: 'CONSOLIDATED', returnId: null, taxType: 'TAX', parallel: 'NOT_PARALLEL_IMPORTED', overseas: false, brandId: '',
   essentialCode: '', essentials: {},

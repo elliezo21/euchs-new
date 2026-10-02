@@ -190,7 +190,7 @@ if (built?.Coupang && built?.Modal) {
   eq('2 상품명: 작업 이름·가져온 제목이 모두 번역 전이면 세 칸 다 빈칸 + placeholder (예외 없음)', [n1.error, val(n1.html, 'data-mk-s-name'), val(n1.html, 'data-mk-s-general'), val(n1.html, 'data-mk-s-display'), /placeholder="상품명을 입력하세요"[^>]*data-mk-s-name/.test(n1.html)], [null, '', '', '', true])
   const n2 = await render(built.Coupang, { prepare: withTitle(RAW, ZH, '도트 헤어핀 모음') })
   const n3 = await render(built.Coupang, { prepare: withTitle({ ...RAW, title: { zh: ZH, ko: '여성 도트 헤어핀' } }, ZH, ZH) })
-  eq('2 상품명: 작업의 한글 이름 · 없으면 가져온 제목의 한글', [val(n2.html, 'data-mk-s-name'), val(n3.html, 'data-mk-s-name')], ['도트 헤어핀 모음', '여성 도트 헤어핀'])
+  eq('2 상품명(2026-10-02 ②-1): 작업 한글 이름·가져온 제목 한글이 있어도 빈칸으로 시작 · 제품명·노출상품명도 미리 채우지 않음', [val(n2.html, 'data-mk-s-name'), val(n3.html, 'data-mk-s-name'), val(n3.html, 'data-mk-s-general')], ['', '', ''])
   eq('2 화면 어디에도 번역 전 제목이 값으로 들어가지 않음', [n1, n2, n3].map(r => new RegExp('value="[^"]*' + ZH).test(r.html)), [false, false, false])
 
   // 2026-10-02: 옵션은 불러오기 전 빈칸 — 1688 옵션 값(블랙·레드)이 칸에 들어가지 않는다. 불러온 뒤의 한글 옮기기는 koreanizeSkus 테스트(test-marketplace)
@@ -249,7 +249,7 @@ if (built?.Coupang && built?.Modal) {
   const ssCache = { smartstoreCategoriesDone: { categories: [{ id: '50000999', name: '머그컵', wholeName: '생활/건강>주방용품>잔/컵>머그컵' }] }, smartstoreAddressesDone: { addresses: [{ id: 102, name: '물류창고', type: 'RELEASE', address: '광주 북구 1층', phone: '' }, { id: 103, name: '반품센터', type: 'REFUND_OR_EXCHANGE', address: '광주 북구 2층', phone: '' }], defaults: { shipping: 102, return: 103 } } }
   const ss = await render({ setup: () => { vueProvide(built.SEND_CACHE_KEY, ssCache); return () => h(built.Smartstore, { prepare: PREPARE(true) }) } }, {})
   const checked = (html, attr) => new RegExp('<input[^>]*' + attr + '[^>]*checked|<input[^>]*checked[^>]*' + attr).test(html)
-  eq('스마트스토어 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 한글 기본값 · 카테고리 목록은 검색 전에 안 그림(안내 한 줄) · 기본 출고지·반품지 골라짐 · 판매 상태 전시중지 체크', [ss.error, val(ss.html, 'data-mk-ss-name'), ss.html.includes('data-mk-cat-hint') && !ss.html.includes('잔/컵'), /data-mk-ss-shipping[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="102"[^>]*selected/.test(ss.html), /data-mk-ss-return[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="103"[^>]*selected/.test(ss.html), checked(ss.html, 'data-mk-ss-display-off'), checked(ss.html, 'data-mk-ss-display-on')], [null, '매일 쓰는 머그', true, true, true, true, false])
+  eq('스마트스토어 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 빈칸 시작(2026-10-02 ②-1) · 카테고리 목록은 검색 전에 안 그림(안내 한 줄) · 기본 출고지·반품지 골라짐 · 판매 상태 전시중지 체크', [ss.error, val(ss.html, 'data-mk-ss-name'), ss.html.includes('data-mk-cat-hint') && !ss.html.includes('잔/컵'), /data-mk-ss-shipping[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="102"[^>]*selected/.test(ss.html), /data-mk-ss-return[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="103"[^>]*selected/.test(ss.html), checked(ss.html, 'data-mk-ss-display-off'), checked(ss.html, 'data-mk-ss-display-on')], [null, '', true, true, true, true, false])
   eq('스마트스토어 섹션: 요약 표 판매상태 판매중·전시상태 전시중지 · 가격·재고는 빈칸(임의 숫자 없음)', [/data-mk-ss-preview-row="판매상태"[\s\S]{0,200}판매중/.test(ss.html), /data-mk-ss-preview-row="전시상태"[\s\S]{0,200}전시중지/.test(ss.html), val(ss.html, 'data-mk-ss-price'), val(ss.html, 'data-mk-ss-stock')], [true, true, '', ''])
   eq('스마트스토어 섹션: 국내 출고지면 관부가세 칸·요약 줄 없음', [/data-mk-ss-customs/.test(ss.html), /data-mk-ss-preview-row="관부가세"/.test(ss.html)], [false, false])
   // 옵션(조합형, 2026-10-01) — 가져온 상품에 옵션이 있으면 옵션 영역 · 없으면 예전 그대로 단일상품
@@ -349,7 +349,7 @@ if (built?.Elevenst) {
   const render11 = cache => render({ setup: () => { vueProvide2(built.SEND_CACHE_KEY, cache); return () => h(built.Elevenst, { prepare: PREPARE(true) }) } }, {})
   const sel11 = (html, attr, id) => new RegExp(attr + '[^>]*>(?:(?!<\\/select>)[\\s\\S])*<option[^>]*value="' + id + '"[^>]*selected').test(html)
   const a = await render11(cache11({ out: null, in: null }))
-  eq('11번가 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 한글 기본값 · 보낸 적 없으면 출고지·반품지 = 목록 첫째', [a.error, /data-mk-11st-name[^>]*value="매일 쓰는 머그"|value="매일 쓰는 머그"[^>]*data-mk-11st-name/.test(a.html), sel11(a.html, 'data-mk-11st-out', '11'), sel11(a.html, 'data-mk-11st-in', '21')], [null, true, true, true])
+  eq('11번가 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 빈칸 시작(2026-10-02 ②-1) · 보낸 적 없으면 출고지·반품지 = 목록 첫째', [a.error, !/data-mk-11st-name[^>]*value="[^"]+"|value="[^"]+"[^>]*data-mk-11st-name/.test(a.html), sel11(a.html, 'data-mk-11st-out', '11'), sel11(a.html, 'data-mk-11st-in', '21')], [null, true, true, true])
   const b = await render11(cache11({ out: '12', in: '22' }))
   eq('11번가 섹션: 마지막에 보낸 주소(12·22)가 목록에 있으면 그것', [sel11(b.html, 'data-mk-11st-out', '12'), sel11(b.html, 'data-mk-11st-in', '22')], [true, true])
   // 옵션(싱글옵션, 2026-10-01) — 가져온 상품에 옵션이 있으면 옵션 영역 · 없으면 예전 그대로

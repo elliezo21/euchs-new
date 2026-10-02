@@ -233,8 +233,7 @@ import { useSendCommon } from '@/lib/useSendCommon'
 import StudioSendUseCommon from './StudioSendUseCommon.vue'
 import { listListingTemplates, createListingTemplate } from '@/lib/studioListingTemplates'
 import { TEMPLATE_KINDS, TEMPLATE_NAME_MAX, pickDefaultTemplate, uniqueTemplateName } from '../../../api/_listingTemplates.js'
-import { SEND_CACHE_KEY, repImageCandidates, defaultRepImageId, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
-import { pickKoreanName } from '../../../api/_coupangFields.js'
+import { SEND_CACHE_KEY, repImageCandidates, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
 import {
   SS_DELIVERY_COMPANIES, SS_FEE_TYPES, DISPLAY_STATUSES, CUSTOMS_TAX_TYPES, ADDRESS_TYPES, pickSmartstoreAddress, SMARTSTORE_CENTER_URL,
   smartstoreFormFromProduct, smartstoreFormFromShipping, productTemplateFromSmartstoreForm, shippingTemplateFromSmartstoreForm,
@@ -270,9 +269,9 @@ const addrRefreshing = ref(false)
 const shippingBase = () => ({ feeType: 'FREE', baseFee: null, freeOver: null, returnFee: null, exchangeFee: null })
 const productBase = () => ({ asPhone: '', asGuide: DETAIL_REF, originCode: '03', originContent: '', manufacturer: '' })
 const f = ref({
-  // 상품명 기본값 = 쿠팡·카페24 섹션과 같은 규칙(한글만), 없으면 빈칸
-  productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
-  leafCategoryId: null, salePrice: null, stock: null, repImageId: defaultRepImageId(props.prepare?.images), fit: 'contain',
+  // 상품명·대표 이미지는 비워 둔다 (2026-10-02 ②-1 — 판매처에 올리는 값은 셀러가 정한다. 1688 제목·작업 이름을 넣지 않고, 대표 이미지는 공통 정보에서 직접 고른다)
+  productName: '',
+  leafCategoryId: null, salePrice: null, stock: null, repImageId: null, fit: 'contain',
   company: SS_DELIVERY_COMPANIES[0].code, feeType: 'FREE', baseFee: null, returnFee: null, exchangeFee: null,
   freeOver: null, // 조건부 무료 기준 금액 — 조건부 무료일 때만 보낸다(임의 숫자 없음)
   shippingAddressId: null, returnAddressId: null,

@@ -13,10 +13,8 @@
  *   대표 이미지는 판매처별로 따로 고르지 않는다(공통 정보 한 곳 — 늘 공통 값)
  *   쿠팡은 판매가·재고·옵션이 옵션 표 한 벌이라 묶음 둘(상품명 · 판매가·재고·옵션 — COUPANG_GROUPS)
  */
-import { pickKoreanName } from '../../api/_coupangFields.js'
 import { ssOptionPriceRange, elevenstOptionPriceRange } from '../../api/_marketOptions.js'
 import { emptyOptionEditor, cloneOptionEditor } from './studioOptionEditor.js'
-import { defaultRepImageId } from './studioMarketplaceRules.js'
 
 export const COMMON_MARKETS = ['coupang', 'smartstore', '11st', 'zigzag'] // 2026-10-02 지그재그 — 같은 옵션 편집기(studioOptionEditor)·같은 칸 이름이라 그대로 옮긴다
 // [공통 정보 사용] 체크 묶음 — 스마트스토어·11번가·지그재그
@@ -62,15 +60,15 @@ export function commonOptionRange(markets, price) {
 export const cloneOptions = cloneOptionEditor
 
 /**
- * 처음 공통 값 — 판매처 섹션의 처음 값과 같은 규칙 (상품명 한글만 · 금액·재고 비움 · 옵션 비움 · 대표 이미지 = 첫 후보)
+ * 처음 공통 값 — 모두 비워 둔다 (2026-10-02 ②-1 — 판매처에 올리는 값은 셀러가 정한다. 1688 제목·작업 이름·1688 가격·재고를 넣지 않고 대표 이미지도 미리 고르지 않는다)
  * @param {object} prepare send_prepare 응답
  */
 export function commonFromPrepare(prepare) {
   return {
-    productName: pickKoreanName([prepare?.export?.projectTitle, prepare?.export?.title, prepare?.source?.title?.ko]),
+    productName: '',
     price: null, stock: null,
     opts: emptyOptionEditor(), // 옵션은 비워 둔다 (2026-10-02) — [주문한 옵션 불러오기]·[1688 옵션 불러오기]로만 가져온다
-    repImageId: defaultRepImageId(prepare?.images), fit: 'contain', // 대표 이미지 후보 = 1688 대표 사진 + 내 사진
+    repImageId: null, fit: 'contain', // 대표 이미지 후보(1688 대표 사진 + 내 사진 — repImageCandidates) 중 셀러가 고른다
   }
 }
 

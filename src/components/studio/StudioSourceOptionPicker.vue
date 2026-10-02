@@ -22,7 +22,6 @@
               <span class="st-ink">{{ labels[i].text || '옵션' }}</span>
               <span v-if="labels[i].original && labels[i].original !== labels[i].text" class="st-desc-sm block break-all">가져온 옵션: {{ labels[i].original }}</span>
             </span>
-            <span v-if="s.stock === 0" class="st-badge shrink-0 ml-auto">1688 품절</span>
           </label>
         </li>
       </ul>
@@ -60,7 +59,7 @@ function onTake() {
   const list = pickSkus(props.skus, [...checked.value])
   if (!list.length) return
   emit('pick', { skus: list, from: '1688' })
-  msg.value = `1688 옵션 ${list.length}개를 가져왔습니다.`
+  msg.value = `1688 옵션 ${list.length}개의 이름을 가져왔습니다. 판매가·재고는 직접 입력합니다.` // 옵션 이름만 — 1688 가격·재고는 가져오지 않는다 (2026-10-02 ②-1)
   open.value = false
   checked.value = new Set()
 }

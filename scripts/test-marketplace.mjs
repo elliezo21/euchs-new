@@ -1109,8 +1109,8 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   {
     const cp = read('src/components/studio/StudioSendCoupang.vue')
     eq('쿠팡 섹션: uid를 f보다 먼저 선언 (선언 전에 쓰지 않음)', [cp.indexOf('let uid = 0') > 0, cp.indexOf('let uid = 0') < cp.indexOf('const f = ref(blank())')], [true, true])
-    eq('재고 수량: 기본값 비움(1688 재고를 넣지 않음) · 필수 · 빠짐 목록 "재고 수량" · 일괄 입력 · maximumBuyCount', [
-      cp.includes('stock: null, stock1688: null'), cp.includes('it.stock = row.stock'), cp.includes('out.push(`${tag}재고 수량`)'),
+    eq('재고 수량: 기본값 비움(1688 재고를 넣지 않음 · 툴팁·참고값도 없음 — 2026-10-02 ②-1) · 필수 · 빠짐 목록 "재고 수량" · 일괄 입력 · maximumBuyCount', [
+      cp.includes("salePrice: null, stock: null, sku: ''") && !/stock1688|priceCny/.test(cp), cp.includes('it.stock = row.stock'), cp.includes('out.push(`${tag}재고 수량`)'),
       cp.includes('<th class="c-stock">재고 수량 *</th>'), cp.includes('data-mk-s-bulk-stock'), cp.includes('if (Number.isInteger(b.stock) && b.stock >= 0) it.stock = b.stock'),
       cp.includes('stock: it.stock, sku: it.sku'), read('api/_coupang.js').includes('maximumBuyCount: stock'),
     ], [true, false, true, true, true, true, true, true])
@@ -1177,7 +1177,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('1 창 폭: 보내기 창 = 화면 폭 90%(최대 1400px) · 다른 창의 wide는 그대로', [/<StudioModal :open="open" :title="prepare\?\.resend \? '수정 후 다시 보내기' : '판매처로 보내기'" full /.test(shell), modalBox.includes("full ? 'w-[90vw] max-w-[1400px]' : wide ? 'w-full max-w-2xl' : 'w-full max-w-md'")], [true, true])
   eq('1 옵션 표: 가로 스크롤 없음 · 칸 폭 고정 배치 · 입력 칸은 칸 폭에 맞춤', [/overflow-x-auto[^"]*"[^>]*>\s*<table class="opt-table"/.test(cp), /\.opt-table \{[^}]*table-layout: fixed/.test(cp), /\.opt-in \{ width: 100%; min-width: 0;/.test(cp), /class="st-input w-\[\d+px\]"[^>]*data-mk-s-(stock|sku|price|opt)=/.test(cp)], [false, true, true, false])
   const fixedCss = ['c-img', 'c-price', 'c-price', 'c-rate', 'c-stock', 'c-sku', 'c-gtin', 'c-del'].reduce((n, c) => n + Number(new RegExp(`\\.opt-table \\.${c} \\{ width: (\\d+)px`).exec(cp)?.[1] || NaN), 0)
-  eq('1 옵션 표: 화면의 고정 칸 폭 합 = 규칙 파일 숫자', [fixedCss, Number(/\.opt-table \.c-cny \{ width: (\d+)px/.exec(cp)?.[1])], [R.OPTION_FIXED_PX, R.OPTION_CNY_PX])
+  eq('1 옵션 표: 화면의 고정 칸 폭 합 = 규칙 파일 숫자 · "1688 가격" 칸 없음(2026-10-02 ②-1 — 1688 가격을 보이지 않음)', [fixedCss, /c-cny|1688 가격|hasCny/.test(cp)], [R.OPTION_FIXED_PX, false])
   eq('1 표/카드: 1440·1280 화면(옵션 종류 1개·1688 가격) = 표 · 폰 390 = 카드 · 자리가 모자라면 카드', [
     R.optionTableMode({ width: 1236, viewport: 1440, flexCols: 2, hasCny: true }), R.optionTableMode({ width: 1092, viewport: 1280, flexCols: 2, hasCny: true }),
     R.optionTableMode({ width: 303, viewport: 390, flexCols: 2, hasCny: true }), R.optionTableMode({ width: 1092, viewport: 1280, flexCols: 7, hasCny: true }), R.optionTableMode({ width: 1236, viewport: 1440, flexCols: 4, hasCny: true }),
@@ -1193,8 +1193,8 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   ], ['도트 헤어핀 모음', '물방울 헤어핀', '', '', ''])
   eq('2 상품명 기본값 100자까지', F.pickKoreanName(['가나다 '.repeat(40)]).length <= 100, true)
   eq('2 세 이름 중 하나라도 번역 안 된 글자가 있으면 막음', [F.namesNeedKorean({ productName: '헤어핀', displayName: '', generalName: '' }), F.namesNeedKorean({ productName: ZH_TITLE }), F.namesNeedKorean({ productName: '헤어핀', displayName: '이유씨 发夹' }), F.namesNeedKorean({ productName: '헤어핀', generalName: '发夹' }), F.namesNeedKorean()], [false, true, true, true, false])
-  eq('2 화면: 기본값은 pickKoreanName(작업 이름 → 내 상품 이름 → 가져온 제목 한글) · 빠짐 목록 "상품명 한글" · placeholder', [
-    cp.includes('f.value.productName = pickKoreanName([p?.export?.projectTitle, p?.export?.title, source.value?.title?.ko])'), cp.includes("if (namesBad.value) out.push('상품명 한글')"),
+  eq('2 화면: 상품명은 빈칸으로 시작(2026-10-02 ②-1 — 1688 제목·작업 이름을 넣지 않음, 안내 문구만) · 빠짐 목록 "상품명 한글" · placeholder', [
+    !/f\.value\.productName = pickKoreanName/.test(cp) && cp.includes("productName: ''"), cp.includes("if (namesBad.value) out.push('상품명 한글')"),
     /:placeholder="NAME_HINT" data-mk-s-name/.test(cp), /p\.ko \|\| p\.zh/.test(cp), /String\(p\?\.export\?\.title \|\| ''\)/.test(cp),
   ], [true, true, true, false, false])
   eq('2 서버: 번역 안 된 글자가 남은 이름은 본문을 만들지 않음 (등록상품명·노출상품명·제품명)', [C.buildProductBody({ ...BASE, productName: ZH_TITLE }).ok, C.buildProductBody({ ...BASE, displayName: '이유씨 发夹' }).ok, C.buildProductBody({ ...BASE, generalName: '发夹' }).ok, C.buildProductBody({ ...BASE, productName: ZH_TITLE }).message, C.buildProductBody({ ...BASE }).ok], [false, false, false, '상품명을 한글로 고쳐 주세요.', true])
@@ -2440,11 +2440,11 @@ function elevenstRelay(u, method, opts) {
   eq('스마트스토어 섹션: 옵션 영역(늘 그림 — 가져온 옵션이 없으면 꺼진 채) · 같은 원천(prepare.source.skus) · 화면 검사 = 서버 함수 · 옵션을 쓸 때만 options 보냄 · 재고 칸 대신 합계', [
     /<StudioSendOptions v-show="showOwn\('stock'\)" :model="opts"/.test(ss), ss.includes('const opts = ref(emptyOptionEditor())') && ss.includes(':skus="prepare.source?.skus || []"') && ss.includes(':ordered="prepare.ordered || []"'), /smartstoreOptionProblems\(/.test(ss), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(ss), /<label v-if="!useOptions"( v-show="showOwn\('stock'\)")? class="block">/.test(ss), /const useOptions = computed\(\(\) => opts\.value\.enabled\)/.test(ss),
   ], [true, true, true, true, true, true])
-  eq('옵션 영역(2026-10-02): 옵션 사용 끄기 · 종류 추가·삭제 · 값 입력·[추가]·Enter · 칩 ⓧ · 선택 삭제·일괄입력·되살리기 · 추가금액·재고 칸 · 가져온 원문 · 1688 재고는 툴팁만 · "판매" 체크 없음', [
+  eq('옵션 영역(2026-10-02): 옵션 사용 끄기 · 종류 추가·삭제 · 값 입력·[추가]·Enter · 칩 ⓧ · 선택 삭제·일괄입력·되살리기 · 추가금액·재고 칸 · 가져온 원문 · 1688 재고는 어디에도 없음(툴팁도 — 2026-10-02 ②-1) · "판매" 체크 없음', [
     /data-mk-opt-enabled/.test(area), /data-mk-opt-group-add[^>]*>옵션 종류 추가</.test(area), /data-mk-opt-group-remove[^>]*>삭제</.test(area), /data-mk-opt-value-input[^>]*@keydown\.enter\.prevent="onAddValues\(g\)"/.test(area), /data-mk-opt-value-add[^>]*>추가</.test(area), /data-mk-opt-chip-remove/.test(area),
     /data-mk-opt-delete[^>]*>선택 삭제</.test(area), /data-mk-opt-bulk-price-apply[^>]*>추가금액 일괄입력</.test(area), /data-mk-opt-bulk-stock-apply[^>]*>재고 일괄입력</.test(area), /data-mk-opt-restore[^>]*>삭제한 조합 되살리기</.test(area),
-    /data-mk-opt-price/.test(area), /data-mk-opt-stock/.test(area), /가져온 옵션:/.test(area), /`1688 재고 \$\{r\.stock1688\}`/.test(area), /data-mk-opt-use|판매 안 함/.test(area),
-  ], [true, true, true, true, true, true, true, true, true, true, true, true, true, true, false])
+    /data-mk-opt-price/.test(area), /data-mk-opt-stock/.test(area), /가져온 옵션:/.test(area), /1688 재고|stock1688/.test(area), /data-mk-opt-use|판매 안 함/.test(area),
+  ], [true, true, true, true, true, true, true, true, true, true, true, true, true, false, false])
   eq('옵션 영역 문구: 합니다체 · 대화체 없음 (화면·편집 안내 문구)', /(어요|예요|해요|돼요|아요|워요|네요|줘요)|주세요/.test(area.slice(0, area.indexOf('<style')) + read('src/lib/studioOptionEditor.js')), false)
   eq('쿠팡 섹션·서버는 공용 옵션을 쓰지 않음 (쿠팡 출력 그대로)', /StudioSendOptions|_marketOptions/.test(read('src/components/studio/StudioSendCoupang.vue') + read('api/_coupang.js') + read('api/_coupangFields.js')), false)
 
@@ -2595,7 +2595,7 @@ function elevenstRelay(u, method, opts) {
     [true, [['색상', [['블랙', '黑色'], ['화이트', '白色'], ['', '奇怪花纹']]], ['사이즈', [['M', 'M'], ['L', 'L']]]], ['블랙/M', '화이트/L', '/L'], 3])
   {
     const src = O.marketOptionsFromSource(SKUS)
-    eq('미리 채운 줄 = 예전 공용 원천과 같은 값·원문·추가금액·재고·1688 참고값', ms.rows.map(r => [r.values, r.originals, r.addPrice, r.stock, r.use, r.stock1688, r.priceCny]), src.rows.map(r => [r.values, r.originals, r.addPrice, r.stock, r.use, r.stock1688, r.priceCny]))
+    eq('미리 채운 줄 = 예전 공용 원천과 같은 값·원문·추가금액·재고 · 1688 가격·재고는 가져오지 않음(2026-10-02 ②-1 — 옵션 이름만)', ms.rows.map(r => [r.values, r.originals, r.addPrice, r.stock, r.use, r.stock1688, r.priceCny]), src.rows.map(r => [r.values, r.originals, r.addPrice, r.stock, r.use, null, null]))
   }
   eq('옵션 없는 상품 → 옵션 꺼짐·종류 없음·줄 없음 · 보낼 모양 null(단일상품)', [E.optionEditorFromSource([]).enabled, E.optionEditorFromSource(undefined).groups, E.optionEditorFromSource([]).rows, O.optionsPayload(E.optionEditorFromSource([]))], [false, [], [], null])
   ms.rows[0].stock = 5
@@ -2661,8 +2661,8 @@ function elevenstRelay(u, method, opts) {
   const c0 = SC.commonFromPrepare(PREP)
   {
     // 2026-10-02: 옵션은 처음부터 채우지 않는다(사입 셀러 — 실제로 들여온 옵션만) · 대표 이미지 = 1688 대표 사진 첫 후보
-    eq('처음 공통 값 = 섹션 처음 값과 같은 규칙: 상품명 한글(작업 이름) · 판매가·재고 비움 · 옵션 비움(꺼진 채) · 대표 이미지 = 첫 후보(1688 대표 사진) · 여백 채우기', [c0.productName, c0.price, c0.stock, c0.opts.enabled, c0.opts.groupNames, c0.opts.rows, c0.repImageId, c0.fit],
-      ['매일 쓰는 머그', null, null, false, [], [], 'img1', 'contain'])
+    eq('처음 공통 값(2026-10-02 ②-1): 상품명 빈칸(작업 이름·1688 제목 안 넣음) · 판매가·재고 비움 · 옵션 비움(꺼진 채) · 대표 이미지 안 고름 · 여백 채우기', [c0.productName, c0.price, c0.stock, c0.opts.enabled, c0.opts.groupNames, c0.opts.rows, c0.repImageId, c0.fit],
+      ['', null, null, false, [], [], null, 'contain'])
     // 아래 테스트는 [1688 옵션 불러오기]로 전부 가져온 뒤의 모양으로 (StudioSendOptions onPick = replaceOptionEditor(optionEditorFromSource))
     const OE = await import('../src/lib/studioOptionEditor.js')
     OE.replaceOptionEditor(c0.opts, OE.optionEditorFromSource(SKUS))

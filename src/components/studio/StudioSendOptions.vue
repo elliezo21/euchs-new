@@ -76,7 +76,7 @@
                   <span v-if="r.originals[gi]" class="st-desc-sm block mt-0.5 break-all">가져온 옵션: {{ r.originals[gi] }}</span>
                 </td>
                 <td><input v-model.number="r.addPrice" type="number" step="1" class="st-input w-full" :disabled="disabled" :data-mk-opt-price="i" /></td>
-                <td><input v-model.number="r.stock" type="number" min="0" step="1" class="st-input w-full" :title="r.stock1688 === null ? '' : `1688 재고 ${r.stock1688}`" :disabled="disabled" :data-mk-opt-stock="i" /></td>
+                <td><input v-model.number="r.stock" type="number" min="0" step="1" class="st-input w-full" :disabled="disabled" :data-mk-opt-stock="i" /></td>
               </tr>
             </tbody>
           </table>
@@ -92,7 +92,7 @@
 // 보내기 창의 옵션 영역 (2026-10-02 다시 만듦) — 옵션 종류 줄(최대 3개) + 옵션값 칩 → 조합 목록 자동 생성. 공통 정보·스마트스토어·11번가가 같이 쓴다(쿠팡은 따로)
 // 편집 규칙은 순수 함수 src/lib/studioOptionEditor.js 하나 — 여기서는 버튼을 그 함수에 잇기만 한다
 // 보내는 모양은 예전과 같다(model.groupNames·rows → optionsPayload). 판매처 규칙 검사는 섹션이 판매처 함수(api/_marketOptions.js)로 한다
-// 재고 칸은 비워 둔다(1688 판매자 재고는 내 재고가 아니다 — 칸 툴팁으로만). 추가금액 기본 0
+// 재고 칸은 비워 둔다(1688 판매자 재고는 내 재고가 아니다 — 어디에도 보이지 않는다, 2026-10-02 ②-1). [주문한 옵션 불러오기]면 주문 수량. 추가금액 기본 0
 import { ref, reactive, computed, nextTick } from 'vue'
 import StudioSourceOptionPicker from './StudioSourceOptionPicker.vue'
 import {

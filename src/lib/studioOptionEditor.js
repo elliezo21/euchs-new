@@ -78,6 +78,7 @@ export function rebuildRows(m) {
  * send_prepare.source.skus → 편집 모양. 종류·값은 칩으로 미리 채우고, 1688에 실제 SKU가 없는 조합은 처음부터 뺀다
  * 값 칩은 1688 원문 값마다 하나(같은 한글로 읽혀도 따로 — 1688 SKU를 말없이 합치지 않는다). 번역 안 된 값은 빈 칩(고객이 눌러 넣는다)
  * 옵션 사용 = 가져온 옵션이 있을 때만 처음부터 켬
+ * 1688 가격·재고는 넣지 않는다 (stock1688·priceCny = null — 칸은 예전 모양을 위해 남김)
  */
 export function optionEditorFromSource(skus) {
   const src = marketOptionsFromSource(skus)
@@ -97,12 +98,12 @@ export function optionEditorFromSource(skus) {
   // 1688 SKU가 없는 조합 = 전체 조합 − 원천 줄
   const present = new Set(sourceRows.map(s => keyOf(s.ids)))
   m.excluded = combos(m.groups).map(c => c.map(v => v.id)).filter(ids => !present.has(keyOf(ids)))
-  // 1688 참고값(재고·위안)은 원천 줄에서 — 같은 조합이 두 번이면 첫 줄
+  // 옵션 이름·값만 가져온다 — 1688 가격·재고는 쓰지 않는다(2026-10-02 ②-1: 재고는 셀러가 산 수량 — 비워 둔다). 같은 조합이 두 번이면 첫 줄
   m.rows = []
   for (const s of sourceRows) {
     const key = keyOf(s.ids)
     if (m.rows.some(r => r.key === key)) continue
-    m.rows.push({ key, ids: s.ids, addPrice: 0, stock: null, checked: false, stock1688: s.row.stock1688, priceCny: s.row.priceCny })
+    m.rows.push({ key, ids: s.ids, addPrice: 0, stock: null, checked: false, stock1688: null, priceCny: null })
   }
   m.enabled = true
   return rebuildRows(m)

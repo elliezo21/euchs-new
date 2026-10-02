@@ -278,9 +278,8 @@ import { useSendCommon } from '@/lib/useSendCommon'
 import StudioSendUseCommon from './StudioSendUseCommon.vue'
 import { listListingTemplates, createListingTemplate } from '@/lib/studioListingTemplates'
 import { TEMPLATE_KINDS, TEMPLATE_NAME_MAX, pickDefaultTemplate, uniqueTemplateName } from '../../../api/_listingTemplates.js'
-import { SEND_CACHE_KEY, repImageCandidates, defaultRepImageId, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
+import { SEND_CACHE_KEY, repImageCandidates, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
 import { isAdminOrStaff } from '@/lib/auth'
-import { pickKoreanName } from '../../../api/_coupangFields.js'
 import {
   NOTICE_TYPES, DEFAULT_NOTICE_TYPE, NOTICE_VALUE_MAX, NOTICE_DEFAULT_VALUE, NOTICE_COUNTRY_DEFAULT, HEAVY_NOTICE_TYPES, noticeTypeOf, noticeItemsFor,
   NOTICE_MAKER_CODES, NOTICE_COUNTRY_CODES, NOTICE_PHONE_CODES, KC_GROUPS, KC_CHOICES, KC_CERT_TYPES, KC_CERT_KEY_MAX, kcFor, VAT_TYPES, PRODUCT_NAME_MAX, is10Won,
@@ -329,9 +328,9 @@ const productBase = () => ({
   noticeItems: {}, // 고시 나머지 항목 { 코드: 값 } — 비면 "상세페이지 참조"
 })
 const f = ref({
-  // 상품명 기본값 = 다른 판매처 섹션과 같은 규칙(한글만), 없으면 빈칸
-  productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
-  categoryId: null, price: null, stock: null, repImageId: defaultRepImageId(props.prepare?.images), fit: 'contain',
+  // 상품명·대표 이미지는 비워 둔다 (2026-10-02 ②-1 — 판매처에 올리는 값은 셀러가 정한다)
+  productName: '',
+  categoryId: null, price: null, stock: null, repImageId: null, fit: 'contain',
   ...shippingBase(),
   outAddr: null, inAddr: null,
   vat: '01', minorBlocked: false,

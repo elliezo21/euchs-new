@@ -83,8 +83,7 @@
 // 문구 원칙(2026-09-30 해성): 항목명은 명사, 설명은 칸 아래 회색 한 줄, 결과는 "~되었습니다"
 import { ref, computed, onMounted, inject } from 'vue'
 import { listCafe24Categories, sendCafe24Product, isNotReady } from '@/lib/studioMarketplace'
-import { SEND_CACHE_KEY, repImageCandidates, defaultRepImageId, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
-import { pickKoreanName } from '../../../api/_coupangFields.js'
+import { SEND_CACHE_KEY, repImageCandidates, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
 
 const PRODUCT_NAME_MAX = 250 // api/_cafe24.js PRODUCT_NAME_MAX와 같음 (카페24 product_name maxLength)
 const DISPLAY_LABEL = { F: '진열안함', T: '진열함' }
@@ -101,9 +100,9 @@ const catLoading = ref(false)
 const catError = ref('')
 const catSoft = ref(false)
 const f = ref({
-  // 상품명 기본값 = 쿠팡 섹션과 같은 규칙(한글만 — 작업의 지금 이름 → 내 상품 이름 → 가져온 제목의 번역 캐시), 없으면 빈칸
-  productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
-  price: null, categoryNo: null, repImageId: defaultRepImageId(props.prepare?.images), fit: 'contain', display: 'F',
+  // 상품명·대표 이미지는 비워 둔다 (2026-10-02 ②-1 — 판매처에 올리는 값은 셀러가 정한다. 1688 제목·작업 이름을 넣지 않고 대표 이미지는 직접 고른다)
+  productName: '',
+  price: null, categoryNo: null, repImageId: null, fit: 'contain', display: 'F',
 })
 
 const priceOk = computed(() => Number.isInteger(f.value.price) && f.value.price >= 0)

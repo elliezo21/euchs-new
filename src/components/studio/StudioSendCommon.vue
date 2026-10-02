@@ -9,7 +9,7 @@
     <!-- 상품명 -->
     <label class="block">
       <span class="st-label">상품명 *</span>
-      <input v-model="common.productName" type="text" class="st-input w-full" maxlength="300" placeholder="상품명 입력" :disabled="disabled" data-mk-cm-name />
+      <input v-model="common.productName" type="text" class="st-input w-full" maxlength="300" placeholder="판매처에 등록할 상품명 입력" :disabled="disabled" data-mk-cm-name />
     </label>
 
     <!-- 판매가 · 재고 -->
