@@ -116,7 +116,7 @@ const status = ref(null)
 const statusError = ref('')
 const statusSoft = ref(false)
 const statusCode = ref('') // 못 읽은 서버 코드 — not_customer = 주문 자격 없음(linkPhase 'locked')
-const rows = computed(() => channelRows(linkStates(status.value?.connected === true), { admin: isAdminOrStaff.value })) // 쿠팡 + 11번가·스마트스토어·카페24(studioMarketLinks) — 카페24 줄은 관리자·스태프에게만 (2026-10-01)
+const rows = computed(() => channelRows(linkStates(status.value?.connected === true), { admin: isAdminOrStaff.value })) // 쿠팡 + 11번가·스마트스토어(studioMarketLinks) — 보이는 판매처는 marketsFor 한 곳(카페24 = 운영 중단 off)
 // 줄마다 표시 단계 — 쿠팡 = 이 화면이 읽는 status, 11번가·스마트스토어·카페24 = studioMarketLinks.
 // 읽기 전에는 "연결 전"(자물쇠·[연결하기]) 대신 자리표시, 처음부터 못 읽으면 목록 아래 "불러오지 못했습니다 [다시 시도]"
 // 'locked'(주문 자격 없음 — 서버 403 not_customer)은 자리표시·[다시 시도] 없이 자물쇠 + [연결하기] 그대로

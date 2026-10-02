@@ -738,12 +738,12 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   // S3-3: 연결할 수 있는 곳(쿠팡·스마트스토어·11번가)은 연결 상태, 나머지는 "예정"(planned) — 카페24는 심사 승인 전(CAFE24_PUBLIC false) 관리자만 연결 상태
   // 2026-09-30 카페24 보내기: 이미 연결된 카페24는 일반 고객도 connected([카페24로 보내기]) — 쇼핑몰 관리자에서 앱을 열어 연결한 사람
   // 2026-10-01 카페24 앱 심사 반려 → 고객 화면에는 카페24 줄 자체가 없음(연결돼 있어도) · 관리자·스태프는 지금처럼(locked/connected)
+  // 2026-10-02 카페24 운영 중단 → MARKETS의 off 한 곳: 관리자·스태프도 줄 없음(연결돼 있어도)
   const KEYED = ['coupang', 'smartstore', '11st', 'cafe24']
-  const CUST = R.MARKETS.filter(m => m.key !== 'cafe24')
+  const CUST = R.MARKETS.filter(m => !m.off)
   const offStates = CUST.map(m => (KEYED.includes(m.key) ? 'locked' : 'planned'))
-  const adminOff = R.MARKETS.map(m => (KEYED.includes(m.key) ? 'locked' : 'planned'))
-  eq('판매처 줄(고객) = MARKETS에서 카페24만 뺀 8곳·같은 순서 · 연결된 쿠팡만 connected · 키 연결 판매처는 연결 전 locked · 나머지 = planned · 스마트스토어는 연결되면 connected · 카페24는 연결돼 있어도 줄 없음 / 관리자 = 9곳 · 카페24 연결 전 locked · 연결되면 connected', [on.map(r => r.key), on.map(r => r.state), off.map(r => r.state), R.channelRows().map(r => r.state), R.channelRows({ smartstore: { connected: true } })[1].state, R.channelRows({ cafe24: { connected: true } }).some(r => r.key === 'cafe24'), R.channelRows({}, { admin: true }).map(r => r.state), R.channelRows({ cafe24: { connected: true } }, { admin: true }).find(r => r.key === 'cafe24').state], [CUST.map(m => m.key), ['connected', ...offStates.slice(1)], offStates, offStates, 'connected', false, adminOff, 'connected'])
-  eq('카페24 숨김 스위치: CAFE24_PUBLIC false · 관리자 전용 = cafe24 · 누구나 보는 목록(PUBLIC_MARKETS)에 없음 · connectFor 고객 = null(예정 아님) · 관리자 = key', [R.CAFE24_PUBLIC, R.ADMIN_ONLY_MARKETS, R.PUBLIC_MARKETS.some(m => m.key === 'cafe24'), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.marketVisible('coupang'), R.PLANNED_MARKETS.includes('cafe24')], [false, ['cafe24'], false, null, 'key', true, false])
+  eq('판매처 줄 = MARKETS에서 운영 중단(off) 뺀 8곳·같은 순서 · 연결된 쿠팡만 connected · 키 연결 판매처는 연결 전 locked · 나머지 = planned · 스마트스토어는 연결되면 connected · 카페24는 연결돼 있어도 줄 없음 / 관리자도 같은 8곳 · 카페24 줄 없음', [on.map(r => r.key), on.map(r => r.state), off.map(r => r.state), R.channelRows().map(r => r.state), R.channelRows({ smartstore: { connected: true } })[1].state, R.channelRows({ cafe24: { connected: true } }).some(r => r.key === 'cafe24'), R.channelRows({}, { admin: true }).map(r => r.state), R.channelRows({ cafe24: { connected: true } }, { admin: true }).some(r => r.key === 'cafe24')], [CUST.map(m => m.key), ['connected', ...offStates.slice(1)], offStates, offStates, 'connected', false, offStates, false])
+  eq('카페24 운영 중단 = MARKETS 항목 off 하나 · OFF_MARKETS = cafe24 · 관리자 전용 없음 · 누구나 보는 목록(PUBLIC_MARKETS)에 없음 · connectFor 고객·관리자 모두 null(예정 아님) · CAFE24_PUBLIC 스위치 없음', [R.MARKETS.find(m => m.key === 'cafe24').off, R.OFF_MARKETS, R.ADMIN_ONLY_MARKETS, R.PUBLIC_MARKETS.some(m => m.key === 'cafe24'), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.marketVisible('cafe24', { admin: true }), R.marketVisible('coupang'), R.PLANNED_MARKETS.includes('cafe24'), 'CAFE24_PUBLIC' in R], [true, ['cafe24'], [], false, null, null, false, true, false, false])
 }
 
 // ── 11. 쿠팡 항목 규칙 (api/_coupangFields.js — 화면과 서버가 같이 쓰는 순수 함수) ──
@@ -883,11 +883,11 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     // 연결된 곳은 연결 방법(planned)보다 먼저 — 지그재그처럼 "예정"인 곳도 값이 오면 linked. 카페24는 2026-10-01부터 고객에게 줄 자체가 없음(연결돼 있어도)
     eq('보내기 탭 줄(고객): 쿠팡 = 보내기 · 11번가 = 보내기(공개 — ELEVENST_SEND_PUBLIC true) · 카페24 줄 없음(연결돼 있어도) · 예정 판매처는 값이 안 오면 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'connected', gmarket: 'planned', ably: 'planned', zigzag: 'linked', makeshop: 'planned', godomall: 'planned' })
     const onAdmin = R.channelRows({ cafe24: { connected: true } }, { admin: true })
-    // 2026-10-01 카페24 앱 심사 반려 → CAFE24_PUBLIC false: 고객 = 줄·카드 없음(connectFor null) · 관리자·스태프 = key·connected(테스트몰 유지)
-    eq('카페24 숨김: 설정값 하나(CAFE24_PUBLIC false) · 고객 = null · 관리자 = key · MARKETS 자체는 key 그대로 · 관리자 연결되면 connected · 고객 줄 없음', [R.CAFE24_PUBLIC, R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.connectFor(R.MARKETS.find(m => m.key === '11st')), onAdmin.find(r => r.key === 'cafe24').state, R.channelRows({}).some(r => r.key === 'cafe24')], [false, null, 'key', 'key', 'connected', false])
+    // 2026-10-02 카페24 운영 중단(MARKETS off): 고객·관리자·스태프 모두 줄·카드 없음(connectFor null). MARKETS의 connect 값은 그대로(코드 보존)
+    eq('카페24 숨김: MARKETS off 하나 · 고객 = null · 관리자 = null · MARKETS 자체는 key 그대로 · 관리자 연결돼 있어도 줄 없음 · 고객 줄 없음', [R.MARKETS.find(m => m.key === 'cafe24').connect, R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.connectFor(R.MARKETS.find(m => m.key === '11st')), onAdmin.some(r => r.key === 'cafe24'), R.channelRows({}).some(r => r.key === 'cafe24')], ['key', null, null, 'key', false, false])
     {
       const mk = read('src/views/studio/StudioMarketplaceView.vue'), sv = read('src/views/studio/StudioChannelSendView.vue'), sm = read('src/components/studio/StudioSendModal.vue')
-      eq('화면: 카페24 카드는 관리자·스태프에게만(앱 열기·연결됨이어도 고객은 안 보임) · 보내기 탭·보내기 창 줄에 관리자 여부 전달 · 관리자 판정 = auth.isAdminOrStaff(서버 ctx.isAdmin = is_admin_or_staff와 같은 범위)',
+      eq('화면: 카페24 카드는 판매처 목록 규칙(marketVisible — off면 누구에게도 안 보임) · 보내기 탭·보내기 창 줄에 관리자 여부 전달 · 관리자 판정 = auth.isAdminOrStaff(서버 ctx.isAdmin = is_admin_or_staff와 같은 범위)',
         [/<StudioCafe24Card v-if="showCafe24" \/>/.test(mk), /const showCafe24 = computed\(\(\) => marketVisible\('cafe24', \{ admin: isAdminOrStaff\.value \}\)\)/.test(mk), /cafe24Entry|hasCafe24Launch/.test(mk), /channelRows\(linkStates\([^)]*\), \{ admin: isAdminOrStaff\.value \}\)/.test(sv), /marketRows\(\{[^}]*\}[^,]*, \{ admin: isAdminOrStaff\.value \}\)/.test(sm), [mk, sv, sm].every(s => /import \{[^}]*isAdminOrStaff[^}]*\} from '@\/lib\/auth'/.test(s))],
         [true, true, false, true, true, true])
     }
@@ -1075,9 +1075,9 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
 
   // 3-2 보낼 판매처
   const rowsOn = R.marketRows({ coupang: { connected: true } }), rowsOff = R.marketRows({ coupang: { connected: false } })
-  eq('판매처 줄(고객) = PUBLIC_MARKETS 8곳·같은 순서 (카페24 없음) · 관리자 = MARKETS 9곳', [rowsOn.map(r => r.name), rowsOn.map(r => r.key), R.marketRows({}, { admin: true }).map(r => r.key)], [R.PUBLIC_MARKETS.map(m => m.name), R.PUBLIC_MARKETS.map(m => m.key), R.MARKETS.map(m => m.key)])
+  eq('판매처 줄(고객) = PUBLIC_MARKETS 8곳·같은 순서 (카페24 없음) · 관리자도 같은 8곳 (운영 중단 off)', [rowsOn.map(r => r.name), rowsOn.map(r => r.key), R.marketRows({}, { admin: true }).map(r => r.key)], [R.PUBLIC_MARKETS.map(m => m.name), R.PUBLIC_MARKETS.map(m => m.key), R.MARKETS.filter(m => !m.off).map(m => m.key)])
   // S3-3: 보내기 창도 보내기 탭과 같은 규칙(channelRows) — 키 연결 판매처는 연결 상태, 나머지 5곳 = "예정"(planned). "준비 중"(soon) 없음
-  eq('줄 상태: 연결됨 = connected · 연결 전 = locked · 스마트스토어·11번가 = 연결 전 locked · 카페24 = 고객 줄 없음(연결돼 있어도)·관리자는 연결되면 connected · 나머지 5곳 = planned', [rowsOn[0].state, rowsOff[0].state, R.marketRows()[0].state, Object.fromEntries(rowsOn.slice(1).map(r => [r.key, r.state])), R.marketRows({ cafe24: { connected: true } }).some(r => r.key === 'cafe24'), R.marketRows({ cafe24: { connected: true } }, { admin: true }).find(r => r.key === 'cafe24').state, R.marketRows === R.channelRows], ['connected', 'locked', 'locked', { smartstore: 'locked', '11st': 'locked', gmarket: 'planned', ably: 'planned', zigzag: 'planned', makeshop: 'planned', godomall: 'planned' }, false, 'connected', true])
+  eq('줄 상태: 연결됨 = connected · 연결 전 = locked · 스마트스토어·11번가 = 연결 전 locked · 카페24 = 고객·관리자 모두 줄 없음(연결돼 있어도 — off) · 나머지 5곳 = planned', [rowsOn[0].state, rowsOff[0].state, R.marketRows()[0].state, Object.fromEntries(rowsOn.slice(1).map(r => [r.key, r.state])), R.marketRows({ cafe24: { connected: true } }).some(r => r.key === 'cafe24'), R.marketRows({ cafe24: { connected: true } }, { admin: true }).some(r => r.key === 'cafe24'), R.marketRows === R.channelRows], ['connected', 'locked', 'locked', { smartstore: 'locked', '11st': 'locked', gmarket: 'planned', ably: 'planned', zigzag: 'planned', makeshop: 'planned', godomall: 'planned' }, false, false, true])
   eq('처음 체크: 연결된 곳만 체크 · 연결 전이면 아무것도 체크 안 됨', [R.checkedMarkets(rowsOn, R.defaultChecked(rowsOn)), R.checkedMarkets(rowsOff, R.defaultChecked(rowsOff))], [['coupang'], []])
   eq('체크할 수 없는 줄은 값이 들어와도 보내지 않음', [R.checkedMarkets(rowsOn, { coupang: true, smartstore: true, cafe24: true }), R.checkedMarkets(rowsOff, { coupang: true })], [['coupang'], []])
   eq('버튼 글자: 1곳 = 이름 · 0곳·여러 곳 = "선택한 판매처로 보내기"', [R.sendButtonLabel(['coupang']), R.sendButtonLabel([]), R.sendButtonLabel(['coupang', 'smartstore']), R.sendButtonLabel(['11st']), R.sendButtonLabel(['smartstore'])], ['쿠팡으로 보내기', '선택한 판매처로 보내기', '선택한 판매처로 보내기', '11번가로 보내기', '스마트스토어로 보내기'])
@@ -1437,17 +1437,18 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('관리 화면 주소: 쇼핑몰 ID·상품 번호가 올바를 때만', [K.cafe24AdminProductUrl('myshop', 28), K.cafe24AdminProductUrl('My Shop', 28), K.cafe24AdminProductUrl('myshop', 'x')], ['https://myshop.cafe24.com/disp/admin/shop1/product/ProductRegister?product_no=28', null, null])
   // 화면 규칙
   eq('"카페24로" 조사: 숫자로 끝나는 이름 · 버튼 글자', [R.withRo('카페24'), R.withRo('11번가'), R.withRo('쿠팡'), R.withRo('G마켓·옥션'), R.sendButtonLabel(['cafe24'])], ['카페24로', '11번가로', '쿠팡으로', 'G마켓·옥션으로', '카페24로 보내기'])
-  // 카페24 줄은 관리자·스태프에게만 (2026-10-01) — 이 규칙은 관리자 기준으로 확인
-  const both = R.channelRows({ coupang: { connected: true }, cafe24: { connected: true } }, { admin: true })
-  eq('처음 체크(관리자): 누른 판매처만(market) · 다시 보내기는 쿠팡만 · 없으면 연결된 곳 모두', [R.initialChecked(both, { market: 'cafe24' }), R.initialChecked(both, { resend: true }), R.initialChecked(both), R.initialChecked(R.channelRows({ coupang: { connected: true } }, { admin: true }), { market: 'cafe24' }).cafe24], [{ ...Object.fromEntries(R.MARKETS.map(m => [m.key, false])), cafe24: true }, { ...Object.fromEntries(R.MARKETS.map(m => [m.key, false])), coupang: true }, R.defaultChecked(both), false])
+  // 누른 판매처만 처음 체크 — 2026-10-02 카페24 운영 중단(off) 뒤로는 스마트스토어로 확인 (관리자 기준 — 관리자도 카페24 칸 없음)
+  const both = R.channelRows({ coupang: { connected: true }, smartstore: { connected: true }, cafe24: { connected: true } }, { admin: true })
+  const visibleKeys = R.MARKETS.filter(m => !m.off).map(m => m.key)
+  eq('처음 체크(관리자): 누른 판매처만(market) · 다시 보내기는 쿠팡만 · 없으면 연결된 곳 모두 · 연결 안 된 곳을 눌러 열면 체크 안 됨 · 카페24로 열어도 카페24 칸 없음', [R.initialChecked(both, { market: 'smartstore' }), R.initialChecked(both, { resend: true }), R.initialChecked(both), R.initialChecked(R.channelRows({ coupang: { connected: true } }, { admin: true }), { market: 'smartstore' }).smartstore, 'cafe24' in R.initialChecked(both, { market: 'cafe24' })], [{ ...Object.fromEntries(visibleKeys.map(k => [k, false])), smartstore: true }, { ...Object.fromEntries(visibleKeys.map(k => [k, false])), coupang: true }, R.defaultChecked(both), false, false])
   eq('처음 체크(고객): 카페24로 열어도 카페24 칸 자체가 없음 · 아무것도 체크 안 됨', (() => { const c = R.initialChecked(R.channelRows({ coupang: { connected: true }, cafe24: { connected: true } }), { market: 'cafe24' }); return ['cafe24' in c, Object.values(c).some(Boolean)] })(), [false, false])
   eq('보내기 창: market prop → initialChecked · 카페24 섹션 = 같은 모양(missing·busy·done·submit) · 판매가는 정수 검사 · 분류는 선택(못 읽어도 보냄)', [
     /market: \{ type: String, default: '' \}/.test(shell), shell.includes("initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend, sent: sentMap.value })") /* 2026-10-01 sent = 이미 보낸 판매처 */,
     /defineExpose\(\{ missing, busy, done, submit(, sendError)? \}\)/.test(sec), sec.includes('Number.isInteger(f.value.price) && f.value.price >= 0'), /<option :value="null">미분류<\/option>/.test(sec), sec.includes('catError.value = e.message'),
     /진열함을 선택하면 등록 즉시 쇼핑몰에 노출됩니다\./.test(sec) && /등록 정보 확인/.test(sec) && !/진열 안 함 · 판매 안 함 상태로 등록돼요/.test(sec), /sendCafe24Product\(\{/.test(sec) && /listCafe24Categories\(\)/.test(sec),
   ], [true, true, true, true, true, true, true, true])
-  eq('보내기 탭: [카페24로 보내기] = 같은 버튼(sendButtonLabel) · 창에 market 전달 · 등록 뒤 "등록되었습니다" + 관리자 링크 · 보낸 상품 카드에도 링크', [
-    /:market="sendMarket"/.test(sv), sv.includes("sendMarket.value = market"), /카페24에 등록되었습니다\./.test(sv), /data-ch-admin-link/.test(sv), /:data-mk-send-admin="s\.id"/.test(sl), /s\.market === 'cafe24' && s\.status === 'registered'/.test(sl),
+  eq('보내기 탭: [카페24로 보내기] = 같은 버튼(sendButtonLabel) · 창에 market 전달 · 등록 뒤 "등록되었습니다" + 관리자 링크 (코드 보존 — 운영 중단으로 화면에 줄 없음) · 보낸 상품의 [판매처에서 보기]는 없앰', [
+    /:market="sendMarket"/.test(sv), sv.includes("sendMarket.value = market"), /카페24에 등록되었습니다\./.test(sv), /data-ch-admin-link/.test(sv), !/data-mk-send-admin|판매처에서 보기/.test(sl) /* 2026-10-02 카페24 전용이라 없앰 */, /s\.market === 'cafe24' && s\.status === 'registered'/.test(sl),
     read('src/lib/studioMarketplaceRules.js').includes("registered: '등록 완료'") /* 2026-10-02 상태 문구 한 곳 */, lib.includes("call('cafe24_send', payload)"), lib.includes("call('cafe24_categories')"),
   ], [true, true, true, true, true, true, true, true, true])
   // 서버 배선 — 쿠팡 흐름은 그대로
@@ -2811,13 +2812,13 @@ function elevenstRelay(u, method, opts) {
   const optsAdded = SL.marketFilterOptions({ admin: false }).map(m => m.key)
   const addedChip = SL.marketChips(SL.groupSentProducts([{ id: 'k1', exportId: 'K', market: 'kakaostyle', status: 'registered', createdAt: '2026-10-02T00:00:00Z' }])[0]).chips[0].label
   R.MARKETS.pop()
-  eq('칩 (d) 판매처 필터 선택지 = 판매처 목록(marketsFor) 순서에서 "예정"(planned) 뺀 것 · 관리자만 보이는 곳은 marketsFor 규칙 그대로 · 목록에 판매처를 더하면 필터·칩에 그대로 나옴', [
+  eq('칩 (d) 판매처 필터 선택지 = 판매처 목록(marketsFor) 순서에서 "예정"(planned) 뺀 것 · 운영 중단(off) 카페24는 관리자에게도 없음 · 목록에 판매처를 더하면 필터·칩에 그대로 나옴', [
     optsBefore.map(m => m.key), optsBefore.map(m => m.name), optsAdmin.map(m => m.key).includes('cafe24'), optsBefore.some(m => planned.includes(m.key)),
     optsBefore.map(m => m.key).join() === R.marketsFor({ admin: false }).filter(m => m.connect !== 'planned').map(m => m.key).join(), optsAdded.at(-1), addedChip, /<option v-for="m in marketOptions"/.test(tpl), /'(coupang|smartstore|11st)'\s*[,\]]/.test(slib),
-  ], [['coupang', 'smartstore', '11st'], ['쿠팡', '스마트스토어', '11번가'], true, false, true, 'kakaostyle', '카카오스타일 등록 완료', true, false])
-  eq('화면: 필터·검색·정렬·페이지는 화면 안에서만(localStorage 없음) · 새로고침 = 기존 syncSends만 · 수정 후 재전송 = 기존 창(sendToMarketplace·resendToMarketplace) · [판매처에서 보기]는 adminUrl 있을 때만 · 폰 44px', [
+  ], [['coupang', 'smartstore', '11st'], ['쿠팡', '스마트스토어', '11번가'], false, false, true, 'kakaostyle', '카카오스타일 등록 완료', true, false])
+  eq('화면: 필터·검색·정렬·페이지는 화면 안에서만(localStorage 없음) · 새로고침 = 기존 syncSends만 · 수정 후 재전송 = 기존 창(sendToMarketplace·resendToMarketplace) · [판매처에서 보기] 없음(카페24 전용이었음 — 2026-10-02) · 폰 44px', [
     /localStorage|sessionStorage/.test(sl + slib), /await syncSends\(since\)/.test(sl), /callStudioApi|fetch\(/.test(sl + slib), /fixHow\.value === 'resend' \? await resendToMarketplace\(id\) : await sendToMarketplace\(fixExportId\.value\)/.test(sl),
-    /<StudioSendModal [^>]*:market="fixMarket" :sent="fixSent"/.test(tpl), /v-if="chipTone\(s\.status\) === 'ok' && s\.adminUrl"/.test(tpl), /@media \(max-width: 767\.98px\) \{\s+\.sl-tap \{ height: 44px; min-height: 44px; \}/.test(sl),
+    /<StudioSendModal [^>]*:market="fixMarket" :sent="fixSent"/.test(tpl), !/s\.adminUrl|판매처에서 보기/.test(tpl), /@media \(max-width: 767\.98px\) \{\s+\.sl-tap \{ height: 44px; min-height: 44px; \}/.test(sl),
   ], [false, true, false, true, true, true, true])
   eq('화면: PC 표(md 이상)·폰 카드(md 미만) · 폰 [필터] 펼치기 · 펼친 줄 = 그 상품의 모든 기록 · 로그아웃 구독', [
     /class="hidden md:block st-card overflow-hidden" data-sl-table/.test(tpl), /class="md:hidden flex flex-col gap-3" data-sl-cards/.test(tpl), /:class="filtersOpen \? 'flex' : 'hidden md:flex'"/.test(tpl), /<tr v-for="s in p\.history"/.test(tpl), /euchs-auth-changed/.test(sl),
@@ -2973,10 +2974,39 @@ function elevenstRelay(u, method, opts) {
   eq('화면: 판매처 전용 버튼·안내 없음(보이는 글자에 판매처 이름 없음) · "판매처 상태 마지막 확인" + [지금 확인] · 누르는 동안 "확인 중…" · 판매처 상태 원문 줄', [
     NAMES.test(shown(sl) + shown(view)), /쿠팡 상태 새로고침/.test(sl), /판매처 상태 마지막 확인: \{\{ fmtCheckedAt\(checkedAt\) \}\}/.test(sl), /\{\{ syncing \? '확인 중…' : '지금 확인' \}\}/.test(sl), /판매처 상태: \{\{ s\.marketStatus \}\}/.test(sl),
   ], [false, false, true, true, true])
-  eq('화면: 탭을 열면 10분 규칙으로 자동 확인(화면당 10분에 한 번까지) · 묶음마다 같은 since · 멈출 오류면 그만 · 끝나면 목록 한 번 · 자동은 오류를 로그만 · 예약 실행 없음', [
+  // 2026-10-02 자동 확인 실패를 로그로만 남기던 것 → 자동·[지금 확인] 모두 "마지막 확인" 옆 "확인 실패 · [다시 시도]" (실제 그려 보기는 scripts/test-sent-list-check.mjs)
+  eq('화면: 탭을 열면 10분 규칙으로 자동 확인(화면당 10분에 한 번까지) · 묶음마다 같은 since · 멈출 오류면 그만 · 끝나면 목록 한 번 · 자동도 오류를 화면에 · 예약 실행 없음', [
     /if \(auto && needsAutoCheck\(sends\.value\) && Date\.now\(\) - autoAt > AUTO_CHECK_MS\)/.test(sl), /const since = new Date\(\)\.toISOString\(\)/.test(sl) && /await syncSends\(since\)/.test(sl), /if \(!r\.more \|\| checkShouldStop\(errs\)\) break/.test(sl),
-    /if \(!listed\) await load\(\{ auto: false \}\)/.test(sl), /if \(manual && my === checkSeq\) syncErrors\.value = errs/.test(sl), /"crons"/.test(read('vercel.json')),
+    /if \(!listed\) await load\(\{ auto: false \}\)/.test(sl), /if \(my === checkSeq\) syncErrors\.value = errs/.test(sl) && !/manual/.test(sl.slice(sl.indexOf('<script setup>'))), /"crons"/.test(read('vercel.json')),
   ], [true, true, true, true, true, false])
+  {
+    const SL2 = await import('../src/lib/studioSentList.js')
+    const NR = '지금은 연결할 수 없어요. 잠시 후 다시 시도해 주세요.'
+    eq('확인 실패 표시(checkFailInfo): 오류 없으면 null · "확인 실패" · title = "판매처 이름: 문구"(같은 줄 한 번) · 판매처 없으면 문구만 · 모두 준비 문제면 회색(soft) · 하나라도 고객 오류면 soft 아님', [
+      SL2.checkFailInfo([]), SL2.checkFailInfo(null),
+      SL2.checkFailInfo([{ market: 'coupang', code: 'enc_not_ready', message: NR }, { market: 'coupang', code: 'enc_not_ready', message: NR }, { market: 'smartstore', code: 'enc_not_ready', message: NR }]),
+      SL2.checkFailInfo([{ code: 'network_error', message: '네트워크 오류' }]).title,
+      SL2.checkFailInfo([{ market: 'coupang', code: 'enc_not_ready', message: NR }, { market: 'smartstore', id: 's1', code: 'bad_key', message: '키 확인' }]).soft,
+      [SL2.CHECK_FAIL_LABEL, SL2.CHECK_RETRY_LABEL],
+    ], [null, null, { label: '확인 실패', title: `쿠팡: ${NR}\n스마트스토어: ${NR}`, soft: true }, '네트워크 오류', false, ['확인 실패', '다시 시도']])
+    eq('화면: "마지막 확인" 옆 한 줄 = checkFail.label · 다시 시도 = runCheck · 판매처 이름·문구는 title만 · 예전 목록 아래 오류 줄 없음', [
+      /<span v-if="checkFail && !syncing"[^>]*:title="checkFail\.title" data-sl-check-fail>\{\{ checkFail\.label \}\} ·/.test(sl), /data-sl-check-retry @click="runCheck\(\)">\{\{ CHECK_RETRY_LABEL \}\}/.test(sl), /data-sl-check-error|일부 상품의 상태를 확인하지 못했습니다/.test(sl),
+    ], [true, true, false])
+    // 카페24 운영 중단 — 보낸 기록은 받는 곳 한 곳(listSends·syncSends)에서 visibleSends로 뺀다 · 상태 확인 대상에도 없음
+    const mk = read('src/lib/studioMarketplace.js')
+    const mixed = [{ id: 'a', exportId: 'E1', market: 'coupang', status: 'approved' }, { id: 'b', exportId: 'E2', market: 'cafe24', status: 'registered' }, { id: 'c', exportId: 'E1', status: 'approved' }, { id: 'd', exportId: 'E3', market: 'smartstore', status: 'registered' }]
+    eq('카페24 숨김(보낸 기록): visibleSends = off 판매처 기록만 뺌(판매처 칸 없는 예전 기록 = 쿠팡 그대로) · 받는 곳 = listSends·syncSends 한 곳 · 상태 확인 판매처에 off 없음 · 상태 카드 숫자에서 빠짐', [
+      R.visibleSends(mixed).map(s => s.id), R.visibleSends(null),
+      /const withVisibleSends = r => \(Array\.isArray\(r\?\.sends\) \? \{ \.\.\.r, sends: visibleSends\(r\.sends\) \} : r\)/.test(mk), /export const listSends = async \(\) => withVisibleSends\(await call\('sends_list'\)\)/.test(mk), /export const syncSends = async \(since\) => withVisibleSends\(await call\('sync'/.test(mk),
+      MS.STATUS_CHECK_MARKETS.filter(m => R.OFF_MARKETS.includes(m)),
+      SL2.statusCounts(SL2.groupSentProducts(R.visibleSends(mixed))).all, SL2.statusCounts(SL2.groupSentProducts(mixed)).all,
+    ], [['a', 'c', 'd'], [], true, true, true, [], 2, 3])
+    eq('카페24 숨김(그 밖): 홈 배지·소개 칩·판매처 필터 선택지(관리자 포함)에 없음 · 연결 화면 카드 = marketVisible 한 곳', [
+      (await import('../src/data/homeStudioBrands.js')).HOME_BRANDS.some(b => b.key === 'cafe24'), R.PUBLIC_MARKETS.some(m => m.key === 'cafe24'),
+      SL2.marketFilterOptions({ admin: true }).some(m => m.key === 'cafe24'),
+      /const showCafe24 = computed\(\(\) => marketVisible\('cafe24', \{ admin: isAdminOrStaff\.value \}\)\)/.test(read('src/views/studio/StudioMarketplaceView.vue')), R.marketVisible('cafe24', { admin: true }),
+    ], [false, false, false, true, false])
+  }
   eq('SQL 파일: status에 deleted · 미실행 표시 · 새 표·GRANT 없음', (s => [/'registered', 'deleted'\)\)/.test(s), /상태: 미실행/.test(s), /create table|grant /i.test(s.replace(/GRANT·RLS/g, ''))])(read('docs/sql/2026-10-02-marketplace-sends-deleted.sql')), [true, true, false])
   eq('상태 문구 한 곳: deleted = 긴 표기 "판매처에서 삭제됨"(이력 표·필터) / 짧은 표기 "삭제됨"(판매처 이름 칩) · 짧은 표기가 없는 상태는 같음 · 이미 보냄에 안 들어감', [
     R.sendStatusLabel('deleted'), R.sendStatusLabel('deleted', { short: true }), R.sendStatusLabel('registered', { short: true }), ['registered', 'deleted'].map(R.sendStatusLabel), R.ALREADY_SENT_STATUSES.includes('deleted'),

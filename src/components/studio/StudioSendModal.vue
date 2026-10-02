@@ -128,7 +128,7 @@ const results = shallowRef({}) // key → { ok, id, status } | { ok:false, reaso
 const runKeys = ref([]) // 마지막 [보내기] 때 체크된 판매처 — 2곳 이상이면 결과 표를 그린다
 
 // 쿠팡 = 서버 send_prepare.markets, 스마트스토어·11번가·카페24 = 연결 탭과 같은 상태(studioMarketLinks), 나머지 = "예정"
-const rows = computed(() => marketRows({ ...linkStates(false), ...(props.prepare?.markets || {}) }, { admin: isAdminOrStaff.value })) // 카페24 줄은 관리자·스태프에게만 (2026-10-01 — marketsFor)
+const rows = computed(() => marketRows({ ...linkStates(false), ...(props.prepare?.markets || {}) }, { admin: isAdminOrStaff.value })) // 보이는 판매처는 marketsFor 한 곳 (카페24 = 운영 중단 off — 줄 없음)
 const picked = computed(() => checkedMarkets(rows.value, checked.value))
 const mounted = computed(() => sectionKeys(rows.value, Object.keys(SECTIONS))) // 섹션을 만들어 둘 판매처 (체크와 상관없음)
 const nameOf = key => MARKETS.find(m => m.key === key)?.name || key

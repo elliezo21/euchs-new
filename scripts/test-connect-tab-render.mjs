@@ -145,7 +145,7 @@ if (built?.View) {
   eq('ready: 쿠팡 "연결 전" + 버튼 · 주문 고객 안내 없음 · [다시 시도] 없음', [c.errors, c.notice, c.coupang.badge, c.coupang.connect, c.coupang.guide, c.retry], [[], 0, '연결 전', true, true, 0])
   eq('ready 고객: 카페24 카드·예정 줄·글자 없음', c.cafe24, { card: false, planned: false, text: false })
   const adm = await mount({ status: 'ok', links: 'ok' }, { before: () => { globalThis.__AUTH.staff.value = true } })
-  eq('관리자·스태프: 카페24 카드 보임(지금처럼 — 테스트몰 유지) · "예정" 줄에는 없음 · 오류 없음', [adm.errors, adm.cafe24.card, adm.cafe24.planned], [[], true, false])
+  eq('관리자·스태프: 카페24 카드도 없음(2026-10-02 운영 중단 — MARKETS off) · "예정" 줄에도 없음 · 오류 없음', [adm.errors, adm.cafe24.card, adm.cafe24.planned], [[], false, false])
 
   // 섞인 경우 — 쿠팡만 자격 없음 코드, 나머지는 정상(서버가 같은 관문이라 실제로는 드묾)
   const d = await mount({ status: 'not_customer', links: 'ok' })

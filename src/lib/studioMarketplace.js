@@ -6,6 +6,7 @@
  * 실패는 throw — err.code = 서버 코드, err.message = 서버 문구(있으면) 또는 studioErrorMessage('marketplace', code)
  */
 import { callStudioApi, studioErrorMessage } from '@/lib/studioApi'
+import { visibleSends } from '@/lib/studioMarketplaceRules'
 
 export const MARKET_LABEL = { coupang: '쿠팡', cafe24: '카페24', smartstore: '스마트스토어', '11st': '11번가' }
 // 상태 문구 SEND_STATUS_LABEL·sendStatusLabel은 studioMarketplaceRules 한 곳 (아래 re-export)
@@ -40,9 +41,11 @@ export const predictCategory = (productName, brand) => call('category_predict', 
 export const searchBrand = (brandName) => call('brand_search', { brandName })
 export const getCategoryMeta =(categoryCode) => call('category_meta', { categoryCode })
 export const sendProduct = (payload) => call('send', payload)
-export const listSends = () => call('sends_list')
+// 보낸 기록은 받는 이 두 곳에서 운영 중단 판매처(MARKETS off) 기록을 뺀다 — visibleSends (2026-10-02 카페24 운영 중단)
+const withVisibleSends = r => (Array.isArray(r?.sends) ? { ...r, sends: visibleSends(r.sends) } : r)
+export const listSends = async () => withVisibleSends(await call('sends_list'))
 // 판매처 상태 확인 (2026-10-02 — 판매처 공통). since = 이번 확인을 시작한 시각 → 서버가 나눠 확인하고 { errors, more, sends(끝났을 때만) }
-export const syncSends = (since) => call('sync', since ? { since } : {})
+export const syncSends = async (since) => withVisibleSends(await call('sync', since ? { since } : {}))
 // 11번가 · 스마트스토어 · 카페24 연결 (2026-09-30) — 상태는 studioMarketLinks.js가 한 곳에서 들고 있다
 export const getMarketLinks = () => call('market_status')
 export const connectElevenst = (form) => call('connect_11st', form)

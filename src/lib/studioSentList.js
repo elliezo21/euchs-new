@@ -7,7 +7,7 @@
  * 상태 문구는 studioMarketplaceRules.sendStatusLabel 한 곳 — 여기에는 문구 표를 두지 않는다(묶음 이름만).
  * import는 상대 경로(node 테스트가 그대로 부른다)
  */
-import { MARKETS, marketsFor, canResend, sendStatusLabel, badgeReason } from './studioMarketplaceRules.js'
+import { MARKETS, marketsFor, canResend, sendStatusLabel, badgeReason, isNotReady } from './studioMarketplaceRules.js'
 import { STATUS_CHECK_MARKETS, CHECK_STATUSES, AUTO_CHECK_MS } from '../../api/_marketStatus.js'
 
 // 판매처 이름·순서·필터 선택지는 판매처 목록 한 곳(studioMarketplaceRules.MARKETS · 보이는 범위 marketsFor)에서만 읽는다 —
@@ -207,6 +207,24 @@ export function fmtCheckedAt(iso) {
   if (!t) return '-'
   const k = new Date(t + 9 * 3600000)
   return `${k.getUTCMonth() + 1}/${k.getUTCDate()} ${String(k.getUTCHours()).padStart(2, '0')}:${String(k.getUTCMinutes()).padStart(2, '0')}`
+}
+/**
+ * 상태 확인 실패 표시 (2026-10-02 — 자동 확인도 조용히 넘어가지 않는다) — "마지막 확인" 옆 "확인 실패 · [다시 시도]" 한 줄
+ * 판매처 이름·서버 문구는 마우스를 올렸을 때만(title): "판매처 이름: 문구" 줄마다, 같은 줄은 한 번. 판매처가 없는 오류(요청 자체 실패)는 문구만
+ * soft = 모두 우리 쪽 준비 문제(isNotReady)면 회색 — 빨간 경고로 띄우지 않는다(NOT_READY_CODES 원칙)
+ * @param {[{ market?, code?, message? }]} errors  서버 sync 응답 errors 또는 요청 실패 1건
+ * @returns {null | { label, title, soft }}
+ */
+export const CHECK_FAIL_LABEL = '확인 실패'
+export const CHECK_RETRY_LABEL = '다시 시도'
+export function checkFailInfo(errors) {
+  const list = (Array.isArray(errors) ? errors : []).filter(Boolean)
+  if (!list.length) return null
+  const lines = [...new Set(list.map(e => {
+    const msg = String(e.message || e.code || '').trim() || '알 수 없는 오류'
+    return e.market ? `${sentMarketName(e.market)}: ${msg}` : msg
+  }))]
+  return { label: CHECK_FAIL_LABEL, title: lines.join('\n'), soft: list.every(e => isNotReady(e.code)) }
 }
 /** 확인을 그만둘 오류(판매처 전체가 막힘)가 있는지 — 남은 묶음이 있어도 더 부르지 않는다 */
 export const CHECK_STOP_CODES = ['breaker_open', 'rate_limited', 'access_denied']

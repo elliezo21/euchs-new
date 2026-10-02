@@ -63,7 +63,7 @@
       <StudioElevenstCard />
       <!-- 스마트스토어 — 11번가와 같은 키 연결 (2026-09-30 S3-2, 연결까지만) -->
       <StudioSmartstoreCard />
-      <!-- 카페24 — 우리 앱 + 카페24 동의 화면 (연결까지만). 관리자·스태프에게만 (2026-10-01 — 고객에게는 어디에도 안 보임) -->
+      <!-- 카페24 — 우리 앱 + 카페24 동의 화면 (연결까지만). 2026-10-02 운영 중단 — 판매처 목록(MARKETS off)대로 누구에게도 안 보임 -->
       <StudioCafe24Card v-if="showCafe24" />
     </div>
     <p v-if="marketLinks.error && marketLinks.loaded" class="text-[13px] break-keep" :class="marketLinks.soft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-links-error>{{ marketLinks.error }}</p>
@@ -162,7 +162,7 @@ const toneOf = e => isNotReady(e.code) ? 'soft' : 'error'
 const route = useRoute()
 const router = useRouter()
 
-// 카페24 카드 — 관리자·스태프에게만 (2026-10-01 카페24 앱 심사 반려 — 고객에게는 카드도 "예정" 줄도 없음. 앱 열기·동의 뒤 돌아옴도 관리자만 카드에서 이어서 처리)
+// 카페24 카드 — 보이는 범위는 판매처 목록 한 곳(marketVisible — 2026-10-02 운영 중단 off: 누구에게도 카드·"예정" 줄 없음. 앱 열기·동의 뒤 돌아옴도 처리하지 않음)
 const showCafe24 = computed(() => marketVisible('cafe24', { admin: isAdminOrStaff.value }))
 // 쿠팡 밖의 판매처 — 키 연결은 카드(StudioElevenstCard·StudioSmartstoreCard·StudioCafe24Card), 아직 연결할 수 없는 곳은 "예정"만. 상태는 studioMarketLinks 한 곳
 const PLANNED = MARKETS.filter(m => m.connect === 'planned')

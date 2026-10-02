@@ -40,7 +40,9 @@ export const MARKETS = [
   { key: 'gmarket', name: 'G마켓·옥션', soon: true, connect: 'planned' },
   { key: 'ably', name: '에이블리', soon: true, connect: 'planned' }, // 판매자 API 토큰은 있지만 공개 API 문서가 없어 주소·인증을 확인할 수 없음 (S3-3 조사)
   { key: 'zigzag', name: '지그재그', soon: true, connect: 'planned' },
-  { key: 'cafe24', name: '카페24', connect: 'key' }, // 2026-09-30 — 우리 앱 "EUCHS 스튜디오" + 쇼핑몰 ID + 카페24 동의 화면 (심사 승인 전에는 관리자만 연결 — CAFE24_PUBLIC). 보내기 = 서버 cafe24_send
+  // 2026-09-30 — 우리 앱 "EUCHS 스튜디오" + 쇼핑몰 ID + 카페24 동의 화면. 보내기 = 서버 cafe24_send
+  // 2026-10-02 운영 중단 → off: 관리자·스태프 포함 누구에게도 안 보임 (코드·DB 기록은 그대로 — 다시 켜려면 off만 뺀다)
+  { key: 'cafe24', name: '카페24', connect: 'key', off: true },
   { key: 'makeshop', name: '메이크샵', soon: true, connect: 'planned' },
   { key: 'godomall', name: '고도몰', soon: true, connect: 'planned' },
 ]
@@ -50,18 +52,25 @@ export const PLANNED_LABEL = '예정'
 /** 보내기 창(StudioSendModal)이 판매처 섹션에 내려주는 "같은 화면 안에서 다시 받지 않는 목록" provide 키 (2026-09-30 — 카페24 상품 분류) */
 export const SEND_CACHE_KEY = 'studio-send-cache'
 
-// 카페24 — 고객에게 보일지 (2026-10-01 카페24 앱 심사 반려: 자체 소싱 기능과 경쟁이라 허용 불가 · 다시 켤 계획 없음)
-//   false = 고객 화면 어디에도 없음(목록·문구·로고 — "예정"도 아님). 관리자·스태프(isAdminOrStaff)에게만 지금처럼(테스트몰 유지용)
-//   서버도 같은 규칙: api/marketplace.js cafe24Allowed — 관리자가 아니면 cafe24_* 요청 403 · 상태·보낸 상품에서 카페24 뺌
-export const CAFE24_PUBLIC = false
+// 보이는 범위 — MARKETS 항목의 설정 두 가지로만 정한다 (화면마다 판매처 이름으로 거르지 않는다)
+//   off: true       = 운영 중단 — 누구에게도(관리자·스태프 포함) 안 보임: 판매처 목록·보내기 줄·보낸 상품(칩·필터·상태 카드·이력)·연결 화면·소개·홈
+//   adminOnly: true = 관리자·스태프에게만 (지금은 없음)
+//   서버: cafe24_* 요청은 api/marketplace.js cafe24Allowed(관리자·스태프만) 그대로 · 상태 확인(api/_marketStatus.js STATUS_CHECK_MARKETS)에 카페24 없음
+/** 운영 중단 판매처 key — 누구에게도 보이지 않는다 */
+export const OFF_MARKETS = MARKETS.filter(m => m.off).map(m => m.key)
 /** 관리자·스태프에게만 보이는 판매처 key */
-export const ADMIN_ONLY_MARKETS = CAFE24_PUBLIC ? [] : ['cafe24']
-/** 이 사람에게 보일 판매처 목록 (MARKETS 순서) — 고객이면 ADMIN_ONLY_MARKETS를 뺀다 */
-export const marketsFor = ({ admin = false } = {}) => (admin ? MARKETS : MARKETS.filter(m => !ADMIN_ONLY_MARKETS.includes(m.key)))
+export const ADMIN_ONLY_MARKETS = MARKETS.filter(m => m.adminOnly).map(m => m.key)
+/** 이 판매처가 이 사람에게 보이는지 */
+export const marketVisible = (key, { admin = false } = {}) => !OFF_MARKETS.includes(key) && (admin || !ADMIN_ONLY_MARKETS.includes(key))
+/** 이 사람에게 보일 판매처 목록 (MARKETS 순서) */
+export const marketsFor = ({ admin = false } = {}) => MARKETS.filter(m => marketVisible(m.key, { admin }))
 /** 소개·홈처럼 누구나 보는 화면의 판매처 목록 */
 export const PUBLIC_MARKETS = marketsFor({ admin: false })
-/** 이 판매처가 이 사람에게 보이는지 */
-export const marketVisible = (key, { admin = false } = {}) => admin || !ADMIN_ONLY_MARKETS.includes(key)
+/**
+ * 보낸 기록에서 운영 중단 판매처(off) 기록을 뺀다 — 서버 응답을 받는 곳(studioMarketplace listSends·syncSends) 한 곳에서만.
+ * 보낸 상품 칩·필터·상태 카드 숫자·이력·마지막 확인 시각·내 상품 배지가 모두 이 목록을 쓴다. 관리자 전용(adminOnly)은 서버가 사람마다 거른다
+ */
+export const visibleSends = sends => (Array.isArray(sends) ? sends : []).filter(s => !OFF_MARKETS.includes(s?.market || 'coupang'))
 /** 이 사람에게 보일 연결 방법 — MARKETS의 connect (보이지 않는 판매처는 null) */
 export const connectFor = (m, { admin = false } = {}) => (m && marketVisible(m.key, { admin }) ? m.connect : null)
 
@@ -99,7 +108,7 @@ export function elevenstKeyProblems({ sellerId = '', apiKey = '' } = {}) {
  * state: 'connected'(보낼 수 있음 — 체크 가능) | 'linked'(연결됨 — 보내기는 아직: 11번가) | 'locked'(연결 전 — 자물쇠 + [연결하기]) | 'planned'("예정" 한 단어만)
  * "준비 중" 글자는 쓰지 않는다
  * @param {{ [key:string]: { connected?:boolean } }} connected  쿠팡 = 서버 status/send_prepare.markets, 나머지 = studioMarketLinks.linkStates
- * @param {{ admin?: boolean }} who  관리자·스태프면 카페24 줄도 (고객이면 카페24 줄 자체가 없음 — 연결돼 있어도. 2026-10-01 marketsFor)
+ * @param {{ admin?: boolean }} who  관리자·스태프면 adminOnly 판매처 줄도 · off 판매처는 누구에게도 줄이 없음(연결돼 있어도 — marketsFor)
  */
 /** 연결돼 있을 때 이 사람이 보낼 수 있는지 — soon이 아니고, 11번가는 공개 전(ELEVENST_SEND_PUBLIC false)이면 관리자·스태프만 (2026-10-01) */
 export const sendableFor = (m, { admin = false } = {}) => !!m && !m.soon && (m.key !== '11st' || ELEVENST_SEND_PUBLIC || admin)

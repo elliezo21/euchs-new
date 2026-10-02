@@ -2,10 +2,13 @@
   <section id="sends" ref="root" class="scroll-mt-6" data-mk-sends>
     <div class="flex flex-wrap items-center gap-2 mb-4">
       <h2 class="st-h-section">보낸 상품</h2>
-      <!-- 판매처 상태 확인 = 연결된 모든 판매처(서버 sync — 판매처 공통). 탭을 열 때 10분이 지났으면 자동, [지금 확인] = 바로 -->
-      <div v-if="sends.length" class="flex items-center gap-2 ml-auto" data-sl-check>
+      <!-- 판매처 상태 확인 = 연결된 모든 판매처(서버 sync — 판매처 공통). 탭을 열 때 10분이 지났으면 자동, [지금 확인] = 바로
+           확인이 실패하면(자동·지금 확인 모두) 옆에 "확인 실패 · [다시 시도]" — 판매처 이름·서버 문구는 마우스를 올렸을 때만(checkFailInfo) -->
+      <div v-if="sends.length" class="flex flex-wrap items-center gap-2 ml-auto" data-sl-check>
         <span class="st-desc-sm" data-sl-checked-at>판매처 상태 마지막 확인: {{ fmtCheckedAt(checkedAt) }}</span>
-        <button type="button" class="st-btn sl-tap" :disabled="syncing" data-mk-sync @click="runCheck({ manual: true })">{{ syncing ? '확인 중…' : '지금 확인' }}</button>
+        <span v-if="checkFail && !syncing" class="text-[12px] break-keep" :class="checkFail.soft ? 'st-muted' : 'font-bold st-danger-text'" :title="checkFail.title" data-sl-check-fail>{{ checkFail.label }} ·
+          <button type="button" class="st-link" data-sl-check-retry @click="runCheck()">{{ CHECK_RETRY_LABEL }}</button></span>
+        <button type="button" class="st-btn sl-tap" :disabled="syncing" data-mk-sync @click="runCheck()">{{ syncing ? '확인 중…' : '지금 확인' }}</button>
       </div>
     </div>
     <p v-if="errorMsg" class="text-[13px] break-keep" :class="errorSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-sends-error>{{ errorMsg }}
@@ -128,8 +131,6 @@
                             <p v-if="s.reason" class="break-keep" :class="chipTone(s.status) === 'bad' ? 'st-danger-text' : 'st-muted'" :data-mk-send-reason="s.id">{{ s.reason }}</p>
                           </td>
                           <td class="text-right whitespace-nowrap">
-                            <!-- 판매처 상품 주소 함수가 있는 곳만(지금은 카페24 관리자 주소 adminUrl뿐) -->
-                            <a v-if="chipTone(s.status) === 'ok' && s.adminUrl" :href="s.adminUrl" target="_blank" rel="noopener" class="st-btn text-[12px]" :data-mk-send-admin="s.id">판매처에서 보기</a>
                             <button v-if="fixAction(p, s)" type="button" class="st-btn st-btn-primary text-[12px]" :disabled="resendBusy === s.id" :data-mk-send-resend="s.id" @click="openFix(p, s)">{{ resendBusy === s.id ? '여는 중…' : FIX_LABEL }}</button>
                           </td>
                         </tr>
@@ -175,7 +176,6 @@
       </template>
     </template>
     <StudioSendModal :open="resendOpen" :prepare="resendPrepare" :market="fixMarket" :sent="fixSent" :load-error="resendError" @close="resendOpen = false" @sent="onResent" @retry="loadFix" />
-    <p v-if="syncErrors.length" class="mt-2 text-[12px] break-keep" :class="isNotReady(syncErrors[0].code) ? 'st-muted' : 'font-bold st-danger-text'" data-sl-check-error>일부 상품의 상태를 확인하지 못했습니다: {{ syncErrors[0].market ? `${sentMarketName(syncErrors[0].market)} — ` : '' }}{{ syncErrors[0].message }}</p>
   </section>
 </template>
 
@@ -195,7 +195,7 @@ import { isAdminOrStaff } from '@/lib/auth'
 import {
   STATUS_GROUPS, STATUS_FILTERS, PERIODS, SORTS, SEARCH_FIELDS, PAGE_SIZES, DEFAULT_PAGE_SIZE,
   sentMarketName, marketFilterOptions, marketChips, failedLatest, chipTone, groupSentProducts, statusCounts, filterSentProducts, sortSentProducts, pageSlice, fixAction,
-  AUTO_CHECK_MS, CHECK_ROUNDS_MAX, CHECK_ROUND_GAP_MS, lastCheckedAt, needsAutoCheck, fmtCheckedAt, checkShouldStop,
+  AUTO_CHECK_MS, CHECK_ROUNDS_MAX, CHECK_ROUND_GAP_MS, lastCheckedAt, needsAutoCheck, fmtCheckedAt, checkShouldStop, checkFailInfo, CHECK_RETRY_LABEL,
 } from '@/lib/studioSentList'
 
 const FIX_LABEL = '수정 후 재전송'
@@ -229,7 +229,8 @@ const counts = computed(() => statusCounts(products.value))
 const filtered = computed(() => sortSentProducts(filterSentProducts(products.value, { market: market.value, status: status.value, period: period.value, field: search.value.field, text: search.value.text, now: Date.now() }), sort.value))
 const paged = computed(() => pageSlice(filtered.value, page.value, pageSize.value))
 const checkedAt = computed(() => lastCheckedAt(sends.value))
-// 판매처 필터 = 판매처 목록에서 (카페24처럼 관리자·스태프만 보는 곳은 marketsFor 규칙 그대로)
+const checkFail = computed(() => checkFailInfo(syncErrors.value)) // 마지막 확인이 실패했으면 { label, title, soft }
+// 판매처 필터 = 판매처 목록에서 (보이는 범위는 marketsFor 규칙 그대로 — 운영 중단 off·관리자 전용 adminOnly)
 const marketOptions = computed(() => marketFilterOptions({ admin: isAdminOrStaff.value }))
 // 이 페이지 상품의 판매처 현황 칩 (PC 표·폰 카드 같은 값)
 const chipMap = computed(() => Object.fromEntries(paged.value.items.map(p => [p.key, marketChips(p)])))
@@ -276,15 +277,17 @@ async function load({ auto = true } = {}) {
 }
 /**
  * 판매처 상태 확인 — 서버가 남은 묶음이 있다고 하면(more) 같은 since로 쉬었다가 다시 부른다(CHECK_ROUNDS_MAX까지).
- * 판매처 전체가 막히는 오류(checkShouldStop)면 그만. 목록은 끝났을 때 한 번만 바꾼다. 오류는 [지금 확인]일 때만 목록 아래 한 줄(자동은 로그만)
+ * 판매처 전체가 막히는 오류(checkShouldStop)면 그만. 목록은 끝났을 때 한 번만 바꾼다.
+ * 오류는 자동·[지금 확인] 모두 "마지막 확인" 옆 "확인 실패 · [다시 시도]"(syncErrors → checkFail) + 로그. 새 확인을 시작하면 지우고, 오류 없이 끝나면 사라진다
+ * (2026-10-02 — 자동 확인 실패가 로그에만 남아 셀러는 "마지막 확인" 시각이 왜 안 바뀌는지 알 수 없었다)
  */
 let checkSeq = 0
 const wait = ms => new Promise(r => setTimeout(r, ms))
-async function runCheck({ manual = false } = {}) {
+async function runCheck() {
   if (syncing.value) return
   const my = ++checkSeq
   syncing.value = true
-  if (manual) syncErrors.value = []
+  syncErrors.value = []
   const since = new Date().toISOString()
   const errs = []
   try {
@@ -300,13 +303,13 @@ async function runCheck({ manual = false } = {}) {
     }
     if (!listed) await load({ auto: false })
     if (errs.length) {
-      console.warn('[StudioSendList] 판매처 상태를 일부 확인하지 못함:', errs.map(e => `${e.market}:${e.code}`).join(', '))
-      if (manual && my === checkSeq) syncErrors.value = errs
+      console.error('[StudioSendList] 판매처 상태를 확인하지 못함:', errs.map(e => `${e.market}:${e.code}`).join(', '))
+      if (my === checkSeq) syncErrors.value = errs
     }
   } catch (e) {
     if (my !== checkSeq) return
     console.error('[StudioSendList] 판매처 상태 확인 실패 (목록은 그대로):', e.code, e)
-    if (manual) syncErrors.value = [{ code: e.code, message: e.message }]
+    syncErrors.value = [{ code: e.code, message: e.message }]
   } finally {
     if (my === checkSeq) syncing.value = false
   }

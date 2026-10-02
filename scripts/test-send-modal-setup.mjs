@@ -132,7 +132,7 @@ if (built?.Coupang && built?.Modal) {
   built.userRole.value = 'staff'
   const cAdmin = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE) })
   built.userRole.value = 'user'
-  eq('보내기 창(관리자·스태프): 판매처 9줄 · 카페24 줄 있음 (테스트몰 유지)', [cAdmin.error, (cAdmin.html.match(/data-mk-s-market="/g) || []).length, /data-mk-s-market="cafe24"/.test(cAdmin.html)], [null, 9, true])
+  eq('보내기 창(관리자·스태프): 판매처 8줄 · 카페24 줄 없음 (2026-10-02 운영 중단 — MARKETS off)', [cAdmin.error, (cAdmin.html.match(/data-mk-s-market="/g) || []).length, /data-mk-s-market="cafe24"/.test(cAdmin.html)], [null, 8, false])
 
   const d = await render(built.Modal, { open: true, prepare: PREPARE(false) })
   eq('보내기 창 (연결 전): 예외 없음 · 쿠팡 섹션 없음 · 보내기 버튼 꺼짐', [d.error, /data-mk-send-coupang/.test(d.html), /<button[^>]*disabled[^>]*data-mk-s-send|<button[^>]*data-mk-s-send[^>]*disabled/.test(d.html)], [null, false, true])

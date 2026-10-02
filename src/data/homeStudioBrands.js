@@ -4,9 +4,9 @@
  * 공식 출처에서 흰 배지에 쓸 로고를 못 받은 곳은 흉내 내 그리지 않고 이름 글자만(logo: null).
  *   src = 받은 곳 (보고서에도 같은 목록)
  * 홈 칸의 판매처 칩(studioMarketplaceRules.PUBLIC_MARKETS — G마켓·옥션 한 줄)과 따로: 배지는 G마켓·옥션을 나눠 셈
- * 카페24는 고객 화면에서 숨김(2026-10-01 — ADMIN_ONLY_MARKETS) → 목록에는 남기고 내보낼 때 뺀다
+ * 보이는 범위는 판매처 목록 한 곳(studioMarketplaceRules.marketVisible — 카페24 off 2026-10-02) → 목록에는 남기고 내보낼 때 뺀다
  */
-import { ADMIN_ONLY_MARKETS } from '../lib/studioMarketplaceRules.js'
+import { marketVisible } from '../lib/studioMarketplaceRules.js'
 const ALL_BRANDS = [
   { key: 'coupang', name: '쿠팡', logo: 'coupang.svg', w: 117, h: 27, src: 'https://www.aboutcoupang.com/wp-content/themes/aboutcp/assets/images/logo.svg' },
   { key: 'smartstore', name: '스마트스토어', logo: null, src: null }, // 공식 사이트 머리글이 N 표시 + 글자 — 따로 된 로고 파일 없음
@@ -19,5 +19,5 @@ const ALL_BRANDS = [
   { key: 'makeshop', name: '메이크샵', logo: 'makeshop.png', w: 471, h: 103, src: 'https://www.makeshop.co.kr/images/Makeshop_ci.png' },
   { key: 'godomall', name: '고도몰', logo: null, src: null }, // 공식 사이트 로고가 흰 글씨 버전뿐
 ]
-export const HOME_BRANDS = ALL_BRANDS.filter(b => !ADMIN_ONLY_MARKETS.includes(b.key))
+export const HOME_BRANDS = ALL_BRANDS.filter(b => marketVisible(b.key))
 export const brandLogo = b => (b.logo ? `/brand/${b.logo}` : null)
