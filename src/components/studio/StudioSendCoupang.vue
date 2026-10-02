@@ -907,7 +907,11 @@ const pickedCategory = computed(() => (/^\d+$/.test(f.value.categoryCode) ? { id
 init()
 watch(() => props.common, syncCommon, { deep: true, immediate: true })
 watch(own, syncCommon)
-defineExpose({ missing, busy, done, submit, sendError, applyPreset, pickedCategory }) // sendError = 창의 결과 표가 실패 사유를 그대로 보인다 (2026-10-01)
+// 입력값 기억 (2026-10-02 — src/lib/studioSendDraft.js): 창이 [보내기] 때 draftOut()을 받아 두고, 같은 상품을 다시 열면 applyDraft()로 돌려준다
+// 쿠팡은 카테고리만 (옵션별 판매가·재고는 공통 정보 또는 옵션 표 — 옵션 표는 다시 열면 다시 불러온다)
+const draftOut = () => ({ category: pickedCategory.value })
+function applyDraft(d) { if (d?.category?.id != null && !resend.value) applyPreset({ category: d.category }) }
+defineExpose({ missing, busy, done, submit, sendError, applyPreset, pickedCategory, draftOut, applyDraft }) // sendError = 창의 결과 표가 실패 사유를 그대로 보인다 (2026-10-01)
 </script>
 
 <style scoped>

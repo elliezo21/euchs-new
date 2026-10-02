@@ -103,7 +103,9 @@ import { COMMON_MARKETS, commonMarkets, commonActive, commonFromPrepare } from '
 import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, bulkSendLabel, sendResultRows, alreadySent, existingNote, manualEditKeys, manualEditMissing, sendStatusLabel, RESULT_WAIT_LABEL, RETRY_FAILED_LABEL, SEND_BADGE_CLASS, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { linkStates } from '@/lib/studioMarketLinks'
 import { detailImageOver, detailImageMissing } from '../../../api/_marketDetailLimits.js'
-import { isAdminOrStaff } from '@/lib/auth'
+import { isAdminOrStaff, currentUser } from '@/lib/auth'
+import { readDraft, writeDraft, commonDraft, applyCommonDraft } from '@/lib/studioSendDraft'
+import { repImageCandidates } from '@/lib/studioMarketplaceRules'
 
 const SECTIONS = { coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, '11st': StudioSendElevenst, cafe24: StudioSendCafe24, zigzag: StudioSendZigzag } // 2026-09-30 카페24 · 2026-10-01 스마트스토어·11번가 · 2026-10-02 지그재그 섹션 추가 — 쿠팡 섹션은 그대로
 
@@ -143,9 +145,27 @@ const manualKeys = computed(() => manualEditKeys(picked.value, existing.value, d
 // 공통 정보 — 창을 열 때(준비 데이터가 올 때) 새로 만든다. 스마트스토어·11번가를 함께 체크했고 다시 보내기가 아닐 때만 쓴다(commonActive)
 const common = ref(null)
 const useCommon = computed(() => !!common.value && commonActive(picked.value, { resend: !!props.prepare?.resend }))
+// 입력값 기억 (2026-10-02 — src/lib/studioSendDraft.js): [보내기]를 누를 때 이 브라우저에 남기고, 같은 상품을 다시 열면 되살린다
+//   공통 정보는 창을 열 때 바로 덮고, 판매처 칸은 그 섹션이 화면에 붙을 때 한 번(applyDraft — 카테고리는 목록이 온 뒤 골라진다)
+let pendingDraft = {}
+function draftStorage() {
+  try { return typeof window !== 'undefined' ? window.localStorage : null } catch (e) { console.warn('[StudioSendModal] 브라우저 저장소를 쓸 수 없음 — 입력값을 기억하지 않음:', e?.message); return null }
+}
 function setSection(key, el) {
-  if (el) sections[key] = el
-  else delete sections[key]
+  if (el) {
+    sections[key] = el
+    const d = pendingDraft[key]
+    if (d && typeof el.applyDraft === 'function') { delete pendingDraft[key]; el.applyDraft(d) }
+  } else delete sections[key]
+}
+function rememberInputs(keys) {
+  const uid = currentUser.value?.id, exportId = props.prepare?.export?.id
+  if (!uid || !exportId || props.prepare?.resend) return
+  const store = draftStorage()
+  const prev = readDraft(store, uid, exportId)
+  const secs = { ...(prev?.sections || {}) }
+  for (const k of keys) { const out = sections[k]?.draftOut?.(); if (out) secs[k] = out }
+  writeDraft(store, uid, exportId, { common: useCommon.value ? commonDraft(common.value) : prev?.common || null, sections: secs })
 }
 
 // 창을 열 때, 그리고 창이 열린 뒤 준비 데이터가 도착할 때 — 섹션을 새로 만들고 처음 체크를 정한다
@@ -157,6 +177,14 @@ function resetForPrepare() {
   results.value = {}
   runKeys.value = []
   common.value = props.prepare ? commonFromPrepare(props.prepare) : null
+  pendingDraft = {}
+  if (props.prepare && !props.prepare.resend) {
+    const d = readDraft(draftStorage(), currentUser.value?.id, props.prepare.export?.id)
+    if (d) {
+      if (d.common && common.value) applyCommonDraft(common.value, d.common, repImageCandidates(props.prepare.images).map(im => im.id))
+      pendingDraft = { ...d.sections }
+    }
+  }
   for (const k of Object.keys(sections)) delete sections[k]
   checked.value = props.prepare ? initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend, sent: sentMap.value }) : {}
 }
@@ -202,6 +230,7 @@ async function submit() {
   sending.value = true
   // 이번에 보낼 곳 = 체크됐고 아직 등록 안 된 곳. 등록된 곳(done)은 건너뛴다 → 다시 누르면 실패한 곳만 다시 보낸다
   const keys = picked.value.filter(k => !sections[k]?.done)
+  rememberInputs(keys) // 실패해도 다시 열면 같은 값 (2026-10-02)
   runKeys.value = picked.value.length > 1 ? [...picked.value] : []
   results.value = Object.fromEntries(Object.entries(results.value).filter(([k]) => !keys.includes(k)))
   try {

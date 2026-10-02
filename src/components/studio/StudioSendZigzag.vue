@@ -192,7 +192,8 @@ import {
   ESSENTIAL_DEFAULT, ESSENTIAL_COUNTRY_DEFAULT, essentialDefaults, zigzagOptionRows, buildZigzagProduct, DISPLAY_LABEL, needsPartialReturn,
 } from '../../../api/_zigzagFields.js'
 import { optionsPayload } from '../../../api/_marketOptions.js'
-import { emptyOptionEditor } from '@/lib/studioOptionEditor'
+import { emptyOptionEditor, cloneOptionEditor } from '@/lib/studioOptionEditor'
+import { pickFields } from '@/lib/studioSendDraft'
 import { COMMON_GROUPS, commonPatch } from '@/lib/studioSendCommon'
 import { matchCategory } from '@/lib/studioBulkSend'
 import StudioSendOptions from './StudioSendOptions.vue'
@@ -421,7 +422,23 @@ const pickedCategory = computed(() => (category.value ? { id: String(category.va
 
 if (sendCache?.zigzagMetaDone) applyMeta(sendCache.zigzagMetaDone)
 onMounted(() => { if (!sendCache?.zigzagMetaDone) loadMeta() })
-defineExpose({ missing, busy, done, submit, sendError, applyPreset, pickedCategory })
+const DRAFT_DELIVERY = ['feeType', 'baseFee', 'freeOver', 'jejuFee', 'isolatedFee', 'returnFee', 'partialReturnFee', 'exchangeFee', 'shippingDays', 'bundle'] // 지그재그 배송비 칸 (공통 정보에 없는 판매처 전용 값 — 늘 되살린다)
+// 입력값 기억 (2026-10-02 — src/lib/studioSendDraft.js): 창이 [보내기] 때 draftOut()을 받아 두고, 같은 상품을 다시 열면 applyDraft()로 돌려준다
+const DRAFT_FORM = ['productName', 'price', 'listPrice', 'stock']
+function draftOut() { return { category: pickedCategory.value, form: pickFields(f.value, DRAFT_FORM), opts: cloneOptionEditor(opts.value), delivery: pickFields(f.value, DRAFT_DELIVERY) } }
+function applyDraft(d) {
+  if (!d || done.value) return
+  if (d.category?.id != null) applyPreset({ category: d.category })
+  if (d.delivery) {
+    // 부분 반품 배송비를 반품 배송비와 다르게 고쳤었다면 따라가지 않게 (partialTouched 먼저)
+    if (d.delivery.partialReturnFee !== undefined && d.delivery.partialReturnFee !== d.delivery.returnFee) partialTouched.value = true
+    Object.assign(f.value, pickFields(d.delivery, DRAFT_DELIVERY))
+  }
+  if (props.common) return // 상품명·판매가·재고·옵션은 공통 정보가 채운다 (창이 공통 값을 따로 되살린다)
+  Object.assign(f.value, pickFields(d.form || {}, DRAFT_FORM))
+  if (d.opts && Array.isArray(d.opts.groups)) opts.value = cloneOptionEditor(d.opts)
+}
+defineExpose({ missing, busy, done, submit, sendError, applyPreset, pickedCategory, draftOut, applyDraft })
 </script>
 
 <style scoped>

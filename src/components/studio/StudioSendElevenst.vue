@@ -293,7 +293,8 @@ import {
   elevenstFormFromProduct, elevenstFormFromShipping, productTemplateFromElevenstForm, shippingTemplateFromElevenstForm,
 } from '../../../api/_elevenstFields.js'
 import { optionsPayload, elevenstOptionProblems, elevenstOptionPriceRange, elevenstOptionMerge } from '../../../api/_marketOptions.js'
-import { emptyOptionEditor } from '@/lib/studioOptionEditor'
+import { emptyOptionEditor, cloneOptionEditor } from '@/lib/studioOptionEditor'
+import { pickFields } from '@/lib/studioSendDraft'
 import StudioSendOptions from './StudioSendOptions.vue'
 
 const CAT_SHOWN = 200
@@ -659,7 +660,17 @@ onMounted(() => {
   if (!sendCache?.elevenstAddressesDone) loadAddresses()
   if (!sendCache?.listingTemplatesDone) loadTemplates()
 })
-defineExpose({ missing, busy, done, submit, sendError, applyPreset, pickedCategory }) // sendError = 창의 결과 표가 실패 사유를 그대로 보인다 (2026-10-01) · applyPreset·pickedCategory = 여러 상품 보내기 (2026-10-02)
+// 입력값 기억 (2026-10-02 — src/lib/studioSendDraft.js): 창이 [보내기] 때 draftOut()을 받아 두고, 같은 상품을 다시 열면 applyDraft()로 돌려준다
+const DRAFT_FORM = ['productName', 'price', 'stock']
+function draftOut() { return { category: pickedCategory.value, form: pickFields(f.value, DRAFT_FORM), opts: cloneOptionEditor(opts.value) } }
+function applyDraft(d) {
+  if (!d || done.value) return
+  if (d.category?.id != null) applyPreset({ category: d.category })
+  if (props.common) return // 상품명·판매가·재고·옵션은 공통 정보가 채운다 (창이 공통 값을 따로 되살린다)
+  Object.assign(f.value, pickFields(d.form || {}, DRAFT_FORM))
+  if (d.opts && Array.isArray(d.opts.groups)) opts.value = cloneOptionEditor(d.opts)
+}
+defineExpose({ missing, busy, done, submit, sendError, applyPreset, pickedCategory, draftOut, applyDraft }) // sendError = 창의 결과 표가 실패 사유를 그대로 보인다 (2026-10-01) · applyPreset·pickedCategory = 여러 상품 보내기 (2026-10-02)
 </script>
 
 <style scoped>

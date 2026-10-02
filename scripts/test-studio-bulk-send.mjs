@@ -93,7 +93,7 @@ eq('아래 막대 글자 · 버튼 글자', [B.barText({ markets: 2, products: 5
 // ── 배선 (소스 검사) ──
 {
   const modal = read('src/components/studio/StudioBulkSendModal.vue'), list = read('src/components/studio/StudioProductList.vue'), sql = read('docs/sql/2026-10-02-studio-category-bundles.sql')
-  eq('판매처 섹션 4곳이 applyPreset·pickedCategory를 내놓음 (보내는 길은 예전 submit 그대로)', ['Coupang', 'Smartstore', 'Elevenst', 'Zigzag'].map(n => /defineExpose\(\{ missing, busy, done, submit, sendError, applyPreset, pickedCategory \}\)/.test(read(`src/components/studio/StudioSend${n}.vue`))), [true, true, true, true])
+  eq('판매처 섹션 4곳이 applyPreset·pickedCategory를 내놓음 (보내는 길은 예전 submit 그대로)', ['Coupang', 'Smartstore', 'Elevenst', 'Zigzag'].map(n => /defineExpose\(\{ missing, busy, done, submit, sendError, applyPreset, pickedCategory(, draftOut, applyDraft)? \}\)/.test(read(`src/components/studio/StudioSend${n}.vue`))), [true, true, true, true])
   eq('여러 상품 창: 판매처 = 연결된 곳만 · 준비 판정 = 섹션 빠짐 목록 · 보내기 = planJobs + runQueue + 섹션 submit', [
     /filter\(r => r\.state === 'connected' && SECTIONS\[r\.key\]\)/.test(modal), /readiness\(missingByMarket, left\)/.test(modal), /runQueue\(jobs, runJob/.test(modal), /const r = await s\.submit\(\)/.test(modal), /planJobs\(/.test(modal),
   ], [true, true, true, true, true])
