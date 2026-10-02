@@ -2752,9 +2752,9 @@ function elevenstRelay(u, method, opts) {
     const viaBulk = pick(R.initialChecked(ROWS3, { sent: SENT }))
     eq('처음 체크: [스마트스토어로 보내기] = 이미 등록 완료여도 체크 · [일괄 전송] = 이미 전송된 곳 뺌', [viaButton, viaBulk], [['smartstore'], ['coupang', '11st']])
     const EX = { smartstore: { mode: 'modify', sendId: 's1', sellerProductId: '111', status: 'registered', extra: 0 }, coupang: { mode: 'modify', sendId: 'c1', sellerProductId: '222', status: 'approved', extra: 2 }, '11st': { mode: 'manual', sendId: 'e1', sellerProductId: '333', status: 'registered', extra: 0 } }
-    eq('수정 안내: 스마트스토어 = "판매처에 있는 상품을 수정합니다" · 쿠팡 = + "수정 후 쿠팡 승인을 다시 받습니다" · 11번가 = 판매처에서 직접 수정(상품번호) · 없는 판매처 = null', [
-      R.existingNote('smartstore', EX), R.existingNote('coupang', EX), R.existingNote('11st', EX), R.existingNote('smartstore', {}), R.existingNote('smartstore', null),
-    ], [{ mode: 'modify', lines: ['판매처에 있는 상품을 수정합니다'] }, { mode: 'modify', lines: ['판매처에 있는 상품을 수정합니다', '수정 후 쿠팡 승인을 다시 받습니다'] }, { mode: 'manual', lines: ['판매처에 등록된 상품이 있습니다(상품번호 333). 판매처에서 직접 수정하세요.'] }, null, null])
+    eq('수정 안내: 스마트스토어 = "판매처에 있는 상품을 수정합니다" · 쿠팡 승인 완료 = + 판단 기준 한 줄(판매가·재고만이면 승인 없이 — 2026-10-02 ②-1) · 쿠팡 승인 대기 = + "수정 후 쿠팡 승인을 다시 받습니다" · 11번가 = 판매처에서 직접 수정(상품번호) · 없는 판매처 = null', [
+      R.existingNote('smartstore', EX), R.existingNote('coupang', EX), R.existingNote('coupang', { coupang: { ...EX.coupang, status: 'approval_pending' } }), R.existingNote('11st', EX), R.existingNote('smartstore', {}), R.existingNote('smartstore', null),
+    ], [{ mode: 'modify', lines: ['판매처에 있는 상품을 수정합니다'] }, { mode: 'modify', lines: ['판매처에 있는 상품을 수정합니다', '판매가·재고만 바뀌면 쿠팡 승인 없이 바로 반영하고, 그 밖의 내용(상품명·옵션·이미지 등)이 바뀌면 쿠팡 승인을 다시 받습니다'] }, { mode: 'modify', lines: ['판매처에 있는 상품을 수정합니다', '수정 후 쿠팡 승인을 다시 받습니다'] }, { mode: 'manual', lines: ['판매처에 등록된 상품이 있습니다(상품번호 333). 판매처에서 직접 수정하세요.'] }, null, null])
     eq('막는 판매처 = 체크됐고 수정 API가 없는데 이미 상품이 있는 곳(이번 창에서 등록한 곳 제외) · 빠짐 목록 문구', [
       R.manualEditKeys(['smartstore', '11st'], EX), R.manualEditKeys(['smartstore'], EX), R.manualEditKeys(['11st'], EX, ['11st']), R.manualEditMissing('11번가'),
     ], [['11st'], [], [], '11번가 판매처에서 직접 수정 (이미 등록된 상품)'])

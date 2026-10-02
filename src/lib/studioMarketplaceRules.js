@@ -232,6 +232,13 @@ export function initialChecked(rows, { market = '', resend = false, sent = {} } 
 export const UPDATE_NOTE = '판매처에 있는 상품을 수정합니다'
 /** 수정하면 승인을 다시 받는 판매처(REAPPROVAL_MARKETS)의 한 줄 — 판매처 이름은 MARKETS에서 */
 export const reapprovalNote = key => `수정 후 ${MARKETS.find(m => m.key === key)?.name || key} 승인을 다시 받습니다`
+/**
+ * 쿠팡 승인 완료 상품을 다시 보낼 때의 판단 기준 한 줄 (2026-10-02 ②-1) — 서버 규칙 api/_marketUpdate.js coupangUpdateWay와 같은 뜻:
+ *   승인 완료 + 판매가·정가·재고 말고 바뀐 것이 없음 → 옵션별 가격·재고 API(승인 없음) · 그 밖의 내용이 바뀜 → 상품 수정(다시 승인)
+ *   근거: 쿠팡 상품 수정 문서 salePrice "승인완료 이후 판매가격 수정은 [상품 아이템별 가격 변경] API를 통해 변경 가능" ·
+ *         maximumBuyCount "승인완료 이후 재고 수정은 [상품 아이템별 수량 변경] API를 통해 변경 가능" (developers.coupang.com/ko/api/products/modify-product)
+ */
+export const COUPANG_PRICE_STOCK_NOTE = '판매가·재고만 바뀌면 쿠팡 승인 없이 바로 반영하고, 그 밖의 내용(상품명·옵션·이미지 등)이 바뀌면 쿠팡 승인을 다시 받습니다'
 export const manualEditNote = no => `판매처에 등록된 상품이 있습니다${no ? `(상품번호 ${no})` : ''}. 판매처에서 직접 수정하세요.`
 /** 빠짐 목록 한 줄 — 수정 API가 없는 판매처에 이미 상품이 있어 보낼 수 없음 */
 export const manualEditMissing = name => `${name} 판매처에서 직접 수정 (이미 등록된 상품)`
@@ -242,6 +249,8 @@ export function existingNote(key, existing) {
   if (!e) return null
   if (e.mode === 'manual') return { mode: 'manual', lines: [manualEditNote(e.sellerProductId)] }
   if (e.mode !== 'modify') return null
+  // 쿠팡 승인 완료 상품은 판매가·재고만 바뀌면 승인 없이 반영된다(서버 price_stock) — 판단 기준을 한 줄로 (그 밖의 상태는 예전처럼 "다시 승인")
+  if (key === 'coupang' && e.status === 'approved') return { mode: 'modify', lines: [UPDATE_NOTE, COUPANG_PRICE_STOCK_NOTE] }
   return { mode: 'modify', lines: [UPDATE_NOTE, ...(REAPPROVAL_MARKETS.includes(key) ? [reapprovalNote(key)] : [])] }
 }
 /** 체크했지만 보낼 수 없는 판매처(이미 상품이 있고 수정 API가 없음) — 이번 창에서 등록된 곳은 뺀다 */
