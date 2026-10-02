@@ -113,7 +113,7 @@ eq('처음 보이는 수 = 12 (데스크톱 6칸 × 2줄)', L.FIRST_ROWS, 12)
   eq('[작업 저장] = 같은 창을 save-only로 · 받지 않음', [/exportSaveOnly\.value = true/.test(ed), /:save-only="exportSaveOnly"/.test(top), /if \(!props\.saveOnly\) download\(out\.blob, name\)/.test(modal), /source: props\.saveOnly \? 'save' : undefined/.test(modal)], [true, true, true, true])
   eq('저장 뒤 작은 창: "내 상품에 저장됐어요" + [판매처로 보내기]·[내 상품으로 가기]·[계속 편집]', [/내 상품에 저장됐어요/.test(mt), /data-export-saved-send[^>]*>판매처로 보내기</.test(mt), /data-export-saved-home[^>]*>내 상품으로 가기</.test(mt), /data-export-saved-continue[^>]*>계속 편집</.test(mt), /:wide="!saveOnly"/.test(mt)], [true, true, true, true, true])
   eq('전부 보관됐을 때만 내 상품 카드로 확정 (일부만 된 결과물로 예전 카드를 바꾸지 않음)', [/a\.state !== 'saved' \|\| a\.saved !== total/.test(modal), /await commitSave\(archiveId\)/.test(modal)], [true, true])
-  eq('[다운로드] 창: 받으면 내 상품에도 보관 (예전 그대로) · 창 이름 "다운로드"', [/await archiveOne\(file, out\.blob, name\)/.test(modal), /:title="saveOnly \? '작업 저장' : '다운로드'"/.test(mt)], [true, true])
+  eq('[다운로드] 창: 받으면 내 상품에도 보관 (예전 그대로) · 창 이름 "다운로드"', [/archiveOne\(file, out\.blob, name, i === from\)/.test(modal) /* 2026-10-02 보관은 동시에 4장까지(기다리지 않고 다음 장) — 끝나기 전 settle()로 모두 기다림 */, /:title="saveOnly \? '작업 저장' : '다운로드'"/.test(mt)], [true, true])
   eq('자동저장 표시("저장됨")는 그대로', /저장됨/.test(ed), true)
   eq('내 상품 카드 [다시 받기]는 그대로', /'다시 받기'/.test(read('src/components/studio/StudioExportList.vue')), true)
   // 화면에 보이는 "내보내기" — 주석·로그·개발용 비교 화면을 빼고 0건
