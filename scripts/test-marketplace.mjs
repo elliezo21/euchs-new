@@ -525,6 +525,23 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
       const pre = await post('send_prepare', { resendId: base.id })
       eq('send_prepare(resendId): 그 전송의 값으로 채울 재료 · 같은 내 상품', [pre.statusCode, pre.body.resend.sendId, pre.body.resend.sellerProductId, pre.body.resend.reason, pre.body.resend.form.productName, pre.body.export.id === base.export_id], [200, base.id, '1234567890', base.reason, '매일 쓰는 머그', true])
       eq('남의 전송·없는 전송 → 404', (await post('send_prepare', { resendId: '99999999-9999-4999-8999-999999999999' })).statusCode, 404)
+      {
+        // 2026-10-02 ②-1: 반려 고치기도 보내기 직전 최신으로 만든 상세 이미지 카드(exportId)를 쓴다 — 같은 작업의 내 상품일 때만
+        const baseEx = db.studio_exports.find(e => e.id === base.export_id)
+        const sameProj = { ...baseEx, id: newId() }, otherProj = { ...baseEx, id: newId(), project_id: newId() }
+        db.studio_exports.push(sameProj, otherProj)
+        const pNew = await post('send_prepare', { resendId: base.id, exportId: sameProj.id })
+        const pOther = await post('send_prepare', { resendId: base.id, exportId: otherProj.id })
+        const pNone = await post('send_prepare', { resendId: base.id })
+        eq('send_prepare(resendId + exportId): 같은 작업의 최신 카드면 그 상세 이미지 · 다른 작업 id면 반려된 전송의 내 상품 그대로 · 없으면 그대로', [pNew.statusCode, pNew.body.export.id === sameProj.id, pOther.body.export.id === base.export_id, pNone.body.export.id === base.export_id], [200, true, true, true])
+        db.studio_exports = db.studio_exports.filter(e => e !== sameProj && e !== otherProj)
+        const mk = fs.readFileSync(new URL('../src/lib/studioMarketplace.js', import.meta.url), 'utf8')
+        eq('화면: resendToMarketplace가 단건·여러 상품과 같이 ensureProductImages 뒤 그 카드 id로 send_prepare · 진입 두 곳이 내 상품·작업 id와 진행을 넘김', [
+          /export async function resendToMarketplace\(sendId, \{ exportId = null, projectId = '', onProgress \} = \{\}\) \{\n  let made = null\n  if \(projectId \|\| exportId\) made = await ensureProductImages\(/.test(mk), mk.includes("const prepare = await prepareResend(sendId, made?.exportId || null)"),
+          fs.readFileSync(new URL('../src/components/studio/StudioProductList.vue', import.meta.url), 'utf8').includes('resendToMarketplace(send.sendId, { exportId: send.exportId || null, projectId: send.rowId, onProgress })'),
+          fs.readFileSync(new URL('../src/components/studio/StudioSendList.vue', import.meta.url), 'utf8').includes('resendToMarketplace(id, { exportId: fixExportId.value, onProgress })'),
+        ], [true, true, true, true])
+      }
       const count = db.marketplace_sends.length
       const statusBefore = relay.status
       const REASON = base.reason
@@ -2885,7 +2902,7 @@ function elevenstRelay(u, method, opts) {
     optsBefore.map(m => m.key).join() === R.marketsFor({ admin: false }).filter(m => m.connect !== 'planned').map(m => m.key).join(), optsAdded.at(-1), addedChip, /<option v-for="m in marketOptions"/.test(tpl), /'(coupang|smartstore|11st)'\s*[,\]]/.test(slib),
   ], [['coupang', 'smartstore', '11st', 'zigzag'], ['쿠팡', '스마트스토어', '11번가', '지그재그'], false, false, true, 'kakaostyle', '카카오스타일 등록 완료', true, false])
   eq('화면: 필터·검색·정렬·페이지는 화면 안에서만(localStorage 없음) · 새로고침 = 기존 syncSends만 · 수정 후 재전송 = 기존 창(sendToMarketplace·resendToMarketplace) · [판매처에서 보기] 없음(카페24 전용이었음 — 2026-10-02) · 폰 44px', [
-    /localStorage|sessionStorage/.test(sl + slib), /await syncSends\(since\)/.test(sl), /callStudioApi|fetch\(/.test(sl + slib), /fixHow\.value === 'resend' \? await resendToMarketplace\(id\) : await sendToMarketplace\(fixExportId\.value[,)]/.test(sl),
+    /localStorage|sessionStorage/.test(sl + slib), /await syncSends\(since\)/.test(sl), /callStudioApi|fetch\(/.test(sl + slib), /fixHow\.value === 'resend' \? await resendToMarketplace\(id, \{ exportId: fixExportId\.value, onProgress \}\) : await sendToMarketplace\(fixExportId\.value[,)]/.test(sl),
     /<StudioSendModal [^>]*:market="fixMarket" :sent="fixSent"/.test(tpl), !/s\.adminUrl|판매처에서 보기/.test(tpl), /@media \(max-width: 767\.98px\) \{\s+\.sl-tap \{ height: 44px; min-height: 44px; \}/.test(sl),
   ], [false, true, false, true, true, true, true])
   eq('화면: PC 표(md 이상)·폰 카드(md 미만) · 폰 [필터] 펼치기 · 펼친 줄 = 그 상품의 모든 기록 · 로그아웃 구독', [

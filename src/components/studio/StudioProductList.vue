@@ -430,7 +430,7 @@ async function loadPrepare() {
   // 상세 이미지가 최신이 아니면 먼저 만든다(sendToMarketplace → studioProductImages) — 창 안에 "상세 이미지 만드는 중 3 / 11"
   const onProgress = p => { if (my === prepareSeq) send.progress = renderProgressText(p) }
   try {
-    const r = send.how === 'resend' ? await resendToMarketplace(send.sendId) : await sendToMarketplace(send.exportId || null, { projectId: send.rowId, onProgress })
+    const r = send.how === 'resend' ? await resendToMarketplace(send.sendId, { exportId: send.exportId || null, projectId: send.rowId, onProgress }) : await sendToMarketplace(send.exportId || null, { projectId: send.rowId, onProgress })
     if (my === prepareSeq) { send.prepare = r.prepare; send.progress = '' }
   } catch (e) {
     console.error('[StudioProductList] 보내기 준비 실패:', send.exportId, send.sendId, e.code, e)

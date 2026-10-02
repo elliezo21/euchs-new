@@ -1628,6 +1628,19 @@ async function loadSource(ctx, offerId) {
     skus: skus.rows.map(r => ({ skuId: r.skuId, specId: r.specId, values: r.values.map(v => ({ name: pair(v.name), value: pair(v.value) })), priceCny: r.priceCny, stock: r.stock, imageUrl: r.imageUrl })),
   }
 }
+/**
+ * 다시 보낼 전송의 상세 이미지 = 어느 내 상품(결과물)으로 (2026-10-02 ②-1)
+ *   화면이 보낸 exportId(보내기 직전 최신으로 만든 카드 — studioProductImages.ensureProductImages)가 반려된 전송과 같은 작업의 내 상품이면 그것, 아니면 반려된 전송의 내 상품 그대로
+ *   (같은 작업의 [작업 저장] 카드는 id가 그대로라 보통 같은 값 — 예전 [다운로드] 결과물로 보냈던 상품은 지금 카드로 바뀐다)
+ */
+async function resendExportId(ctx, prev, wanted) {
+  const id = String(wanted ?? '').trim().toLowerCase()
+  if (!UUID_RE.test(id) || id === String(prev.export_id).toLowerCase()) return prev.export_id
+  const ids = await projectExportIds(ctx, prev.export_id)
+  if (ids.includes(id)) return id
+  console.warn('[marketplace] 다시 보내기: 다른 작업의 내 상품 id — 반려된 전송의 내 상품으로 보냄:', id, prev.export_id)
+  return prev.export_id
+}
 /** 다시 보낼 전송 — 내 것이고 반려 상태이고 쿠팡 상품 번호가 있어야 한다. 아니면 응답을 보내고 null */
 async function loadRejectedSend(ctx, resendId, res) {
   const id = String(resendId ?? '').trim().toLowerCase()
@@ -1701,7 +1714,7 @@ async function sendPrepare(ctx, body, res) {
   if (body.resendId != null) {
     prev = await loadRejectedSend(ctx, body.resendId, res)
     if (!prev) return
-    body = { ...body, exportId: prev.export_id }
+    body = { ...body, exportId: await resendExportId(ctx, prev, body.exportId) }
   }
   const ex = await loadOwnedExport(ctx, body, res)
   if (!ex) return
@@ -1830,7 +1843,7 @@ async function send(ctx, body, res) {
     prev = await loadRejectedSend(ctx, body.resendId, res)
     if (!prev) return
     mode = 'resend'
-    body = { ...body, exportId: prev.export_id }
+    body = { ...body, exportId: await resendExportId(ctx, prev, body.exportId) } // 보내기 창이 받은 최신 상세 이미지 카드(같은 작업만)
   }
   const ex = await loadOwnedExport(ctx, body, res)
   if (!ex) return

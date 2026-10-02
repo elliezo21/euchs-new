@@ -37,7 +37,7 @@ export const listTemplates = () => call('templates_list')
 export const saveTemplate = (template) => call('template_save', { template })
 export const deleteTemplate = (id) => call('template_delete', { id })
 export const prepareSend = (exportId) => call('send_prepare', { exportId })
-export const prepareResend = (resendId) => call('send_prepare', { resendId })
+export const prepareResend = (resendId, exportId = null) => call('send_prepare', { resendId, ...(exportId ? { exportId } : {}) })
 export const predictCategory = (productName, brand) => call('category_predict', { productName, brand })
 export const searchBrand = (brandName) => call('brand_search', { brandName })
 export const getCategoryMeta =(categoryCode) => call('category_meta', { categoryCode })
@@ -92,9 +92,17 @@ export async function sendToMarketplace(exportId, { projectId = '', onProgress }
   return { status: 'ready', prepare }
 }
 
-/** 반려된 전송 [고쳐서 다시 보내기] 진입 — prepare.resend에 그 전송의 값이 들어 있다 */
-export async function resendToMarketplace(sendId) {
-  const prepare = await prepareResend(sendId)
+/**
+ * 반려된 전송 [고쳐서 다시 보내기] 진입 — prepare.resend에 그 전송의 값이 들어 있다
+ * 상세 이미지(2026-10-02 ②-1): 단건·여러 상품 보내기와 같은 흐름 — 내 상품 카드의 상세 이미지가 지금 내용으로 만든 것인지 보고 아니면 먼저 만든다
+ *   (studioProductImages.ensureProductImages). 만든 카드 id를 서버에 넘기면 서버는 같은 작업의 내 상품일 때만 그 상세 이미지로 수정한다(api/marketplace.js resendExportId)
+ * @param {string} sendId 반려된 전송 기록
+ * @param {{ exportId?:string|null, projectId?:string, onProgress?:Function }} opts  exportId = 그 전송의 내 상품(또는 작업의 지금 결과물) · projectId = 작업
+ */
+export async function resendToMarketplace(sendId, { exportId = null, projectId = '', onProgress } = {}) {
+  let made = null
+  if (projectId || exportId) made = await ensureProductImages(projectId ? { projectId } : { exportId }, { onProgress })
+  const prepare = await prepareResend(sendId, made?.exportId || null)
   return { status: 'ready', prepare }
 }
 

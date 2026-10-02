@@ -337,7 +337,9 @@ async function loadFix() {
   resendError.value = ''
   try {
     fixProgress.value = ''
-    const r = fixHow.value === 'resend' ? await resendToMarketplace(id) : await sendToMarketplace(fixExportId.value, { onProgress: p => { if (my === resendSeq) fixProgress.value = renderProgressText(p) } })
+    const onProgress = p => { if (my === resendSeq) fixProgress.value = renderProgressText(p) }
+    // 쿠팡 반려 고치기도 상세 이미지가 최신이 아니면 먼저 만든다 (2026-10-02 ②-1 — 단건·여러 상품 보내기와 같은 흐름)
+    const r = fixHow.value === 'resend' ? await resendToMarketplace(id, { exportId: fixExportId.value, onProgress }) : await sendToMarketplace(fixExportId.value, { onProgress })
     if (my === resendSeq) { resendPrepare.value = r.prepare; fixProgress.value = '' }
   } catch (e) {
     console.error('[StudioSendList] 재전송 준비 실패:', fixHow.value, id, e.code, e)
