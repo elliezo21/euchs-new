@@ -19,8 +19,7 @@
           <label class="flex items-start gap-2 text-[13px] py-1 cursor-pointer">
             <input type="checkbox" class="mt-0.5" :checked="checked.has(i)" :disabled="disabled" :data-mk-src-opt-check="i" @change="toggle(i)" />
             <span class="min-w-0">
-              <span class="st-ink">{{ labels[i].text || '옵션' }}</span>
-              <span v-if="labels[i].original && labels[i].original !== labels[i].text" class="st-desc-sm block break-all">가져온 옵션: {{ labels[i].original }}</span>
+              <span class="st-ink">{{ labels[i].text || `이름 확인 필요 옵션 ${i + 1}` }}</span>
             </span>
           </label>
         </li>

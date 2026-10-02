@@ -12,12 +12,16 @@
 const str = v => (typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '')
 const norm = s => str(s).replace(/\s+/g, '').toLowerCase()
 const EMPTY_PART = new Set(['', '-', 'undefined', 'null', '기본 옵션'])
+const HAN = /\p{Script=Han}/u
 
-/** 옵션 줄 한 개의 글자 — 값의 한글(없으면 가져온 글자) · 가져온 글자 */
+/**
+ * 옵션 줄 한 개의 글자 — text = 화면에 보일 글자(값의 한글, 한글이 없으면 한자가 없는 원문 — 예: "M") · original = 가져온 원문(데이터용, 화면에 안 보임)
+ *   중국어(한자)는 text에 넣지 않는다 (2026-10-02 ②-1 보완 — 셀러 화면에 1688 원문을 보이지 않음)
+ */
 export function skuLabel(sku) {
   const vals = Array.isArray(sku?.values) ? sku.values : []
   return {
-    text: vals.map(v => str(v?.value?.ko) || str(v?.value?.zh)).filter(Boolean).join(' / '),
+    text: vals.map(v => str(v?.value?.ko) || (HAN.test(str(v?.value?.zh)) ? '' : str(v?.value?.zh))).filter(Boolean).join(' / '),
     original: vals.map(v => str(v?.value?.zh)).filter(Boolean).join(' / '),
   }
 }

@@ -1240,7 +1240,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('3 어디에도 번역 안 된 글자를 넣지 않음', [...kr.rows, ...same.rows].some(r => F.hasUntranslated(r.name) || Object.values(r.opt).some(F.hasUntranslated)), false)
   eq('3 번역 캐시의 한글에 번역 안 된 글자가 섞였으면 쓰지 않음', F.koreanizeSkus([{ values: [V('款式', null, '蝴蝶发夹', '나비 发夹')] }]).rows[0], { name: '', opt: { 款式: '' }, original: '蝴蝶发夹' })
   eq('3 값 30자·이름 150자', (() => { const r = F.koreanizeSkus([{ values: [V('款式', '스타일', '发夹', '가'.repeat(40))] }]).rows[0]; return [r.opt['款式'].length, r.name.length] })(), [30, 40])
-  eq('3 화면: 옵션 표는 koreanizeSkus를 씀 · 빈 옵션 이름을 상품명으로 채우지 않음 · 가져온 글자는 칸 아래·placeholder', [cp.includes('const kr = koreanizeSkus(list, { valueMax: ATTR_VALUE_MAX, nameMax: 150 })'), /items\[0\]\.name = f\.value\.productName/.test(cp), /data-mk-s-origin/.test(cp), /:placeholder="it\.originals\[t\.key\] \|\| /.test(cp)], [true, false, true, true])
+  eq('3 화면: 옵션 표는 koreanizeSkus를 씀 · 빈 옵션 이름을 상품명으로 채우지 않음 · 가져온 글자(중국어 원문)는 칸 아래·placeholder·툴팁 어디에도 안 보임(2026-10-02 ②-1 보완)', [cp.includes('const kr = koreanizeSkus(list, { valueMax: ATTR_VALUE_MAX, nameMax: 150 })'), /items\[0\]\.name = f\.value\.productName/.test(cp), /data-mk-s-origin/.test(cp), /it\.originals\[t\.key\]/.test(cp.slice(0, cp.indexOf('<script setup>')))], [true, false, false, false])
 
   // 4) 검색태그 추천
   const bad = ['이우', '타오바오', '경동', '이베이', '아마존', '소원']
@@ -2460,8 +2460,8 @@ function elevenstRelay(u, method, opts) {
   eq('옵션 영역(2026-10-02): 옵션 사용 끄기 · 종류 추가·삭제 · 값 입력·[추가]·Enter · 칩 ⓧ · 선택 삭제·일괄입력·되살리기 · 추가금액·재고 칸 · 가져온 원문 · 1688 재고는 어디에도 없음(툴팁도 — 2026-10-02 ②-1) · "판매" 체크 없음', [
     /data-mk-opt-enabled/.test(area), /data-mk-opt-group-add[^>]*>옵션 종류 추가</.test(area), /data-mk-opt-group-remove[^>]*>삭제</.test(area), /data-mk-opt-value-input[^>]*@keydown\.enter\.prevent="onAddValues\(g\)"/.test(area), /data-mk-opt-value-add[^>]*>추가</.test(area), /data-mk-opt-chip-remove/.test(area),
     /data-mk-opt-delete[^>]*>선택 삭제</.test(area), /data-mk-opt-bulk-price-apply[^>]*>추가금액 일괄입력</.test(area), /data-mk-opt-bulk-stock-apply[^>]*>재고 일괄입력</.test(area), /data-mk-opt-restore[^>]*>삭제한 조합 되살리기</.test(area),
-    /data-mk-opt-price/.test(area), /data-mk-opt-stock/.test(area), /가져온 옵션:/.test(area), /1688 재고|stock1688/.test(area), /data-mk-opt-use|판매 안 함/.test(area),
-  ], [true, true, true, true, true, true, true, true, true, true, true, true, true, false, false])
+    /data-mk-opt-price/.test(area), /data-mk-opt-stock/.test(area), /가져온 옵션:|v\.original|r\.originals/.test(area.slice(0, area.indexOf('<script setup>'))), /1688 재고|stock1688/.test(area), /data-mk-opt-use|판매 안 함/.test(area),
+  ], [true, true, true, true, true, true, true, true, true, true, true, true, false, false, false])
   eq('옵션 영역 문구: 합니다체 · 대화체 없음 (화면·편집 안내 문구)', /(어요|예요|해요|돼요|아요|워요|네요|줘요)|주세요/.test(area.slice(0, area.indexOf('<style')) + read('src/lib/studioOptionEditor.js')), false)
   eq('쿠팡 섹션·서버는 공용 옵션을 쓰지 않음 (쿠팡 출력 그대로)', /StudioSendOptions|_marketOptions/.test(read('src/components/studio/StudioSendCoupang.vue') + read('api/_coupang.js') + read('api/_coupangFields.js')), false)
 
@@ -3907,7 +3907,15 @@ function elevenstRelay(u, method, opts) {
       SO.orderedOptions([{ size: 'XL', quantity: 4, orders: [] }]).groupNames, SO.orderedOptions([]).rows,
     ], [{ groupNames: ['색상'], rows: [{ values: ['Black  M'], quantity: 5, orders: ['A', 'B'] }] }, ['사이즈'], []])
   }
-  eq('[1688 옵션 불러오기] = 체크한 줄만(순서 그대로) · 줄 글자 = 한글(없으면 원문) · 원문', [SO.pickSkus(SK, [2, 0]).map(s => s.skuId), SO.pickSkus(SK, []).length, SO.skuLabel(SK[0])], [['1', '3'], 0, { text: '블랙 / S', original: '黑色 / S' }])
+  eq('[1688 옵션 불러오기] = 체크한 줄만(순서 그대로) · 줄 글자 = 한글(없으면 한자 없는 원문 — "S") · 원문은 데이터로만 · 한글이 없는 중국어 값은 화면 글자에 안 넣음', [SO.pickSkus(SK, [2, 0]).map(s => s.skuId), SO.pickSkus(SK, []).length, SO.skuLabel(SK[0]), SO.skuLabel({ values: [{ value: { zh: '0554紫色一对', ko: null } }] }).text], [['1', '3'], 0, { text: '블랙 / S', original: '黑色 / S' }, ''])
+  {
+    // 2026-10-02 ②-1 보완: 셀러 화면에 1688 원문(중국어) 줄 없음 — 옵션 목록·[1688 옵션 불러오기] 목록·쿠팡·스마트스토어·11번가·지그재그·공통 정보
+    const files = ['StudioSendOptions', 'StudioSourceOptionPicker', 'StudioSendCoupang', 'StudioSendSmartstore', 'StudioSendElevenst', 'StudioSendZigzag', 'StudioSendCommon'].map(n => read(`src/components/studio/${n}.vue`))
+    const tpl = s => s.slice(0, s.indexOf('<script setup>')).replace(/<!--[\s\S]*?-->/g, '')
+    eq('화면 템플릿 어디에도 "가져온 옵션:"·원문(original·originals) 표시 없음 · [1688 옵션 불러오기] 목록에 번역 없는 줄은 "이름 확인 필요 옵션 N"', [
+      files.map(s => /가져온 옵션|\.original\b|originals\[/.test(tpl(s))), files[1].includes("labels[i].text || `이름 확인 필요 옵션 ${i + 1}`"),
+    ], [[false, false, false, false, false, false, false], true])
+  }
   const OE = await import('../src/lib/studioOptionEditor.js')
   const m = OE.emptyOptionEditor()
   const same = m

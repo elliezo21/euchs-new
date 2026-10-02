@@ -153,8 +153,7 @@
                 </td>
                 <td v-for="(t, ti) in f.optionTypes" :key="t.key" :data-label="t.mapped || t.label">
                   <span v-if="commonItems" class="text-[13px] break-all" :class="it.opt[t.key] ? 'st-ink' : 'st-danger-text font-bold'" :data-mk-s-opt="t.key">{{ it.opt[t.key] || '값 입력 필요' }}</span>
-                  <input v-else v-model.trim="it.opt[t.key]" class="st-input opt-in" :maxlength="ATTR_VALUE_MAX" :placeholder="it.originals[t.key] || (t.isColor ? '예: 블랙' : '')" :title="it.originals[t.key] || ''" :data-mk-s-opt="t.key" />
-                  <span v-if="it.originals[t.key] && needsHand(it, t)" class="opt-origin" :data-mk-s-origin="`${i}:${ti}`">가져온 옵션: {{ it.originals[t.key] }}</span>
+                  <input v-else v-model.trim="it.opt[t.key]" class="st-input opt-in" :maxlength="ATTR_VALUE_MAX" :placeholder="t.isColor ? '예: 블랙' : '값 입력'" :data-mk-s-opt="t.key" /><!-- 1688 원문(중국어)은 보이지 않는다 (2026-10-02 ②-1 보완) — it.originals는 데이터로만 -->
                 </td>
                 <td v-for="a in extraAttrs" :key="a.name" :data-label="attrLabel(a)"><input v-model.trim="it.attributes[a.name]" class="st-input opt-in" :maxlength="ATTR_VALUE_MAX" :placeholder="unitPlaceholder(a)" :title="unitHint(a)" :data-mk-s-attr="a.name" /></td>
                 <td v-if="!f.optionTypes.length && !extraAttrs.length" data-label="구매옵션 *">
@@ -647,8 +646,6 @@ const preview = computed(() => previewRows({
 
 // ── 옵션 표 ──
 const attrLabel = a => `${a.name}${a.required ? ' *' : ''}${a.unit ? ` (${a.unit})` : ''}`
-/** 가져온 글자를 한글로 못 옮겨 고객이 채워야 하는 줄 — 칸 아래에 가져온 글자를 보여 준다 */
-const needsHand = (it, t) => !String(it.opt[t.key] || '').trim() || hasUntranslated(it.opt[t.key])
 // 옵션 이름 — 구매옵션 값을 " / "로 이어 자동으로 만든다(Wing과 같게). [옵션 이름 직접 쓰기]를 누르면 열이 나타나 고칠 수 있다
 const buyValuesOf = it => {
   const out = f.value.optionTypes.map(t => it.opt[t.key])
@@ -956,7 +953,6 @@ defineExpose({ missing, busy, done, submit, sendError, applyPreset, pickedCatego
 .opt-table .c-sku .opt-in, .opt-table .c-gtin .opt-in { font-size: 12px; } /* 품번 "상품번호-옵션번호" 17자가 다 보이게 */
 .opt-table .c-del { width: 44px; }
 .opt-in { width: 100%; min-width: 0; padding-left: 8px; padding-right: 8px; }
-.opt-origin { display: block; margin-top: 3px; font-size: 11px; color: var(--st-muted); word-break: break-all; }
 /* 카드형 — 옵션 1개 = 카드 1장, 칸마다 이름표 */
 .opt-wrap.is-cards .opt-table, .opt-wrap.is-cards tbody { display: block; }
 .opt-wrap.is-cards thead { display: none; }

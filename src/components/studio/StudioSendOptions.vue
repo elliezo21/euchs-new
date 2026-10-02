@@ -20,7 +20,7 @@
             <button type="button" class="st-btn" :disabled="disabled" :data-mk-opt-group-remove="gi" @click="removeGroup(model, g.id); clearMsg(g.id)">삭제</button>
           </div>
           <ul v-if="g.values.length" class="flex flex-wrap gap-1.5 mt-2" :data-mk-opt-chips="gi">
-            <li v-for="v in g.values" :key="v.id" class="opt-chip" :class="{ 'is-empty': !v.label }" :title="v.original ? `가져온 옵션: ${v.original}` : ''" :data-mk-opt-chip="v.label">
+            <li v-for="v in g.values" :key="v.id" class="opt-chip" :class="{ 'is-empty': !v.label }" :data-mk-opt-chip="v.label">
               <input
                 v-if="editing.vid === v.id" ref="editInput" v-model="editing.text" class="opt-chip-edit" :maxlength="OPTION_VALUE_LEN" :style="{ width: `${Math.max(6, editing.text.length + 2)}ch` }"
                 @keydown.enter.prevent="commitEdit(g)" @keydown.esc.prevent.stop="editing.vid = ''" @blur="commitEdit(g)"
@@ -73,7 +73,6 @@
                 <td><input v-model="r.checked" type="checkbox" :disabled="disabled" :aria-label="`${r.values.join(' / ')} 선택`" :data-mk-opt-check="i" /></td>
                 <td v-for="(val, gi) in r.values" :key="gi">
                   <span :class="val ? 'st-ink' : 'st-danger-text'" :data-mk-opt-value="`${i}-${gi}`">{{ val || '값 입력 필요' }}</span>
-                  <span v-if="r.originals[gi]" class="st-desc-sm block mt-0.5 break-all">가져온 옵션: {{ r.originals[gi] }}</span>
                 </td>
                 <td><input v-model.number="r.addPrice" type="number" step="1" class="st-input w-full" :disabled="disabled" :data-mk-opt-price="i" /></td>
                 <td><input v-model.number="r.stock" type="number" min="0" step="1" class="st-input w-full" :disabled="disabled" :data-mk-opt-stock="i" /></td>
@@ -92,6 +91,7 @@
 // 보내기 창의 옵션 영역 (2026-10-02 다시 만듦) — 옵션 종류 줄(최대 3개) + 옵션값 칩 → 조합 목록 자동 생성. 공통 정보·스마트스토어·11번가가 같이 쓴다(쿠팡은 따로)
 // 편집 규칙은 순수 함수 src/lib/studioOptionEditor.js 하나 — 여기서는 버튼을 그 함수에 잇기만 한다
 // 보내는 모양은 예전과 같다(model.groupNames·rows → optionsPayload). 판매처 규칙 검사는 섹션이 판매처 함수(api/_marketOptions.js)로 한다
+// 1688 원문(중국어)은 화면에 보이지 않는다(2026-10-02 ②-1 보완 — 칩 툴팁·표 아래 줄 없음). 원문 데이터(original·originals)는 모양에 그대로 둔다
 // 재고 칸은 비워 둔다(1688 판매자 재고는 내 재고가 아니다 — 어디에도 보이지 않는다, 2026-10-02 ②-1). [주문한 옵션 불러오기]면 주문 수량. 추가금액 기본 0
 import { ref, reactive, computed, nextTick } from 'vue'
 import StudioSourceOptionPicker from './StudioSourceOptionPicker.vue'
