@@ -29,8 +29,9 @@ eq('파일 칸: 다시 시도 = 바꿈(늘지 않음)', upsertExportFile([{ key:
 const UID = '11111111-1111-4111-8111-111111111111'
 const OTHER = '99999999-9999-4999-8999-999999999999'
 const PID = '22222222-2222-4222-8222-222222222222'
-let projects, exportsRows, files, tableMissing, seq, sourceMissing, sendsRows, patchFails
+let projects, exportsRows, files, tableMissing, seq, sourceMissing, sendsRows, patchFails, imagesRows = []
 function reset() {
+  imagesRows = []
   sourceMissing = false // true = SQL(studio-folders) 실행 전 — studio_exports.source 칸이 없음
   sendsRows = []        // marketplace_sends
   patchFails = false
@@ -63,6 +64,14 @@ globalThis.fetch = async (url, opts = {}) => {
   if (p === '/rest/v1/profiles') return json([])
   if (p === '/rest/v1/studio_projects' && method === 'GET') {
     return json(projects.filter(r => r.id === eqv(q, 'id') && r.user_id === eqv(q, 'user_id') && (!q.includes('deleted_at=is.null') || r.deleted_at === null)))
+  }
+  if (p === '/rest/v1/studio_projects' && method === 'PATCH') { // [작업 저장] 시각 (work_save — 2026-10-02)
+    const hit = projects.filter(r => r.id === eqv(q, 'id') && r.user_id === eqv(q, 'user_id'))
+    for (const r of hit) Object.assign(r, body)
+    return json(JSON.parse(JSON.stringify(hit)))
+  }
+  if (p === '/rest/v1/studio_images' && method === 'GET') {
+    return json(imagesRows.filter(r => r.project_id === eqv(q, 'project_id') && r.user_id === eqv(q, 'user_id')).map(r => ({ id: r.id, edit_version: r.edit_version })))
   }
   if (p === '/rest/v1/studio_exports') {
     if (tableMissing) return json({ code: '42P01', message: 'relation "public.studio_exports" does not exist' }, 404)
@@ -275,6 +284,82 @@ const quiet = async fn => { const o = [console.error, console.warn, console.info
     md.includes('if (inflight.size >= ARCHIVE_POOL) await Promise.race(inflight)') && !md.includes('      await archiveOne(file, out.blob, name)'),
     (md.match(/await settle\(\)/g) || []).length, md.includes('· 전체 ${Math.round(now() - t.t0)}ms · 그리기 ${Math.round(t.render)}ms · 보관 ${Math.round(t.archive)}ms'),
   ], [true, true, true, 2, true])
+}
+
+// ── [작업 저장] = 작업 내용만 (2026-10-02) · 상세 이미지는 필요할 때 · 내용 열쇠(ck)로 최신 판단 ──
+{
+  const { contentKeyOf, filesContentKey, isCompleteExport, CONTENT_KEY_RE } = await import('../api/_studioContentKey.js')
+  const A = '44444444-4444-4444-8444-444444444441', B = '44444444-4444-4444-8444-444444444442'
+  eq('내용 열쇠: 순서와 상관없음 · 형식 · 사진 버전·페이지 버전이 바뀌면 바뀜 · 이상한 값 = null', [
+    contentKeyOf(3, [{ id: A, edit_version: 1 }, { id: B, edit_version: 2 }]) === contentKeyOf(3, [{ id: B, edit_version: 2 }, { id: A, edit_version: 1 }]),
+    CONTENT_KEY_RE.test(contentKeyOf(3, [{ id: A, edit_version: 1 }])),
+    contentKeyOf(3, [{ id: A, edit_version: 1 }]) !== contentKeyOf(3, [{ id: A, edit_version: 2 }]),
+    contentKeyOf(3, [{ id: A, edit_version: 1 }]) !== contentKeyOf(4, [{ id: A, edit_version: 1 }]),
+    contentKeyOf(null, []), contentKeyOf(1, [{ id: A }]),
+  ], [true, true, true, true, null, null])
+  const K = contentKeyOf(1, [])
+  eq('결과물의 열쇠 = 파일이 다 있고 모두 같을 때만', [
+    filesContentKey({ files: [{ ck: K }, { ck: K }], file_count: 2 }), filesContentKey({ files: [{ ck: K }], file_count: 2 }),
+    filesContentKey({ files: [{ ck: K }, {}], file_count: 2 }), isCompleteExport({ files: [1], file_count: 1 }), isCompleteExport({ files: [], file_count: 1 }),
+  ], [K, null, null, true, false])
+
+  reset()
+  projects[0].page_version = 3
+  projects[0].last_exported_at = null
+  imagesRows = [{ id: A, project_id: PID, user_id: UID, edit_version: 2 }]
+  const key = () => contentKeyOf(projects[0].page_version, imagesRows)
+  async function render(heights, ck) {
+    const b = await call({ action: 'export_begin', projectId: PID, title: '후드티', format: 'jpg', scale: 1, mode: 'sections', count: heights.length, source: 'save' })
+    for (let i = 0; i < heights.length; i++) {
+      const k = String(i + 1).padStart(2, '0')
+      const p = await call({ action: 'export_file_prepare', exportId: b.body.exportId, key: k, size: 23 })
+      files.set(p.body.path, jpg(780, heights[i]))
+      await call({ action: 'export_file_confirm', exportId: b.body.exportId, key: k, path: p.body.path, name: `후드티_${k}.jpg`, contentKey: ck })
+    }
+    return { b, commit: await quiet(() => call({ action: 'export_save_commit', exportId: b.body.exportId })) }
+  }
+  const s1 = await quiet(() => call({ action: 'work_save', projectId: PID }))
+  eq('처음 [작업 저장]: 이미지 없이 바로 · 저장 시각 남김 · 카드 없음 · 줄 안 만듦', [s1.code, s1.body.changed, s1.body.fresh, s1.body.cardId, !!projects[0].last_exported_at, exportsRows.length, s1.body.contentKey === key()], [200, true, false, null, true, 0, true])
+  const st0 = await call({ action: 'export_render_status', projectId: PID })
+  eq('보낼 때 확인: 카드 없음 → 만들어야 함', [st0.code, st0.body.fresh, st0.body.cardId, st0.body.contentKey === key()], [200, false, null, true])
+  const r1 = await render([900, 900], key())
+  eq('만든 뒤 각 파일에 열쇠(ck) · 카드 확정', [r1.commit.code, exportsRows.length, exportsRows[0].files.every(f => f.ck === key())], [200, 1, true])
+  const st1 = await call({ action: 'export_render_status', exportId: r1.commit.body.exportId })
+  eq('그 뒤 확인(결과물 id로도): 최신 → 그대로 씀 · 장 수', [st1.body.fresh, st1.body.cardId, st1.body.count, st1.body.projectId], [true, r1.commit.body.exportId, 2, PID])
+  const savedAt = projects[0].last_exported_at
+  await new Promise(r => setTimeout(r, 5))
+  const s2 = await quiet(() => call({ action: 'work_save', projectId: PID }))
+  eq('바뀐 것 없이 다시 [작업 저장] → 저장 시각 그대로(변경사항 미전송 안 됨) · 다시 안 만듦', [s2.body.changed, s2.body.fresh, projects[0].last_exported_at === savedAt, s2.body.cardId], [false, true, true, r1.commit.body.exportId])
+  imagesRows[0].edit_version = 3
+  const s3 = await quiet(() => call({ action: 'work_save', projectId: PID }))
+  const st3 = await call({ action: 'export_render_status', projectId: PID })
+  eq('사진을 고친 뒤 [작업 저장] → 시각 갱신 · 확인하면 최신 아님', [s3.body.changed, projects[0].last_exported_at !== savedAt, st3.body.fresh], [true, true, false])
+  const badCk = await call({ action: 'export_file_confirm', exportId: r1.commit.body.exportId, key: '01', path: exportsRows[0].files[0].path, name: '후드티_01.jpg', contentKey: '../x' })
+  eq('이상한 열쇠 → 400', [badCk.code, badCk.body.code], [400, 'invalid_input'])
+
+  // 만들다 멈춤: 파일이 덜 든 [작업 저장] 줄 — 그만두기(export_discard)로 지움 · 카드는 못 지움 · 확정도 못 함
+  const b2 = await call({ action: 'export_begin', projectId: PID, title: '후드티', format: 'jpg', scale: 1, mode: 'sections', count: 2, source: 'save' })
+  const pp = await call({ action: 'export_file_prepare', exportId: b2.body.exportId, key: '01', size: 23 })
+  files.set(pp.body.path, jpg(780, 900))
+  await call({ action: 'export_file_confirm', exportId: b2.body.exportId, key: '01', path: pp.body.path, name: '후드티_01.jpg', contentKey: key() })
+  const c2 = await quiet(() => call({ action: 'export_save_commit', exportId: b2.body.exportId }))
+  eq('덜 든 줄은 확정 못 함 → not_uploaded', [c2.code, c2.body.code], [400, 'not_uploaded'])
+  const st4 = await call({ action: 'export_render_status', projectId: PID })
+  eq('만드는 중(30분 안) 줄은 그대로 두고 카드는 예전 것', [st4.body.cardId, exportsRows.length], [r1.commit.body.exportId, 2])
+  const dc = await call({ action: 'export_discard', exportId: r1.commit.body.exportId })
+  eq('카드는 지울 수 없음', [dc.code, exportsRows.length], [400, 2])
+  const d2 = await call({ action: 'export_discard', exportId: b2.body.exportId })
+  eq('덜 든 줄 지우기 → 줄·파일 없어짐', [d2.code, exportsRows.length, files.has(pp.body.path)], [200, 1, false])
+  // 30분 지난 덜 든 줄은 확인 때 서버가 치운다
+  const b3 = await call({ action: 'export_begin', projectId: PID, title: '후드티', format: 'jpg', scale: 1, mode: 'sections', count: 2, source: 'save' })
+  exportsRows.find(r => r.id === b3.body.exportId).created_at = new Date(Date.now() - 31 * 60 * 1000).toISOString()
+  await quiet(() => call({ action: 'export_render_status', projectId: PID }))
+  eq('30분 지난 덜 든 줄 → 확인 때 정리', exportsRows.some(r => r.id === b3.body.exportId), false)
+  // 다시 만들기 → 같은 카드 id에 새 결과물
+  const r2 = await render([1200], key())
+  const st5 = await call({ action: 'export_render_status', projectId: PID })
+  eq('다시 만들면 카드 id 그대로 · 최신', [r2.commit.body.exportId, r2.commit.body.updated, st5.body.fresh, st5.body.count], [r1.commit.body.exportId, true, true, 1])
+  eq('남의 작업 [작업 저장] → 404', (await call({ action: 'work_save', projectId: '33333333-3333-4333-8333-333333333333' })).code, 404)
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

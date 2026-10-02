@@ -95,6 +95,11 @@
  * POST { action:'export_file_confirm', exportId, key, path, name } → { ok:true, saved }  서버가 형식·크기를 읽어 확인 후 files(또는 thumb_path)에 기록
  * POST { action:'exports_list', perProject? } → { ready, items }  (perProject = [내 상품] 목록 — 작업마다 한 줄 + exportIds·source)   /   POST { action:'export_download', exportId } → { files:[{ name, url, bytes }] } (서명 주소 10분)
  * 에러: invalid_input·export_too_large·export_invalid·not_uploaded 400 / not_found 404 / export_sql_missing 503(표 없음) / sign_failed·storage_error 500
+ * ── [작업 저장] = 작업 내용만 (2026-10-02) ── 상세 이미지는 필요할 때 만든다 (브라우저 src/lib/studioProductImages.js)
+ * POST { action:'work_save', projectId } → { savedAt, changed, contentKey, cardId, fresh }   (저장한 시각 = studio_projects.last_exported_at)
+ * POST { action:'export_render_status', projectId | exportId } → { projectId, contentKey, cardId, fresh, count }
+ * POST { action:'export_discard', exportId } → { ok }   (만들다 그만둔 [작업 저장] 줄만)
+ *   export_file_confirm에 contentKey(만든 때의 내용 열쇠 — _studioContentKey.js)를 주면 files 항목에 ck로 적는다
  *
  * ── 사용 자격 (2026-09-28) ── POST { action:'access' } → { ok:true, staff, mode }. 관문(api/_studio.js studioGuard)이 all 모드에서
  *   관리자·스태프 또는 결제 확인 이후 주문 1건 이상인지 본다 — 아니면 403 not_customer (모든 스튜디오 API 같음)
@@ -128,6 +133,7 @@ import {
   exportStamp, exportFolder, cleanExportName, upsertExportFile, exportsTableReady,
   EXPORT_SOURCES, SAVE_CLEANUP_HOLD_MS, isSourceColumnMissing, savePatchFrom, currentExportsByProject, PRODUCT_EXPORTS_MAX,
 } from './_studioExports.js'
+import { CONTENT_KEY_RE, contentKeyOf, filesContentKey, isCompleteExport } from './_studioContentKey.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
 
@@ -1258,6 +1264,9 @@ async function exportFileConfirm(ctx, body, res) {
   if (!t || String(body.path ?? '') !== t.path) return sendError(res, 400, 'invalid_input', '경로가 올바르지 않습니다.')
   const name = key === 'thumb' ? 'thumb.jpg' : cleanExportName(body.name, ex.format)
   if (!name) return sendError(res, 400, 'invalid_input', '파일 이름이 올바르지 않습니다.')
+  // 어떤 작업 내용으로 만든 장인지 (2026-10-02 — _studioContentKey.js). 없으면 적지 않는다([다운로드]·예전 화면)
+  const ck = body.contentKey === undefined || body.contentKey === null ? null : String(body.contentKey)
+  if (ck !== null && !CONTENT_KEY_RE.test(ck)) return sendError(res, 400, 'invalid_input', 'contentKey 형식이 올바르지 않습니다.')
   let dl
   try {
     dl = await storageDownload(ctx.cfg, BUCKET, t.path)
@@ -1288,7 +1297,7 @@ async function exportFileConfirm(ctx, body, res) {
   }
   const patch = key === 'thumb'
     ? { thumb_path: t.path }
-    : { files: upsertExportFile(ex.files, { key, name, path: t.path, width: dims.width, height: dims.height, bytes: buf.length }) }
+    : { files: upsertExportFile(ex.files, { key, name, path: t.path, width: dims.width, height: dims.height, bytes: buf.length, ...(ck ? { ck } : {}) }) }
   await sb(ctx.cfg, `studio_exports?id=eq.${ex.id}&user_id=eq.${ctx.userId}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' })
   return res.status(200).json({ ok: true, saved: key === 'thumb' ? null : patch.files.length })
 }
@@ -1314,13 +1323,16 @@ async function exportSaveCommit(ctx, body, res) {
     fresh = Array.isArray(rows) ? rows[0] : null
     if (!fresh) return sendError(res, 404, 'not_found', '내 상품을 찾을 수 없습니다.')
     if (fresh.source !== 'save') return sendError(res, 400, 'invalid_input', '[작업 저장]으로 만든 기록이 아닙니다.')
-    if (!Array.isArray(fresh.files) || fresh.files.length === 0) return sendError(res, 400, 'not_uploaded', '저장된 파일이 없습니다.')
-    olds = await sb(ctx.cfg, `studio_exports?select=${EXPORT_SELECT}&project_id=eq.${fresh.project_id}&user_id=eq.${ctx.userId}&source=eq.save&id=neq.${fresh.id}&order=created_at.asc&limit=1`)
+    if (!isCompleteExport(fresh)) return sendError(res, 400, 'not_uploaded', '저장된 파일이 없습니다.')
+    olds = await sb(ctx.cfg, `studio_exports?select=${EXPORT_SELECT}&project_id=eq.${fresh.project_id}&user_id=eq.${ctx.userId}&source=eq.save&id=neq.${fresh.id}&order=created_at.asc&limit=20`)
   } catch (e) {
     if (isSourceColumnMissing(e)) return saveColumnMissing(res, 'export_save_commit', e)
     throw e
   }
-  const old = Array.isArray(olds) ? olds[0] : null
+  // 예전 저장 = 파일이 다 들어온 줄(내 상품 카드). 다 못 들어온 줄 = 뒤에서 만들다 멈춘 것 → 오래된 것만 치운다(지금 만드는 중일 수 있어서)
+  const others = Array.isArray(olds) ? olds : []
+  const old = others.find(isCompleteExport) || null
+  await dropStaleRenders(ctx, others.filter(r => !isCompleteExport(r)))
   if (!old) return res.status(200).json({ exportId: fresh.id, updated: false })
 
   // 방금 만든 기록을 지우고(같은 stamp가 두 줄이 될 수 없다) 예전 기록에 결과물을 옮긴다. 옮기기가 실패하면 방금 기록을 되살린다
@@ -1348,6 +1360,127 @@ async function exportSaveCommit(ctx, body, res) {
   }
   console.log(`[studio-upload] export_save_commit ${ctx.userId}: ${old.id} 갱신 (${fresh.files.length}장)`)
   return res.status(200).json({ exportId: old.id, updated: true })
+}
+
+// ── [작업 저장] = 작업 내용만 (2026-10-02) ─────────────────────────────────────
+// 예전 [작업 저장]은 상세 이미지를 그려 올린 뒤에 끝났다(11장 46초 · 19장 113초 — 대부분 업로드·확인).
+// 이제 [작업 저장]은 페이지(자동 저장 칸 page·page_version)를 마저 저장하고 "저장한 시각"만 남긴다. 상세 이미지는
+//   편집기가 열려 있으면 뒤에서 만들고(브라우저 src/lib/studioProductImages.js), 보내기·다시 받기 때 최신이 아니면 그때 만든다.
+// 저장한 시각 = studio_projects.last_exported_at (예전부터 있던 칸 — 지금까지 쓰는 곳이 없었다. 서버만 쓴다)
+//   [내 상품] 만들기 상태: 이 값이나 결과물이 있으면 "보내기 전", 판매처에 보낸 뒤 이 값이 더 늦으면 "변경사항 미전송"
+// 상세 이미지가 최신인지 = 결과물 files의 ck(만든 때의 내용 열쇠)가 지금 내용 열쇠와 같은지 (_studioContentKey.js)
+const STALE_RENDER_MS = 30 * 60 * 1000 // 이보다 오래된 "다 못 들어온 [작업 저장] 줄" = 만들다 멈춘 것 (그보다 새 것은 지금 만드는 중일 수 있다)
+
+/** 그 작업의 지금 내용 열쇠 (DB 값 그대로 — 브라우저가 그릴 때 읽은 값과 같은 규칙) */
+async function projectContentKey(ctx, project) {
+  const imgs = await sb(ctx.cfg, `studio_images?select=id,edit_version&project_id=eq.${project.id}&user_id=eq.${ctx.userId}`)
+  return contentKeyOf(project.page_version, Array.isArray(imgs) ? imgs : [])
+}
+
+/** 그 작업의 [작업 저장] 줄 전부 → { card(파일이 다 든 것 중 가장 오래된 = 내 상품 카드), partial(다 못 든 것) } */
+async function saveRowsOf(ctx, projectId) {
+  const rows = await sb(ctx.cfg, `studio_exports?select=${EXPORT_SELECT},source&project_id=eq.${projectId}&user_id=eq.${ctx.userId}&source=eq.save&order=created_at.asc&limit=20`)
+  const list = Array.isArray(rows) ? rows : []
+  return { card: list.find(isCompleteExport) || null, partial: list.filter(r => !isCompleteExport(r)) }
+}
+
+/** 만들다 멈춘 줄 치우기 — STALE_RENDER_MS보다 오래된 것만, 파일도 같이. 실패해도 저장·확인은 계속(원인은 남긴다) */
+async function dropStaleRenders(ctx, rows) {
+  const cut = Date.now() - STALE_RENDER_MS
+  for (const r of rows) {
+    if (new Date(r.created_at).getTime() > cut) continue
+    try {
+      await removeExportRow(ctx, r)
+      console.info(`[studio-upload] 만들다 멈춘 상세 이미지 줄 정리 ${r.id} (${Array.isArray(r.files) ? r.files.length : 0}/${r.file_count}장)`)
+    } catch (e) {
+      console.error(`[studio-upload] 만들다 멈춘 상세 이미지 줄 정리 실패 ${r.id}:`, e.message)
+    }
+  }
+}
+async function removeExportRow(ctx, r) {
+  const paths = [...(Array.isArray(r.files) ? r.files.map(f => f.path) : []), r.thumb_path].filter(p => typeof p === 'string' && p.startsWith(`${r.folder}/`))
+  if (paths.length) await storageRemove(ctx.cfg, BUCKET, paths)
+  await sb(ctx.cfg, `studio_exports?id=eq.${r.id}&user_id=eq.${ctx.userId}`, { method: 'DELETE', prefer: 'return=minimal' })
+}
+
+/**
+ * POST { action:'work_save', projectId } → { savedAt, changed, contentKey, cardId, fresh }
+ *   편집기가 페이지·사진 편집을 다 저장한 뒤 부른다. 내용이 내 상품 카드의 상세 이미지와 다르면(또는 카드가 없으면) 저장한 시각을 지금으로.
+ *   같으면(바뀐 것 없이 다시 누름) 시각을 그대로 둔다 — 판매처에 보낸 상품이 괜히 "변경사항 미전송"이 되지 않게.
+ */
+async function workSave(ctx, body, res) {
+  const project = await loadOwnedRow(ctx, 'studio_projects', String(body.projectId ?? ''), 'id,page_version,last_exported_at')
+  if (!project) return sendError(res, 404, 'not_found', '프로젝트를 찾을 수 없습니다.')
+  const contentKey = await projectContentKey(ctx, project)
+  let card = null
+  if (await exportsTableReady(ctx)) {
+    try {
+      card = (await saveRowsOf(ctx, project.id)).card
+    } catch (e) {
+      if (!isSourceColumnMissing(e)) throw e
+      console.error('[studio-upload] work_save: studio_exports.source 칸 없음(docs/sql/2026-09-28-studio-folders.sql) — 카드 없이 판단:', e.message)
+    }
+  }
+  const fresh = !!card && !!contentKey && filesContentKey(card) === contentKey
+  let savedAt = project.last_exported_at
+  if (!fresh || !savedAt) {
+    const rows = await sb(ctx.cfg, `studio_projects?id=eq.${project.id}&user_id=eq.${ctx.userId}&select=last_exported_at`, {
+      method: 'PATCH', body: { last_exported_at: new Date().toISOString() }, prefer: 'return=representation',
+    })
+    savedAt = Array.isArray(rows) && rows[0] ? rows[0].last_exported_at : null
+    if (!savedAt) throw new Error('studio_projects last_exported_at 갱신: 응답에 행이 없음')
+  }
+  console.log(`[studio-upload] work_save ${ctx.userId}: ${project.id} page_version ${project.page_version} · ${fresh ? '상세 이미지 최신 — 시각 그대로' : '저장 시각 갱신'}`)
+  return res.status(200).json({ savedAt, changed: !fresh, contentKey, cardId: card?.id || null, fresh })
+}
+
+/**
+ * POST { action:'export_render_status', projectId } | { exportId } → { projectId, contentKey, cardId, fresh, count }
+ *   보내기·다시 받기 전에 — 내 상품 카드의 상세 이미지가 지금 내용으로 만든 것인지. exportId만 오면 그 결과물의 작업으로 본다.
+ */
+async function exportRenderStatus(ctx, body, res) {
+  if (!(await exportTableGate(ctx, res))) return
+  let projectId = String(body.projectId ?? '')
+  if (!projectId) {
+    const ex = await loadOwnedExport(ctx, body, res)
+    if (!ex) return
+    projectId = ex.project_id
+  }
+  const project = await loadOwnedRow(ctx, 'studio_projects', projectId, 'id,page_version')
+  if (!project) return sendError(res, 404, 'not_found', '프로젝트를 찾을 수 없습니다.')
+  let rows
+  try {
+    rows = await saveRowsOf(ctx, project.id)
+  } catch (e) {
+    if (isSourceColumnMissing(e)) return saveColumnMissing(res, 'export_render_status', e)
+    throw e
+  }
+  await dropStaleRenders(ctx, rows.partial)
+  const contentKey = await projectContentKey(ctx, project)
+  const fresh = !!rows.card && !!contentKey && filesContentKey(rows.card) === contentKey
+  return res.status(200).json({ projectId: project.id, contentKey, cardId: rows.card?.id || null, fresh, count: rows.card ? rows.card.files.length : 0 })
+}
+
+/**
+ * POST { action:'export_discard', exportId } → { ok:true }
+ *   뒤에서 만들던 상세 이미지를 그만둘 때(새로 저장해 다시 만들기 등) — [작업 저장] 줄 중 파일이 다 못 들어온 것만 지운다(카드는 못 지운다)
+ */
+async function exportDiscard(ctx, body, res) {
+  if (!(await exportTableGate(ctx, res))) return
+  const id = String(body.exportId ?? '').trim().toLowerCase()
+  if (!UUID_RE.test(id)) return sendError(res, 400, 'invalid_input', 'exportId 형식이 올바르지 않습니다.')
+  let rows
+  try {
+    rows = await sb(ctx.cfg, `studio_exports?select=${EXPORT_SELECT},source&id=eq.${id}&user_id=eq.${ctx.userId}&limit=1`)
+  } catch (e) {
+    if (isSourceColumnMissing(e)) return saveColumnMissing(res, 'export_discard', e)
+    throw e
+  }
+  const r = Array.isArray(rows) ? rows[0] : null
+  if (!r) return res.status(200).json({ ok: true }) // 이미 없음 (다른 곳에서 정리됨)
+  if (r.source !== 'save' || isCompleteExport(r)) return sendError(res, 400, 'invalid_input', '만드는 중인 상세 이미지가 아닙니다.')
+  await removeExportRow(ctx, r)
+  return res.status(200).json({ ok: true })
 }
 
 /**
@@ -1484,7 +1617,10 @@ export default async function handler(req, res) {
     if (body.action === 'exports_list') return await exportsList(ctx, body, res)
     if (body.action === 'export_download') return await exportDownload(ctx, body, res)
     if (body.action === 'export_save_commit') return await exportSaveCommit(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'access'·'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'project_blank'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_local_prepare'·'bg_local_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download'·'export_save_commit' 중 하나여야 합니다.")
+    if (body.action === 'work_save') return await workSave(ctx, body, res)
+    if (body.action === 'export_render_status') return await exportRenderStatus(ctx, body, res)
+    if (body.action === 'export_discard') return await exportDiscard(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'access'·'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'project_blank'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_local_prepare'·'bg_local_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download'·'export_save_commit'·'work_save'·'export_render_status'·'export_discard' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')
