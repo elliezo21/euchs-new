@@ -21,14 +21,14 @@ const marketRank = key => { const i = MARKETS.findIndex(m => m.key === key); ret
  */
 export const marketFilterOptions = ({ admin = false } = {}) => marketsFor({ admin }).filter(m => m.connect !== 'planned').map(m => ({ key: m.key, name: m.name }))
 
-/** 상태 묶음 — 위 카드 4개(all·done·pending·failed) + 상태 고르기에만 있는 '전송 중'(sending)·'판매처에서 삭제됨'(deleted — 완료로 세지 않는다) */
+/** 상태 묶음 — 위 카드 4개(all·done·pending·failed) + 상태 고르기에만 있는 '전송 중'(sending)·'판매처에서 삭제됨'(deleted)·'판매처에서 판매 종료'(ended) — 둘 다 완료로 세지 않는다 */
 export const STATUS_GROUPS = [
   { key: 'all', label: '전체', statuses: null },
   { key: 'done', label: '등록·승인 완료', statuses: ['registered', 'approved'] },
   { key: 'pending', label: '승인 대기', statuses: ['approval_pending'] },
   { key: 'failed', label: '실패·반려', statuses: ['failed', 'rejected'] },
 ]
-export const STATUS_FILTERS = [...STATUS_GROUPS, { key: 'sending', label: '전송 중', statuses: ['sending'] }, { key: 'deleted', label: sendStatusLabel('deleted'), statuses: ['deleted'] }]
+export const STATUS_FILTERS = [...STATUS_GROUPS, { key: 'sending', label: '전송 중', statuses: ['sending'] }, { key: 'deleted', label: sendStatusLabel('deleted'), statuses: ['deleted'] }, { key: 'ended', label: sendStatusLabel('ended'), statuses: ['ended'] }]
 const statusesOf = key => STATUS_FILTERS.find(g => g.key === key)?.statuses || null
 
 export const PERIODS = [
@@ -48,7 +48,7 @@ export function chipTone(status) {
   if (status === 'registered' || status === 'approved') return 'ok'
   if (status === 'approval_pending' || status === 'sending') return 'wait'
   if (status === 'failed' || status === 'rejected') return 'bad'
-  if (status === 'deleted') return 'gone'
+  if (status === 'deleted' || status === 'ended') return 'gone' // ended = 판매처에서 판매 종료(2026-10-02) — 삭제됨과 같은 회색
   return ''
 }
 

@@ -28,7 +28,7 @@
  *                     항목 규칙은 api/_coupangFields.js (화면과 같은 파일)
  *                     → 대표 이미지 검사·저장 → marketplace_sends(sending) → 상품 생성(requested:true) → { sendId, sellerProductId, status }
  *   sends_list        → { sends:[…] }  (2026-10-02 100건 한도 없음 — LIST_PAGE씩 끝까지, 화면에 필요한 칸만 · request_json 원문 없음)
- *   sync              { since? } → 판매처 상태 확인 (판매처 공통 checkMarket — 쿠팡·스마트스토어, 조회만) → { errors, more, sends(more가 false일 때만) }
+ *   sync              { since? } → 판매처 상태 확인 (판매처 공통 checkMarket — 쿠팡·스마트스토어·11번가, 조회만) → { errors, more, sends(more가 false일 때만) }
  *                       since = 이번 확인을 시작한 시각 — 그 뒤에 확인한 기록은 건너뛴다(나눠 부를 때 다음 묶음으로). 규칙·근거 api/_marketStatus.js
  *   market_status     → { elevenst, smartstore, cafe24: { connected, account } }   (2026-09-30 — 카페24는 refresh 만료 7일 전이면 이때 갱신)
  *   connect_11st      { seller_login_id, api_key } → 중계 경유 출고지 조회로 키 확인(api/_elevenst.js) → 암호화 저장(쿠팡과 같은 표·방식) — 연결까지만
@@ -49,7 +49,7 @@
  *   smartstore_send   { exportId, productName, salePrice, stock, leafCategoryId, categoryName?, repImageId, fit?, display?('SUSPENSION' 기본|'ON'), delivery(+ shippingOverseas), afterService, origin, notice, customsTaxType?(해외 출고지면 필수) }
  *                     → 토큰 → marketplace_sends(smartstore, sending) → 이미지 업로드(대표 + 상세, 네이버 주소) → 상품 등록 → registered(원상품번호·채널상품번호) → { sendId, originProductNo, channelProductNo, status }
  *   다시 보내기 = 판매처에 있는 상품 수정 (2026-10-02 — 규칙·근거 api/_marketUpdate.js): send·smartstore_send·elevenst_send는 같은 내 상품·같은 판매처·같은 계정으로
- *     살아 있는 상품(등록 완료·승인 완료·승인 대기)이 있으면 새로 등록하지 않는다 — 쿠팡·스마트스토어 = 그 상품 수정(같은 기록, request_json.revisions) · 11번가 = 409 edit_in_market
+ *     살아 있는 상품(등록 완료·승인 완료·승인 대기)이 있으면 새로 등록하지 않는다 — 쿠팡·스마트스토어·11번가 = 그 상품 수정(같은 기록, request_json.revisions — 11번가는 2026-10-02 상품수정 PUT)
  *     응답에 updated:true(쿠팡은 way 'modify'|'price_stock'|'none'). send_prepare.existing = 판매처마다 이미 있는 상품
  * GET ?t={토큰}  (로그인 없음 — 쿠팡이 이미지를 내려받는 짧은 주소, _marketplaceCrypto 토큰 30분) → 파일 바이트 그대로 (302 아님)
  *
@@ -71,6 +71,7 @@ import { publishMarketImages, MarketImagesError } from './_marketImages.js'
 import {
   verifyElevenstKey, ElevenstError, elevenstCall, ELEVENST_PATHS, ELEVENST_CATEGORY_URL, decodeXmlBytes, normalizeElevenstCategories, normalizeElevenstAddresses,
   translateElevenstApi, buildElevenstProduct, elevenstDetailImageUrls, parseClientMessage, lastElevenstAddresses,
+  parseModifyMessage, parseSellerCodeProducts, elevenstSellerCode, isElevenstSellerCode,
 } from './_elevenst.js'
 import { pickElevenstAddress, ELEVENST_SEND_PUBLIC, feeHasBase, SETTLEMENT_ERROR_RE, SETTLEMENT_MESSAGE } from './_elevenstFields.js'
 import {
@@ -80,7 +81,7 @@ import {
 import { lastAddressesOf } from './_smartstoreFields.js'
 import {
   STATUS_CHECK_MARKETS, CHECK_STATUSES, CHECK_BATCH, SS_SINGLE_MAX, SS_SEARCH_PATH, ssOriginProductPath, smartstoreStatusOf, smartstoreSearchBody,
-  smartstoreSearchStatuses, isSsNotFound, STOP_CODES, DELETED, SS_STATUS_LABEL, checkSince, LIST_PAGE, LIST_PAGES_MAX,
+  smartstoreSearchStatuses, isSsNotFound, STOP_CODES, DELETED, SS_STATUS_LABEL, checkSince, LIST_PAGE, LIST_PAGES_MAX, NEW_CHECK_STATUSES, ELEVENST_LOOKUP_MAX, elevenstStatusOf, elevenstProductOf,
   COUPANG_SINGLE_MAX, SINGLE_CHECK_STATUSES, COUPANG_DELETED_PAGES_MAX, coupangDeletedQuery, coupangListPage, SS_ACCOUNT_PATH, smartstoreAccountOf, accountJudge,
 } from './_marketStatus.js'
 import {
@@ -90,7 +91,7 @@ import {
 import { lookupCachedTranslations } from './_translationCache.js'
 import {
   LIVE_SEND_STATUSES, UPDATE_MODES, updatePlan, coupangOwnerOf, smartstoreOwnerOf, isCoupangApproved, coupangContentKey, coupangPriceStockChanges, coupangPriceProblem,
-  coupangChangeOrder, coupangUpdateWay, mergeSmartstoreUpdate, SS_UPDATABLE_STATUS,
+  coupangChangeOrder, coupangUpdateWay, mergeSmartstoreUpdate, SS_UPDATABLE_STATUS, elevenstOwnerOf,
 } from './_marketUpdate.js'
 import crypto from 'crypto'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
@@ -781,7 +782,8 @@ async function findUpdateTarget(ctx, res, { market, exportId, account, owner }) 
   let skipped = 0
   for (const s of plan.candidates) {
     const r = await owner(s)
-    if (r.who === 'mine') {
+    // legacy = 판매처 조회 열쇠가 없는 예전 기록(11번가 판매자 상품코드 없음) — 확인 없이 수정을 시도하고, 판매처가 키로 주인을 확인해 거절하면 그 문구 그대로
+    if (r.who === 'mine' || r.who === 'legacy') {
       if (account && s.account !== account) await recordSendAccount(ctx, s.id, account) // 예전 기록 — 판매처 응답으로 이 계정 상품임을 확인했다
       return { mode: 'modify', target: s, current: r.current, extra: plan.candidates.length - 1 - skipped }
     }
@@ -819,8 +821,21 @@ async function smartstoreOwner(cred, s) {
     return { who, status: e.status === 429 ? 429 : 502, code: e.code, message: who === 'unknown' ? e.message : '', raw: e.raw }
   }
 }
+/**
+ * 11번가 판매자 상품코드 조회로 주인 확인 (근거 api/_marketUpdate.js elevenstOwnerOf). 코드가 없는 예전 기록 = 'legacy'(조회하지 않음)
+ */
+async function elevenstOwner(cred, s) {
+  const code = s.request_json?.summary?.sellerPrdCd
+  if (!isElevenstSellerCode(code)) return { who: 'legacy' }
+  try {
+    const xml = await elevenstCall(cred, { method: 'GET', path: ELEVENST_PATHS.sellerCode(code), translate: (st, t) => translateElevenstApi(st, t, '조회') })
+    return { who: elevenstOwnerOf({ ok: true, products: parseSellerCodeProducts(xml) }, s.seller_product_id, code) }
+  } catch (e) {
+    if (!(e instanceof ElevenstError)) throw e
+    return { who: 'unknown', status: e.status === 429 ? 429 : 502, code: e.code, message: e.message, raw: e.raw }
+  }
+}
 const sha16 = buf => crypto.createHash('sha256').update(buf).digest('hex').slice(0, 32)
-const EDIT_IN_MARKET_MESSAGE = no => `판매처에 등록된 상품이 있습니다(상품번호 ${no}). 판매처에서 직접 수정하세요.`
 
 /**
  * 스마트스토어 이미지 준비·업로드 — 대표(정사각형 JPG) + 내 상품 파일. 한 장이 중계 본문 제한을 넘으면 JPG 품질만 낮춘다.
@@ -1075,6 +1090,74 @@ function elevenstInput(body) {
     options: marketOptionsInput(body.options), // 옵션(싱글옵션)을 쓸 때만 화면이 보낸다 — 없으면 단일상품
   }
 }
+/**
+ * 11번가 이미지 준비 + 본문 — 등록·수정이 같이 쓴다
+ *   대표 이미지 = 우리 토큰 주소(11번가가 내려받아 복사 — 토큰은 기록 sendId의 request_json.files.rep를 읽는다)
+ *   상세 이미지 = 판매용 공개 창고(영구 주소). 11번가는 상세 HTML 안 이미지를 복사하지 않아 토큰 주소(30분)를 쓰면 깨진다. 하나라도 실패하면 멈춘다
+ * @returns {{ ok:true, built, files, publicImages } | { ok:false, status, code, message, extra? }}
+ */
+async function elevenstPrepare(ctx, { ex, rep, input, sendId, encKey, repName, sellerPrdCd, modify }) {
+  const repPath = `${ex.folder}/marketplace/${repName}`
+  try { await storageUpload(ctx.cfg, BUCKET, repPath, rep.buf, 'image/jpeg') } catch (e) {
+    console.error('[marketplace] 11번가 대표 이미지 저장 실패:', repPath, e.message)
+    return { ok: false, status: 500, code: 'storage_error', message: '대표 이미지를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.' }
+  }
+  const m = marketConfig()
+  const urlOf = key => `${m.publicUrl}/api/marketplace?t=${makeImageToken(encKey, sendId, key)}`
+  const files = { rep: repPath, ...Object.fromEntries(ex.files.map(f => [f.key, f.path])) }
+  let published
+  try { published = await publishMarketImages(ctx.cfg, { sourceBucket: BUCKET, files: ex.files }) } catch (e) {
+    if (!(e instanceof MarketImagesError)) throw e
+    console.error(`[marketplace] 11번가 상세 이미지 공개 창고 복사 실패 send=${sendId}:`, e.message, e.cause?.message ?? '', e.leftover.length ? `남은 경로 ${e.leftover.join(',')}` : '')
+    return { ok: false, status: 500, code: 'market_images_failed', message: `상세 이미지를 올리지 못해 보내기를 멈췄습니다. (${e.message}) 잠시 후 다시 시도해 주세요.`, extra: { result_json: { step: 'images', message: e.message, leftover: e.leftover } } }
+  }
+  const publicImages = { bucket: published.bucket, folder: published.folder, paths: published.paths }
+  const built = buildElevenstProduct({ ...input, repUrl: urlOf('rep'), detailUrls: elevenstDetailImageUrls({ files: ex.files, urlOf: key => published.urls[key] }), sellerPrdCd, modify })
+  if (!built.ok) return { ok: false, status: 400, code: 'invalid_input', message: built.message, extra: { request_json: { files, publicImages } } }
+  return { ok: true, built, files, publicImages }
+}
+/**
+ * 11번가 다시 보내기 = 상품수정 PUT (2026-10-02 — 근거 api/_marketUpdate.js 머리 주석). 새 기록·새 상품을 만들지 않는다. 같은 기록에 회차 이력(request_json.revisions)
+ *   본문 = 등록과 같은 함수(buildElevenstProduct)로 만든 Product XML 전체 + cuponcheck=S · 판매자 상품코드 = 기록에 있던 코드(없던 예전 기록이면 이번에 넣는다)
+ *   11번가가 대표 이미지를 내려받을 때 이 기록의 files.rep를 읽으므로 PUT 전에 request_json을 새 값으로 저장하고, 실패하면 예전 값으로 되돌린다
+ */
+async function elevenstUpdate(ctx, res, { cred, input, ex, rep, body, found, encKey }) {
+  const t = found.target
+  const prdNo = String(t.seller_product_id)
+  const revisions = revisionsOf(t)
+  const n = revisions.length + 1
+  const before = t.request_json || {}
+  const code = isElevenstSellerCode(before.summary?.sellerPrdCd) ? before.summary.sellerPrdCd : elevenstSellerCode(ex.id)
+  const prep = await elevenstPrepare(ctx, { ex, rep, input, sendId: t.id, encKey, repName: `${t.id}_rep_r${n}.jpg`, sellerPrdCd: code, modify: true })
+  if (!prep.ok) return sendError(res, prep.status, prep.code, prep.message)
+  const categoryName = typeof body.categoryName === 'string' ? body.categoryName.slice(0, 300) : (before.categoryName ?? null)
+  const next = { ...before, summary: prep.built.summary, xml: prep.built.xml, files: prep.files, publicImages: prep.publicImages, categoryName }
+  const patchRequest = rj => sb(ctx.cfg, `marketplace_sends?id=eq.${t.id}&user_id=eq.${ctx.userId}`, { method: 'PATCH', prefer: 'return=minimal', body: { request_json: rj } })
+  await patchRequest(next)
+  const restore = () => patchRequest(before).catch(e => console.error('[marketplace] 11번가 수정 실패 뒤 기록 되돌리기도 실패:', t.id, e.message))
+  let xml
+  try {
+    xml = await elevenstCall(cred, { method: 'PUT', path: ELEVENST_PATHS.modify(prdNo), body: prep.built.buf, contentType: 'text/xml', translate: (s, tx) => translateElevenstApi(s, tx, '수정') })
+  } catch (e) {
+    if (!(e instanceof ElevenstError)) throw e
+    await restore()
+    if (NOT_READY_CODES.includes(e.code)) console.error(`[marketplace] 11번가 수정 중계 문제 ${e.code} (HTTP ${e.status}): ${e.raw}`)
+    else console.warn(`[marketplace] 11번가 수정 실패 ${e.code} (HTTP ${e.status}) send=${t.id} prdNo=${prdNo}: ${e.raw}`)
+    return sendError(res, e.status === 429 ? 429 : 502, e.code, e.message)
+  }
+  const cm = parseModifyMessage(xml, prdNo)
+  if (!cm.ok) {
+    await restore()
+    console.warn(`[marketplace] 11번가 수정 응답이 성공 아님 send=${t.id} prdNo=${prdNo} 응답 상품번호=${cm.productNo}: code=${cm.code} ${String(xml).slice(0, 300)}`)
+    const settle = SETTLEMENT_ERROR_RE.test(cm.message)
+    const message = settle ? SETTLEMENT_MESSAGE : cm.message ? `판매처에서 수정을 거절했습니다: ${cm.message.slice(0, 500)}` : '판매처가 수정 결과를 주지 않았습니다. 셀러오피스에서 상품을 확인하세요.'
+    return sendError(res, 502, settle ? 'settlement_unverified' : 'market_rejected', message)
+  }
+  const rev = { n, at: new Date().toISOString(), via: 'modify', previousStatus: t.market_status || null, sellerPrdCd: code }
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${t.id}&user_id=eq.${ctx.userId}`, { method: 'PATCH', prefer: 'return=minimal', body: { request_json: { ...next, revisions: [...revisions, rev] }, result_json: { ...(t.result_json || {}), productNo: prdNo, resultCode: cm.code, message: cm.message, step: 'update' } } })
+  console.info(`[marketplace] 11번가 상품 수정 ${ctx.userId} send=${t.id} prdNo=${prdNo} 회차=${n} 코드=${code === before.summary?.sellerPrdCd ? '기존' : '새로 넣음'} 더 있는 상품=${found.extra}`)
+  return res.status(200).json({ sendId: t.id, productNo: prdNo, sellerProductId: prdNo, status: t.status, updated: true, revision: n, extra: found.extra, stopped: false, stopError: '' })
+}
 async function elevenstSend(ctx, body, res) {
   const ex = await loadOwnedExport(ctx, body, res)
   if (!ex) return
@@ -1084,19 +1167,17 @@ async function elevenstSend(ctx, body, res) {
   if (!pre.ok) return sendError(res, 400, 'invalid_input', pre.message)
   if (ex.files.length > DETAIL_IMAGE_MAX) return sendError(res, 400, 'invalid_input', `상세 이미지는 ${DETAIL_IMAGE_MAX}장까지 보낼 수 있습니다.`)
   const testStop = body.testStop === true && ctx.isAdmin === true // 등록 직후 판매중지 — 관리자·스태프 테스트용만 (고객이 보내도 무시)
-  // 다시 보내기 — 11번가 상품 수정 API 근거가 없어(api/_marketUpdate.js) 수정하지 않는다. 이미 등록된 상품이 있으면 새로 등록하지 않고 막는다
-  const found = await findUpdateTarget(ctx, res, { market: ELEVENST, exportId: ex.id, account: null })
-  if (!found) return
-  if (found.mode === 'manual') {
-    console.info(`[marketplace] 11번가 이미 등록된 상품 — 새로 등록하지 않음 ${ctx.userId} send=${found.target.id} prdNo=${found.target.seller_product_id}`)
-    return sendError(res, 409, 'edit_in_market', EDIT_IN_MARKET_MESSAGE(found.target.seller_product_id))
-  }
   const rep = await squareFromImage(ctx, ex, body.repImageId, body.fit)
   if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)
   if (await sendInProgress(ctx, ex.id, ELEVENST)) return sendError(res, 409, 'send_in_progress', SEND_IN_PROGRESS_MESSAGE)
   const cred = await elevenstCredentials(ctx, res)
   if (!cred) return
   const encKey = loadEncKey()
+  // 다시 보내기 (2026-10-02) — 이 키(계정)에 살아 있는 같은 상품이 있으면 새로 등록하지 않고 그 상품을 수정한다 (판매자 상품코드 조회 → 상품수정 PUT, 근거 api/_marketUpdate.js)
+  // 11번가는 계정 식별값을 기록하지 않는다(account null) — 주인은 이 키로 한 조회 결과(우리 상품번호가 있는지)로 확인한다
+  const found = await findUpdateTarget(ctx, res, { market: ELEVENST, exportId: ex.id, account: null, owner: s => elevenstOwner(cred, s) })
+  if (!found) return
+  if (found.mode === 'modify') return await elevenstUpdate(ctx, res, { cred, input, ex, rep, body, found, encKey })
 
   let created
   try {
@@ -1115,27 +1196,10 @@ async function elevenstSend(ctx, body, res) {
     return sendError(res, status, code, message)
   }
 
-  // ① 대표 이미지 저장 + 이미지 주소(토큰 — 11번가가 등록할 때 내려받는다)
-  const repPath = `${ex.folder}/marketplace/${sendId}_rep.jpg`
-  try { await storageUpload(ctx.cfg, BUCKET, repPath, rep.buf, 'image/jpeg') } catch (e) {
-    console.error('[marketplace] 11번가 대표 이미지 저장 실패:', repPath, e.message)
-    return fail(500, 'storage_error', '대표 이미지를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
-  }
-  const m = marketConfig()
-  const urlOf = key => `${m.publicUrl}/api/marketplace?t=${makeImageToken(encKey, sendId, key)}`
-  const files = { rep: repPath, ...Object.fromEntries(ex.files.map(f => [f.key, f.path])) }
-  // ② 상세 이미지 → 판매용 공개 창고(영구 주소). 11번가는 상세 HTML 안 이미지를 복사하지 않아 토큰 주소(30분)를 쓰면 깨진다.
-  //    하나라도 실패하면 토큰 주소로 바꾸지 않고 멈춘다
-  let published
-  try { published = await publishMarketImages(ctx.cfg, { sourceBucket: BUCKET, files: ex.files }) } catch (e) {
-    if (!(e instanceof MarketImagesError)) throw e
-    console.error(`[marketplace] 11번가 상세 이미지 공개 창고 복사 실패 send=${sendId}:`, e.message, e.cause?.message ?? '', e.leftover.length ? `남은 경로 ${e.leftover.join(',')}` : '')
-    return fail(500, 'market_images_failed', `상세 이미지를 올리지 못해 보내기를 멈췄습니다. (${e.message}) 잠시 후 다시 시도해 주세요.`, { result_json: { step: 'images', message: e.message, leftover: e.leftover } })
-  }
-  const publicImages = { bucket: published.bucket, folder: published.folder, paths: published.paths }
-  // ③ 등록 본문 — 대표 이미지는 11번가가 내려받아 복사하므로 토큰 주소 그대로
-  const built = buildElevenstProduct({ ...input, repUrl: urlOf('rep'), detailUrls: elevenstDetailImageUrls({ files: ex.files, urlOf: key => published.urls[key] }) })
-  if (!built.ok) return fail(400, 'invalid_input', built.message, { request_json: { files, publicImages } })
+  // ①②③ 대표 이미지(토큰 주소)·상세 이미지(공개 창고 영구 주소)·등록 본문 — 수정과 같은 함수. 판매자 상품코드 = 내 상품 id (상태 조회 열쇠, 2026-10-02)
+  const prep = await elevenstPrepare(ctx, { ex, rep, input, sendId, encKey, repName: `${sendId}_rep.jpg`, sellerPrdCd: elevenstSellerCode(ex.id), modify: false })
+  if (!prep.ok) return fail(prep.status, prep.code, prep.message, prep.extra)
+  const { built, files, publicImages } = prep
   const categoryName = typeof body.categoryName === 'string' ? body.categoryName.slice(0, 300) : null
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: { summary: built.summary, xml: built.xml, files, categoryName, publicImages } }, prefer: 'return=minimal' })
   // ④ 등록
@@ -1794,20 +1858,22 @@ async function resetSmartstoreAccountKey(ctx) {
 
 // ── 판매처 상태 확인 (2026-10-02) — 조회만. 판매처 공통 흐름 = sync → 판매처마다 checkMarket → CHECKERS[판매처] ──
 // 규칙·근거·한도는 api/_marketStatus.js. 확인 대상 = 판매처 상품번호가 있고 CHECK_STATUSES인 기록(같은 작업을 여러 번 보낸 옛 기록도 — 칩의 "N건"이 맞도록)
-const CHECK_SELECT = 'id,market,seller_product_id,status,market_status,market_account,reason,last_synced_at'
+// seller_code = 11번가 판매자 상품코드(2026-10-02 — 상태 조회 열쇠, 다른 판매처는 null)
+const CHECK_SELECT = 'id,market,seller_product_id,status,market_status,market_account,reason,last_synced_at,seller_code:request_json->summary->>sellerPrdCd'
 /** 연결 함수(withCredentials·smartstoreCredentials)는 실패하면 res에 오류를 보낸다 — 판매처마다 따로 확인할 때는 응답 대신 오류만 받는다 */
 function errorSink() {
   const sink = { error: null, code: 0, status(c) { sink.code = c; return sink }, json(b) { sink.error = { code: b?.code || 'unknown', message: b?.message || '' }; return sink } }
   return sink
 }
-/** 상태 저장 — 'deleted'가 DB check에 아직 없으면(SQL 실행 전) 상태는 그대로 두고 원문·확인 시각만 (원인 로그) */
+/** 상태 저장 — 새 상태('deleted'·'ended')가 DB check에 아직 없으면(SQL 실행 전) 상태는 그대로 두고 원문·확인 시각만 (원인 로그) */
 const isStatusCheckError = e => e?.status === 400 && /marketplace_sends_status_check|23514/.test(String(e?.message || ''))
+const STATUS_SQL = { deleted: 'docs/sql/2026-10-02-marketplace-sends-deleted.sql', ended: 'docs/sql/2026-10-02-marketplace-sends-ended.sql' }
 async function patchSend(ctx, id, patch) {
   try {
     await sb(ctx.cfg, `marketplace_sends?id=eq.${id}&user_id=eq.${ctx.userId}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' })
   } catch (e) {
-    if (patch.status !== DELETED || !isStatusCheckError(e)) throw e
-    console.error('[marketplace] 상태 deleted를 저장하지 못함 — docs/sql/2026-10-02-marketplace-sends-deleted.sql 실행 필요:', id, e.message)
+    if (!NEW_CHECK_STATUSES.includes(patch.status) || !isStatusCheckError(e)) throw e
+    console.error(`[marketplace] 상태 ${patch.status}를 저장하지 못함 — ${STATUS_SQL[patch.status]} 실행 필요:`, id, e.message)
     const { status, ...rest } = patch
     await sb(ctx.cfg, `marketplace_sends?id=eq.${id}&user_id=eq.${ctx.userId}`, { method: 'PATCH', body: rest, prefer: 'return=minimal' })
   }
@@ -1962,7 +2028,50 @@ async function checkSmartstore(ctx, rows, errors) {
   await touchSynced(ctx, quiet)
   return partial ? 'partial' : 'done'
 }
-const CHECKERS = { [MARKET]: checkCoupang, [SMARTSTORE]: checkSmartstore }
+/**
+ * 11번가 (2026-10-02) — 판매자 상품코드 조회(코드마다 1번, ELEVENST_LOOKUP_MAX까지). 근거·상태 표 api/_marketStatus.js
+ * 판정은 응답에 우리 상품번호(prdNo)가 있을 때만 — 코드가 없는 예전 기록·응답에 없는 상품·모르는 상태 값은 기록을 바꾸지 않는다(확인 시각만)
+ * 조회는 이 키로 부르므로 응답에 있는 상품 = 지금 연결된 계정의 상품 (계정 식별값은 기록하지 않는다 — 보고 참고)
+ * @returns {'done'|'partial'|'stopped'}
+ */
+async function checkElevenst(ctx, rows, errors) {
+  const sink = errorSink()
+  const cred = await elevenstCredentials(ctx, sink)
+  if (!cred) { errors.push({ market: ELEVENST, ...sink.error }); return 'stopped' }
+  const quiet = rows.filter(s => !isElevenstSellerCode(s.seller_code)).map(s => s.id)
+  const byCode = new Map()
+  for (const s of rows) if (isElevenstSellerCode(s.seller_code)) (byCode.get(s.seller_code) || byCode.set(s.seller_code, []).get(s.seller_code)).push(s)
+  const codes = [...byCode.keys()]
+  for (const code of codes.slice(0, ELEVENST_LOOKUP_MAX)) {
+    let products
+    try {
+      const xml = await elevenstCall(cred, { method: 'GET', path: ELEVENST_PATHS.sellerCode(code), translate: (st, t) => translateElevenstApi(st, t, '요청') })
+      products = parseSellerCodeProducts(xml)
+    } catch (e) {
+      if (!(e instanceof ElevenstError)) throw e
+      console.warn('[marketplace] 11번가 상태 조회 실패:', code, e.code, e.status, e.raw)
+      errors.push({ market: ELEVENST, id: byCode.get(code)[0].id, code: e.code, message: e.message })
+      if (STOP_CODES.includes(e.code)) { await touchSynced(ctx, quiet); return 'stopped' }
+      quiet.push(...byCode.get(code).map(s => s.id))
+      continue
+    }
+    for (const s of byCode.get(code)) {
+      const hit = elevenstProductOf(products, s.seller_product_id)
+      const next = hit ? elevenstStatusOf(hit.selStatCd, hit.selStatNm) : null
+      if (!next) {
+        if (!hit) console.info('[marketplace] 11번가 조회 결과에 우리 상품번호 없음 (판정 안 함):', s.seller_product_id, code, `받은 상품 ${products.length}개`)
+        else console.warn('[marketplace] 11번가 상태 값을 모름 (기록 그대로):', s.seller_product_id, hit.selStatCd)
+        quiet.push(s.id)
+        continue
+      }
+      if (next.status === s.status && next.raw === s.market_status) quiet.push(s.id)
+      else await patchSend(ctx, s.id, { status: next.status, market_status: next.raw, last_synced_at: new Date().toISOString() })
+    }
+  }
+  await touchSynced(ctx, quiet)
+  return codes.length > ELEVENST_LOOKUP_MAX ? 'partial' : 'done'
+}
+const CHECKERS = { [MARKET]: checkCoupang, [SMARTSTORE]: checkSmartstore, [ELEVENST]: checkElevenst }
 async function checkMarket(ctx, market, since, errors) {
   const batch = CHECK_BATCH[market]
   const or = encodeURIComponent(`(last_synced_at.is.null,last_synced_at.lt."${since}")`)

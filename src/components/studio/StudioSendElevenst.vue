@@ -264,7 +264,7 @@
       </div>
     </section>
 
-    <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-11st-done>등록되었습니다. 상품번호 {{ done.productNo }}<template v-if="done.stopped"> · 판매중지</template></p>
+    <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-11st-done>{{ done.updated ? '판매처에 있는 상품을 수정했습니다.' : '등록되었습니다.' }} 상품번호 {{ done.productNo }}<template v-if="done.stopped"> · 판매중지</template></p>
     <p v-if="done?.stopError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-11st-stop-error>{{ done.stopError }}</p>
   </div>
 </template>

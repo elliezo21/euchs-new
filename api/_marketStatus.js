@@ -18,18 +18,50 @@
  *              검색 결과에 없는 상품 = GET /external/v2/products/origin-products/{originProductNo} (read-origin-product-product) — 404 code NOT_FOUND "데이터 없음" 또는 statusType DELETE = 삭제
  *              호출 한도: 문서 "제약 사항" — API·애플리케이션 단위 토큰 버킷, 숫자는 유동적(응답 헤더 GNCP-GW-RateLimit-*), 넘으면 429 GW.RATE_LIMIT
  *              (문서 위치 apicenter.commerce.naver.com/docs/commerce-api/current/search-product · read-origin-product-product · /docs/restriction)
- * [확인 못 함 — 넣지 않음] 11번가: 상품 상태 조회 API 문서(openapi.11st.co.kr)가 로그인 뒤에만 열려 이 작업에서 확인하지 못했다
- *                         카페24: 조회 API를 이 작업에서 확인하지 않았다 (고객에게 숨긴 판매처)
+ *   11번가    GET /rest/prodmarketservice/sellerprodcode/{sellerPrdCd} (판매자상품코드로 조회 — 응답 prdNo·selStatCd·selStatNm)
+ *              (11번가 OPEN API 개발가이드 — 해성 계정으로 채팅 Claude가 2026-10-02 열람. 여러 개 조회 POST …/prodmarketservice/prodmarket는 일 500개 한도라 쓰지 않는다)
+ *              selStatCd: 101 승인대기 · 102 승인전 · 103 판매중 · 104 품절 · 105 전시중지 · 106 판매정상종료 · 108 판매금지
+ *              판정은 응답 prdNo가 우리 기록의 상품번호와 같을 때만 (판매자 상품코드는 중복 가능). 코드가 없는 예전 기록·응답에 없는 상품은 판정하지 않는다
+ *              호출 한도: 문서에서 숫자를 확인하지 못함 → 한 번 요청에 서로 다른 코드 ELEVENST_LOOKUP_MAX개까지 (같은 breakerFor)
+ * [확인 못 함 — 넣지 않음] 카페24: 조회 API를 이 작업에서 확인하지 않았다 (고객에게 숨긴 판매처)
  */
 
 /** 상태를 자동으로 확인하는 판매처 — 공식 문서로 조회 API를 확인한 곳만. 화면은 이 목록에 없는 판매처 칩에 "지원하지 않습니다" 안내 */
-export const STATUS_CHECK_MARKETS = ['coupang', 'smartstore']
-/** 확인할 기록 상태 — 살아 있거나 판매처에서 진행 중인 것. 실패(failed)·삭제됨(deleted)은 다시 보지 않는다 */
+export const STATUS_CHECK_MARKETS = ['coupang', 'smartstore', '11st']
+/** 확인할 기록 상태 — 살아 있거나 판매처에서 진행 중인 것. 실패(failed)·삭제됨(deleted)·판매 종료(ended)는 다시 보지 않는다 */
 export const CHECK_STATUSES = ['registered', 'approved', 'approval_pending', 'sending', 'rejected']
 /** 판매처에서 지워진 상품 — 새 상태 값 (DB check·칸 이름은 docs/sql/2026-10-02-marketplace-sends-deleted.sql) */
 export const DELETED = 'deleted'
-/** 한 번 요청에 판매처마다 꺼내 볼 기록 수 — 쿠팡 = 승인 완료는 삭제 목록 훑기로 한꺼번에(하나씩 조회는 COUPANG_SINGLE_MAX까지) · 스마트스토어 = 목록 조회 1번(문서 최대 500) */
-export const CHECK_BATCH = { coupang: 500, smartstore: 500 }
+/**
+ * 판매처에서 판매가 끝난 상품(지워지지는 않음) — 11번가 106 판매정상종료·108 판매금지 (2026-10-02 새 상태 값 — DB check는 docs/sql/2026-10-02-marketplace-sends-ended.sql)
+ * 살아 있는 상품이 아니다 → 다시 보내면 새로 등록한다(api/_marketUpdate.js LIVE_SEND_STATUSES에 없음)
+ */
+export const ENDED = 'ended'
+/** 상태 확인으로 새로 쓰는 값 — SQL 실행 전이면 DB check가 거절한다(상태는 두고 원문·확인 시각만 저장) */
+export const NEW_CHECK_STATUSES = [DELETED, ENDED]
+/** 한 번 요청에 판매처마다 꺼내 볼 기록 수 — 쿠팡 = 승인 완료는 삭제 목록 훑기로 한꺼번에(하나씩 조회는 COUPANG_SINGLE_MAX까지) · 스마트스토어 = 목록 조회 1번(문서 최대 500) · 11번가 = 코드마다 1번 */
+export const CHECK_BATCH = { coupang: 500, smartstore: 500, '11st': 30 }
+/** 11번가 — 한 번 요청에 부르는 서로 다른 판매자 상품코드 수 (넘으면 다음 요청에서) */
+export const ELEVENST_LOOKUP_MAX = 30
+/** 11번가 selStatCd → 화면 원문 (문서 표 그대로) */
+export const ELEVENST_STATUS_LABEL = { 101: '승인대기', 102: '승인전', 103: '판매중', 104: '품절', 105: '전시중지', 106: '판매정상종료', 108: '판매금지' }
+/**
+ * 11번가 selStatCd → 우리 기록 { status, raw } (raw = 응답 selStatNm, 없으면 위 표). 모르는 값 = null(기록을 바꾸지 않음)
+ * 103 판매중 · 104 품절 · 105 전시중지 = 등록 완료(상품이 살아 있음 — 원문은 market_status) · 101·102 = 승인 대기 · 106·108 = 판매 종료(살아 있지 않음)
+ */
+export function elevenstStatusOf(selStatCd, selStatNm = '') {
+  const code = String(selStatCd ?? '').trim()
+  if (!(code in ELEVENST_STATUS_LABEL)) return null
+  const raw = (String(selStatNm || '').trim() || ELEVENST_STATUS_LABEL[code]).slice(0, 40)
+  if (code === '101' || code === '102') return { status: 'approval_pending', raw }
+  if (code === '106' || code === '108') return { status: ENDED, raw }
+  return { status: 'registered', raw }
+}
+/**
+ * 11번가 조회 결과에서 우리 기록의 상품 찾기 — 상품번호가 같은 것만 (판매자 상품코드는 중복 가능)
+ * @param {{ prdNo, selStatCd, selStatNm }[]} products parseSellerCodeProducts 결과 · @returns {object|null}
+ */
+export const elevenstProductOf = (products, prdNo) => (Array.isArray(products) ? products : []).find(p => String(p?.prdNo) === String(prdNo ?? '')) || null
 /** 쿠팡에서 하나씩 조회하는 기록(승인 대기·전송 중·반려) — 한 번 요청에 최대 (예전 SYNC_MAX 그대로) */
 export const COUPANG_SINGLE_MAX = 30
 /** 하나씩 조회하는 상태 · 삭제 목록으로 확인하는 상태(살아 있는 상품) */
@@ -103,7 +135,7 @@ export function smartstoreSearchStatuses(json) {
 export const isSsNotFound = (status, raw) => status === 404 && /"code"\s*:\s*"NOT_FOUND"/.test(String(raw || ''))
 
 /** 쿠팡 전체·판매처 전체를 멈추는 오류 — 이 판매처는 이번 확인을 그만둔다 (기록마다 오류와 구분) */
-export const STOP_CODES = ['breaker_open', 'rate_limited', 'access_denied', 'relay_not_configured', 'relay_unreachable', 'relay_denied', 'ip_not_allowed', 'bad_key', 'token_invalid', 'not_connected', 'key_expired', 'decrypt_failed', 'enc_not_ready']
+export const STOP_CODES = ['breaker_open', 'rate_limited', 'access_denied', 'relay_not_configured', 'relay_unreachable', 'relay_denied', 'ip_not_allowed', 'bad_key', 'token_invalid', 'not_connected', 'key_expired', 'decrypt_failed', 'enc_not_ready', 'not_approved']
 
 /** sync 요청의 since(확인 시작 시각) — ISO 글자만, 앞으로의 시각은 지금으로 */
 export function checkSince(v, now = Date.now()) {

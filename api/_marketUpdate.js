@@ -26,14 +26,21 @@
  *                statusType "상품 수정 시에는 SALE(판매 중), SUSPENSION(판매 중지)만 입력할 수 있습니다 … 품절 상태의 상품을 판매 중으로 변경하는 경우,
  *                  StockQuantity(재고 수량)와 함께 statusType을 SALE(판매 중)로 입력해야 합니다."
  *                channelProductDisplayStatusType "ON, SUSPENSION만 입력 가능합니다." · 응답 { originProductNo, smartstoreChannelProductNo }
- *   11번가     상품 수정 API의 근거(문서 위치·칸)가 저장소·docs에 없다 (문서가 로그인 뒤에만 열림) → 수정하지 않는다.
- *              이미 등록된 상품이 있으면 새로 등록하지 않고 "판매처에서 직접 수정" 안내 + 보내기를 막는다 (mode 'manual')
+ *   11번가     상품수정 PUT http://api.11st.co.kr/rest/prodservices/product/{prdNo} · 헤더 openapikey · 본문 = 등록과 같은 Product XML 전체(EUC-KR)
+ *              (11번가 OPEN API 개발가이드 — 해성 계정으로 채팅 Claude가 2026-10-02 열람)
+ *                "기존 데이터는 사라지고 수정되는 정보로 교체" = 전체 덮어쓰기 → 등록 XML을 만드는 함수(buildElevenstProduct) 그대로 전체를 보낸다
+ *                기본즉시할인 cuponcheck=S(기존값 유지)는 수정 때만 — 넣는다(우리가 할인 칸을 다루지 않으므로 판매자의 즉시할인을 지우지 않게)
+ *                출고지·반품지 주소코드(addrSeqOut·addrSeqIn)를 빼면 수정 시점 기본주소로 바뀜 → 늘 넣는다(등록 XML에 이미 있음)
+ *                판매가 수정은 최대 50% 인상·80% 인하 · 옵션가는 판매가의 +100%/−50%, 0원 옵션 1개 이상 (옵션 규칙은 _marketOptions.elevenstOptionProblems가 등록 때부터 검사)
+ *              주인 확인 = 판매자 상품코드 조회(GET …/prodmarketservice/sellerprodcode/{sellerPrdCd}) 응답에 우리 상품번호가 있으면 이 키(계정)의 상품
+ *                (elevenstOwnerOf — 106 판매정상종료·108 판매금지면 살아 있지 않음 → 새로 등록). 코드가 없는 예전 기록은 조회할 열쇠가 없어
+ *                확인 없이 수정을 시도한다(11번가가 키로 주인을 확인해 거절하면 그 문구 그대로) — 수정 XML에 코드를 넣으므로 그다음부터는 조회된다
  */
 
-/** 살아 있는 상품 = 등록 완료·승인 완료·승인 대기 (삭제됨·실패·반려·전송 중은 아님) */
+/** 살아 있는 상품 = 등록 완료·승인 완료·승인 대기 (삭제됨·판매 종료·실패·반려·전송 중은 아님) */
 export const LIVE_SEND_STATUSES = ['registered', 'approved', 'approval_pending']
-/** 판매처별 다시 보내기 방법 — 'modify' = 판매처에 있는 상품을 수정 · 'manual' = 수정 API 근거 없음(판매처에서 직접 수정, 보내기 막음). 없으면 예전처럼 새로 등록 */
-export const UPDATE_MODES = { coupang: 'modify', smartstore: 'modify', '11st': 'manual' }
+/** 판매처별 다시 보내기 방법 — 'modify' = 판매처에 있는 상품을 수정 · 'manual' = 수정 API 근거 없음(판매처에서 직접 수정, 보내기 막음 — 지금은 쓰는 판매처 없음). 없으면 예전처럼 새로 등록 */
+export const UPDATE_MODES = { coupang: 'modify', smartstore: 'modify', '11st': 'modify' }
 /** 수정하면 판매처 승인을 다시 받는 판매처 */
 export const REAPPROVAL_MARKETS = ['coupang']
 
@@ -87,6 +94,20 @@ export function smartstoreOwnerOf(r) {
   if (r?.ok) return r.json?.originProduct ? 'mine' : 'unknown'
   if (r?.status === 404 && /"code"\s*:\s*"NOT_FOUND"/.test(String(r?.raw || ''))) return 'none'
   return 'unknown'
+}
+
+/**
+ * 11번가 판매자 상품코드 조회 결과 → 주인 (위 머리 주석)
+ * @param {{ ok:boolean, products?:{ prdNo, selStatCd }[], code?:string }} r ok = 조회 성공(products = parseSellerCodeProducts 결과)
+ * @param {string} prdNo 우리 기록의 상품번호 · @param {string|null} sellerPrdCd 우리 기록의 판매자 상품코드(없으면 예전 기록)
+ * @returns {'mine'|'none'|'unknown'|'legacy'}  legacy = 코드 없는 예전 기록(확인 없이 수정 시도) · 'none' = 이 키로 조회되지 않거나 판매 종료(106·108)
+ */
+export function elevenstOwnerOf(r, prdNo, sellerPrdCd) {
+  if (!sellerPrdCd) return 'legacy'
+  if (!r?.ok) return 'unknown'
+  const hit = (Array.isArray(r.products) ? r.products : []).find(p => String(p?.prdNo) === String(prdNo ?? ''))
+  if (!hit) return 'none'
+  return ['106', '108'].includes(String(hit.selStatCd ?? '')) ? 'none' : 'mine'
 }
 
 // ── 쿠팡 ──

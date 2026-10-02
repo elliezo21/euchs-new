@@ -11,6 +11,8 @@
  *   등록  POST /rest/prodservices/product  헤더 openapikey · 본문 XML(<?xml version="1.0" encoding="EUC-KR"?>, Content-Type text/xml, EUC-KR 바이트) — 공식 예제
  *         성공 <ClientMessage><resultCode>200|210</resultCode><productNo>…</productNo><message>…</message> · 실패 resultCode 500 + message · 400 = 하루 500개 한도 초과
  *         인증 오류 <AuthMessage><resultCode>100|200|300</resultCode> (300 = Seller API 미승인)
+ *   수정  PUT /rest/prodservices/product/{prdNo} (2026-10-02 — 등록과 같은 XML 전체 + cuponcheck=S) · 상태 조회 GET /rest/prodmarketservice/sellerprodcode/{판매자 상품코드}
+ *         — 근거 api/_marketUpdate.js·_marketStatus.js 머리 주석
  *   대표 이미지(prdImage01) = 11번가가 내려받아 600×600으로 저장(문서 — Content-Type이 이미지여야 함, jpg·jpeg·png·webp)
  *   상세(htmlDetail) 안 이미지는 복사 여부가 문서에 없고 이미지 업로드 API도 없다
  *     → 2026-10-01 실전 등록에서 11번가가 상세 이미지를 복사하지 않고 우리 주소를 그대로 불러 쓰는 것을 확인
@@ -27,8 +29,24 @@ export const ELEVENST_PATHS = {
   outbound: '/rest/areaservice/outboundarea', // 출고지 주소 조회 (apiSeq 1014)
   inbound: '/rest/areaservice/inboundarea', // 반품/교환지 주소 조회 (apiSeq 1015)
   product: '/rest/prodservices/product', // 상품 등록 POST (apiSeq 1003)
+  // 상품 수정 PUT — 본문 = 등록과 같은 Product XML 전체(EUC-KR). "기존 데이터는 사라지고 수정되는 정보로 교체" = 전체 덮어쓰기
+  //   (11번가 OPEN API 개발가이드 상품수정 — 해성 계정으로 채팅 Claude가 2026-10-02 열람)
+  modify: prdNo => `/rest/prodservices/product/${prdNo}`,
+  // 판매자 상품코드로 상품 조회 GET — 응답 prdNo·selStatCd·selStatNm (같은 문서 묶음 2026-10-02 열람)
+  sellerCode: code => `/rest/prodmarketservice/sellerprodcode/${encodeURIComponent(code)}`,
   stopDisplay: prdNo => `/rest/prodstatservice/stat/stopdisplay/${prdNo}`, // 판매중지 PUT (apiSeq 1631)
 }
+/**
+ * 판매자 상품코드(sellerPrdCd) — 우리 기록과 잇는 값 = 내 상품 id(UUID)에서 하이픈만 뺀 32자(영문 소문자·숫자).
+ * 근거: 상품등록 문서 sellerPrdCd "판매자 상품코드 중복이 가능하며 본 코드값으로 11번가 상품 조회 등이 가능합니다. 필수값이 아니며 생략 가능합니다."
+ *   (npm @10xtf/11st-seller-mcp v0.0.12 스키마 설명 — 공식 문구와 같음). 길이·허용 문자 규칙은 문서에서 확인하지 못했다 → 영문·숫자 32자로 좁게 쓴다
+ * 같은 내 상품을 지우고 다시 등록하면 같은 코드가 둘 이상 생길 수 있다(중복 허용) → 판정은 늘 응답 prdNo가 우리 기록과 같을 때만
+ */
+export const elevenstSellerCode = exportId => {
+  const s = String(exportId || '').toLowerCase().replace(/-/g, '')
+  return /^[0-9a-f]{32}$/.test(s) ? s : null
+}
+export const isElevenstSellerCode = s => typeof s === 'string' && /^[0-9a-f]{32}$/.test(s)
 // 카테고리 전체 조회 (apiSeq 1001) — "API Key 값은 필요하지 않습니다"(문서) → 중계·키 없이 바로 부른다 (2026-10-01 실제 응답: EUC-KR XML 약 3MB)
 export const ELEVENST_CATEGORY_URL = 'https://api.11st.co.kr/rest/cateservice/category'
 const RELAY_TIMEOUT_MS = 25000
@@ -189,6 +207,33 @@ export function parseClientMessage(xml) {
   const ok = (code === '200' || code === '210') && /^\d{1,20}$/.test(String(productNo || ''))
   return { ok, code, productNo: ok ? productNo : null, message }
 }
+/**
+ * 수정 응답 <ClientMessage> → { ok, code, message }. 성공 코드는 등록과 같게 본다(200·210).
+ * 상품번호가 응답에 있으면 우리가 수정한 번호와 같아야 한다 (다르면 실패로 — 다른 상품이 바뀌었을 수 있으니 로그로 남긴다)
+ */
+export function parseModifyMessage(xml, prdNo) {
+  const code = xmlTag(xml, 'resultCode')
+  const productNo = xmlTag(xml, 'productNo')
+  const message = xmlTag(xml, 'message') || ''
+  const sameNo = !productNo || String(productNo) === String(prdNo)
+  return { ok: (code === '200' || code === '210') && sameNo, code, productNo: productNo || null, message, sameNo }
+}
+/**
+ * 판매자 상품코드 조회 응답 → [{ prdNo, selStatCd, selStatNm }] (상품번호가 숫자인 것만).
+ * 응답 XML 모양은 문서에서 칸 이름(prdNo·selStatCd·selStatNm)만 확인했다 — 상품 블록 이름을 모르므로:
+ *   prdNo가 하나면 응답 전체가 한 상품 · 여럿이면 prdNo부터 다음 prdNo 앞까지를 한 상품으로 본다
+ *   (상태 칸이 prdNo보다 앞에 오는 모양이면 상태를 못 읽는다 → selStatCd null → 판정하지 않는다. 운영 응답으로 확인 필요)
+ */
+export function parseSellerCodeProducts(xml) {
+  const text = String(xml || '')
+  const re = /<(?:\w+:)?prdNo>/g
+  const starts = []
+  let m
+  while ((m = re.exec(text))) starts.push(m.index)
+  const blocks = starts.length === 1 ? [text] : starts.map((at, i) => text.slice(at, starts[i + 1] ?? text.length))
+  return blocks.map(b => ({ prdNo: xmlTag(b, 'prdNo'), selStatCd: xmlTag(b, 'selStatCd'), selStatNm: xmlTag(b, 'selStatNm') }))
+    .filter(p => /^\d{1,20}$/.test(String(p.prdNo || '')))
+}
 
 /**
  * 상품 API 오류 → 고객 문구 (합니다체 — 스마트스토어와 같은 모양). null = 성공 모양(등록은 부르는 쪽이 parseClientMessage로 다시 본다)
@@ -241,7 +286,10 @@ const clean = (s, max) => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ')
  * @param {{ productName, brand?, categoryId, price, stock, repUrl, detailUrls:string[], vat:'01'|'02', minorOk?:boolean, origin:{ kind:'01'|'02'|'03', code? },
  *           kc:{ [group]: key }, kcCerts?:{ [group]: { type, key } }, delivery:{ feeType:'01'|'02'|'03', fee?, freeOver?(03), jejuFee, islandFee, returnFee, exchangeFee, outAddr, inAddr, sendCloseTmplt? },
  *           asDetail, rtngExchDetail, notice:{ type, maker, country, phone, items?:{ [code]: 값 } },
- *           options?:{ groupNames, rows:[{ values, addPrice, stock }] } | null }} p   options = 싱글옵션(_marketOptions.optionsPayload) — 있으면 stock 대신 옵션 재고 합계
+ *           options?:{ groupNames, rows:[{ values, addPrice, stock }] } | null, sellerPrdCd?:string, modify?:boolean }} p   options = 싱글옵션(_marketOptions.optionsPayload) — 있으면 stock 대신 옵션 재고 합계
+ *   sellerPrdCd = 판매자 상품코드(elevenstSellerCode — 상태 조회용, 2026-10-02) · modify = 수정 본문(PUT — 아래 cuponcheck)
+ *   수정도 이 함수 하나로 만든다 — 상품수정은 전체 덮어쓰기라 등록과 같은 칸을 모두 보내야 지워지는 칸이 없다
+ *   (출고지·반품지 addrSeqOut·addrSeqIn 포함: 문서 "빼면 수정 시점 기본주소로 바뀜")
  * @returns {{ ok:true, xml, buf, summary } | { ok:false, message }}
  */
 export function buildElevenstProduct(p) {
@@ -275,6 +323,8 @@ export function buildElevenstProduct(p) {
   if (!is10Won(d.returnFee, 0, 1000000) || !is10Won(d.exchangeFee, 0, 1000000)) return { ok: false, message: '반품·교환 배송비를 10원 단위로 입력하세요.' }
   const outAddr = String(d.outAddr ?? ''), inAddr = String(d.inAddr ?? '')
   if (!/^\d{1,20}$/.test(outAddr) || !/^\d{1,20}$/.test(inAddr)) return { ok: false, message: '출고지·반품지를 선택하세요.' }
+  const sellerPrdCd = p?.sellerPrdCd == null ? null : String(p.sellerPrdCd)
+  if (sellerPrdCd != null && !isElevenstSellerCode(sellerPrdCd)) return { ok: false, message: '판매자 상품코드가 올바르지 않습니다.' }
   const tmplt = d.sendCloseTmplt == null || d.sendCloseTmplt === '' ? null : String(d.sendCloseTmplt)
   if (tmplt != null && !/^\d{1,20}$/.test(tmplt)) return { ok: false, message: '발송마감 템플릿 번호가 올바르지 않습니다.' }
   const asDetail = clean(p?.asDetail, 2000), rtng = clean(p?.rtngExchDetail, 2000)
@@ -301,6 +351,8 @@ export function buildElevenstProduct(p) {
     el('rmaterialTypCd', '04'), // 원산지 의무 표시대상 아님(가공식품 원재료가 아님) — 원산지는 아래 orgnTypCd로 표시
     el('orgnTypCd', origin.orgnTypCd), // 01 국내 · 02 해외 (+ 지역 코드 — area.xlsx) · 03 기타 (+ 원산지명)
     ...(origin.orgnTypDtlsCd ? [el('orgnTypDtlsCd', origin.orgnTypDtlsCd)] : [elC('orgnNmVal', origin.orgnNmVal)]),
+    // 판매자 상품코드 — 문서 칸 순서상 부가세 코드 바로 앞 (위 elevenstSellerCode 근거와 같은 스키마 순서)
+    ...(sellerPrdCd ? [el('sellerPrdCd', sellerPrdCd)] : []),
     el('suplDtyfrPrdClfCd', p.vat),
     el('prdStatCd', '01'), // 새상품
     el('minorSelCnYn', p.minorOk === false ? 'N' : 'Y'),
@@ -312,6 +364,9 @@ export function buildElevenstProduct(p) {
     el('aplBgnDy', saleBegin), // 판매시작일 = 보내는 날 한국시간
     el('aplEndDy', SALE_END_DAY), // 2999/12/31 = 11번가가 최대 3년으로 처리
     el('selPrc', String(p.price)),
+    // 수정 때만: 기본즉시할인 cuponcheck=S(기존값 유지) — 문서 "수정 때만 쓸 수 있음". 우리는 할인 칸을 다루지 않으므로
+    // 판매자가 셀러오피스에서 넣은 즉시할인이 전체 덮어쓰기로 지워지지 않게 한다. 자리 = 판매가 바로 뒤(할인 항목 묶음의 첫 칸)
+    ...(p.modify === true ? [el('cuponcheck', 'S')] : []),
     // 옵션 블록 — 공식 Product 요소 순서상 할인·포인트 항목 뒤, prdSelQty 앞 (공식 예제 singleOption1.txt 모양 그대로)
     ...(opt ? [
       el('optSelectYn', 'Y'), el('txtColCnt', '1'), el('colTitle', opt.title),
@@ -342,6 +397,7 @@ export function buildElevenstProduct(p) {
   if (enc.bad.length) return { ok: false, message: `11번가에 보낼 수 없는 글자가 있습니다: ${enc.bad.slice(0, 5).join(' ')} — 상품명·안내 문구에서 빼고 다시 보내세요.` }
   const summary = { prdNm: name, dispCtgrNo: cat, selPrc: p.price, prdSelQty: stock, addrSeqOut: outAddr, addrSeqIn: inAddr, dlvCstInstBasiCd: d.feeType, bndlDlvCnYn: bundleDeliveryYn(d.feeType), aplBgnDy: saleBegin, aplEndDy: SALE_END_DAY, noticeType: n.type, origin: origin.label, kc: kc.groups, certTypes: kc.certs.map(c => c.certTypeCd) }
   if (opt) summary.options = { colTitle: opt.title, count: opt.rows.length } // 옵션이 있을 때만 (없으면 기록 모양 예전 그대로)
+  if (sellerPrdCd) summary.sellerPrdCd = sellerPrdCd // 상태 조회 열쇠 (2026-10-02 — 없으면 예전 기록: 상태를 판정하지 않는다)
   return { ok: true, xml, buf: enc.buf, summary }
 }
 /** 마지막 등록의 { out, in } 주소 번호 (기록 request_json.summary) — 없거나 이상하면 null */

@@ -1134,7 +1134,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   ])
   eq('배지 줄: 판매처마다 최신 1건 · MARKETS 순서 · 안 보낸 판매처는 없음', [by.E1.map(s => [s.market, s.id, s.status]), by.E2.map(s => [s.market, s.id]), Object.keys(by)], [[['coupang', 'b', 'approval_pending'], ['smartstore', 'c', 'rejected']], [['coupang', 'd']], ['E1', 'E2']])
   eq('배지 줄: 목록이 비거나 이상해도 빈 값', [R.sendsByExport([]), R.sendsByExport(null)], [{}, {}])
-  eq('배지 색: 승인 대기·판매처에서 삭제됨 회색 · 승인·등록됨(카페24) 초록 · 반려·실패 빨강', R.SEND_BADGE_CLASS, { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', registered: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger', deleted: 'st-badge' })
+  eq('배지 색: 승인 대기·판매처에서 삭제됨 회색 · 승인·등록됨(카페24) 초록 · 반려·실패 빨강', R.SEND_BADGE_CLASS, { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', registered: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger', deleted: 'st-badge', ended: 'st-badge' })
   eq('초록 배지 색 = 스튜디오 토큰', /\.studio-root \.st-badge-ok \{[^}]*var\(--st-success\)/.test(read('src/styles/studio-tokens.css')), true)
   eq('툴팁: 반려·실패만 · 기록된 사유 그대로', [R.badgeReason(by.E1[1]), R.badgeReason(by.E1[0]), R.badgeReason({ status: 'approved', reason: 'x' }), R.badgeReason({ status: 'failed', reason: null }), R.badgeReason(null)], ['카테고리가 맞지 않습니다', '', '', '', ''])
   const listShown = list.slice(list.indexOf('<template>'), list.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
@@ -2049,6 +2049,16 @@ function elevenstRelay(u, method, opts) {
     return eucXml('<?xml version="1.0" encoding="euc-kr"?><ClientMessage><resultCode>200</resultCode><productNo>3456789012</productNo><message>상품 등록 완료</message></ClientMessage>')
   }
   if (/^\/rest\/prodstatservice\/stat\/stopdisplay\/\d+$/.test(p) && method === 'PUT') return eucXml('<?xml version="1.0" encoding="euc-kr"?><ClientMessage><resultCode>200</resultCode><message>판매중지</message></ClientMessage>')
+  // 2026-10-02 판매자 상품코드 조회 (st11.byCode[코드] = [{ prdNo, cd, nm }]) · 상품수정 PUT (st11.puts에 본문 — mode 'put-reject'면 거절)
+  if (/^\/rest\/prodmarketservice\/sellerprodcode\/[0-9a-f]{32}$/.test(p) && method === 'GET') {
+    const list = (st11.byCode || {})[p.split('/').pop()] || []
+    return eucXml(`<?xml version="1.0" encoding="euc-kr" standalone="yes"?><ns2:products xmlns:ns2="http://skt.tmall.business.openapi.spring.service.client.domain/">${list.map(x => `<ns2:product><prdNo>${x.prdNo}</prdNo><prdNm>상품</prdNm><selStatCd>${x.cd}</selStatCd><selStatNm>${x.nm}</selStatNm></ns2:product>`).join('')}</ns2:products>`)
+  }
+  if (/^\/rest\/prodservices\/product\/\d+$/.test(p) && method === 'PUT') {
+    ;(st11.puts ||= []).push({ prdNo: p.split('/').pop(), raw: Buffer.from(opts.body) })
+    if (st11.mode === 'put-reject') return eucXml('<?xml version="1.0" encoding="euc-kr"?><ClientMessage><resultCode>500</resultCode><message>판매가는 최대 50%까지 인상할 수 있습니다.</message></ClientMessage>')
+    return eucXml(`<?xml version="1.0" encoding="euc-kr"?><ClientMessage><resultCode>200</resultCode><productNo>${p.split('/').pop()}</productNo><message>상품 수정 완료</message></ClientMessage>`)
+  }
   return eucXml('<?xml version="1.0" encoding="euc-kr"?><ClientMessage><resultCode>500</resultCode><message>no route</message></ClientMessage>', 404)
 }
 {
@@ -2733,7 +2743,7 @@ function elevenstRelay(u, method, opts) {
   }
   eq('업무용어: 배지 = 상태만(등록 완료·승인 대기·승인 완료·전송 중) · 수정 안내 · 결과 표 상태 · [실패 건 재전송]·[변경사항 전송]', [
     R.SEND_STATUS_LABEL, R.UPDATE_NOTE, R.reapprovalNote('coupang'), R.RESULT_WAIT_LABEL, R.RETRY_FAILED_LABEL, R.UPDATE_SEND_LABEL,
-  ], [{ sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료', rejected: '반려', failed: '실패', deleted: '판매처에서 삭제됨' }, '판매처에 있는 상품을 수정합니다', '수정 후 쿠팡 승인을 다시 받습니다', '대기', '실패 건 재전송', '변경사항 전송'])
+  ], [{ sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료', rejected: '반려', failed: '실패', deleted: '판매처에서 삭제됨', ended: '판매처에서 판매 종료' }, '판매처에 있는 상품을 수정합니다', '수정 후 쿠팡 승인을 다시 받습니다', '대기', '실패 건 재전송', '변경사항 전송'])
   {
     // 이번 작업에서 새로 넣은 고객 문구 — 합니다체 · "~요" 끝 없음 · 예전 문구 없음
     const strip = s => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
@@ -2799,7 +2809,7 @@ function elevenstRelay(u, method, opts) {
   ], [['send:e1', 'A', 'C', 'B', 'D'], ['a1', 'a2', 'a3'], { coupang: 'a1', smartstore: 'a2' }, '여름 원피스', 'd1', null])
   eq('상태 카드 4개 = 전체·등록·승인 완료·승인 대기·실패·반려 · 숫자 = 그 상태가 판매처 칸(최근 기록)에 하나라도 있는 상품 수 · 지난 실패(뒤에 등록됨)는 안 셈', [
     SL.STATUS_GROUPS.map(g => g.label), SL.statusCounts(P), SL.STATUS_FILTERS.map(g => g.key),
-  ], [['전체', '등록·승인 완료', '승인 대기', '실패·반려'], { all: 5, done: 2, pending: 1, failed: 2 }, ['all', 'done', 'pending', 'failed', 'sending', 'deleted']])
+  ], [['전체', '등록·승인 완료', '승인 대기', '실패·반려'], { all: 5, done: 2, pending: 1, failed: 2 }, ['all', 'done', 'pending', 'failed', 'sending', 'deleted', 'ended']])
   eq('상태 거르기: 실패·반려 · 전송 중 · 등록·승인 완료 · 승인 대기', [f({ status: 'failed' }), f({ status: 'sending' }), f({ status: 'done' }), f({ status: 'pending' })], [['C', 'B'], ['send:e1'], ['A', 'D'], ['A']])
   eq('판매처 거르기: 그 판매처 기록이 있는 상품만 · 판매처 + 상태는 같은 기록(스마트스토어 지난 실패는 안 걸림) · 쿠팡 + 등록·승인 완료', [f({ market: 'smartstore' }), f({ market: 'smartstore', status: 'failed' }), f({ market: 'coupang', status: 'done' }), f({ market: '11st' })], [['send:e1', 'A'], [], ['D'], ['B']])
   eq('보낸 기간: 오늘(한국 날짜) · 최근 7·30·90일 · 전체 · 판매처 + 기간도 같은 기록', [f({ period: 'today' }), f({ period: '7' }), f({ period: '30' }), f({ period: '90' }), f({ period: 'all' }).length, f({ market: 'smartstore', period: 'today' }), SL.kstDay('2026-10-01T15:30:00Z')], [['send:e1', 'A'], ['send:e1', 'A', 'C'], ['send:e1', 'A', 'C'], ['send:e1', 'A', 'C', 'B'], 5, ['send:e1'], '2026-10-02'])
@@ -2868,7 +2878,7 @@ function elevenstRelay(u, method, opts) {
   const SL = await import('../src/lib/studioSentList.js')
   const R = await import('../src/lib/studioMarketplaceRules.js')
   // 순수 규칙
-  eq('상태 확인 판매처 = 공식 문서로 조회 API를 확인한 곳(쿠팡·스마트스토어) · 11번가·카페24 없음 · 대상 상태 · 삭제 값', [MS.STATUS_CHECK_MARKETS, MS.CHECK_STATUSES, MS.DELETED, MS.CHECK_BATCH, MS.AUTO_CHECK_MS], [['coupang', 'smartstore'], ['registered', 'approved', 'approval_pending', 'sending', 'rejected'], 'deleted', { coupang: 500, smartstore: 500 }, 600000])
+  eq('상태 확인 판매처 = 공식 문서로 조회 API를 확인한 곳(쿠팡·스마트스토어·11번가 2026-10-02) · 카페24 없음 · 대상 상태 · 삭제·판매 종료 값', [MS.STATUS_CHECK_MARKETS, MS.CHECK_STATUSES, MS.DELETED, MS.ENDED, MS.CHECK_BATCH, MS.AUTO_CHECK_MS], [['coupang', 'smartstore', '11st'], ['registered', 'approved', 'approval_pending', 'sending', 'rejected'], 'deleted', 'ended', { coupang: 500, smartstore: 500, '11st': 30 }, 600000])
   eq('쿠팡 호출 줄이기: 하나씩 = 승인 대기·전송 중·반려만(30까지) · 승인 완료 = 삭제 목록(100개씩·20쪽까지) · 목록 쿼리 · 응답 읽기 · 계정 판정', [
     MS.COUPANG_SINGLE_MAX, MS.SINGLE_CHECK_STATUSES, MS.COUPANG_PAGE_SIZE, MS.COUPANG_DELETED_PAGES_MAX, MS.coupangDeletedQuery('A00012345'), MS.coupangDeletedQuery('A00012345', 'tok'),
     (p => [[...p.ids], p.next])(MS.coupangListPage({ code: 'SUCCESS', nextToken: '', data: [{ sellerProductId: 11 }, { sellerProductId: 'x' }, { sellerProductId: 12 }] })), MS.coupangListPage({ nextToken: 5, data: [] }).next,
@@ -2900,18 +2910,20 @@ function elevenstRelay(u, method, opts) {
   }
   const gone = SL.groupSentProducts([T('d1', 'coupang', 'deleted', '2026-10-01T01:00:00Z', { exportId: 'G' }), T('o1', 'smartstore', 'registered', '2026-10-01T01:00:00Z', { exportId: 'H' }), T('o2', 'coupang', 'deleted', '2026-10-01T02:00:00Z', { exportId: 'H' })])
   eq('삭제됨: 회색(gone) · 칩 순서 완료 뒤 · 상태 카드에서 완료로 안 셈 · 상태 고르기 "판매처에서 삭제됨" · [수정 후 재전송] 없음', [
-    SL.chipTone('deleted'), SL.marketChips(gone.find(p => p.key === 'H')).chips.map(c => c.tone), SL.statusCounts(gone), keys2(SL.filterSentProducts(gone, { status: 'deleted' })), SL.STATUS_FILTERS.at(-1).label, SL.fixAction(gone[0], gone[0].history[0]),
+    SL.chipTone('deleted'), SL.marketChips(gone.find(p => p.key === 'H')).chips.map(c => c.tone), SL.statusCounts(gone), keys2(SL.filterSentProducts(gone, { status: 'deleted' })), SL.STATUS_FILTERS.find(g => g.key === 'deleted').label, SL.fixAction(gone[0], gone[0].history[0]),
   ], ['gone', ['ok', 'gone'], { all: 2, done: 1, pending: 0, failed: 0 }, ['H', 'G'], '판매처에서 삭제됨', ''])
   function keys2(list) { return list.map(p => p.key) }
-  const st11 = SL.groupSentProducts([T('e1', '11st', 'registered', '2026-10-01T01:00:00Z'), T('e2', 'smartstore', 'registered', '2026-10-01T01:00:00Z')])[0]
-  eq('상태 자동 확인을 지원하지 않는 판매처 칩 title = 안내 한 줄 (지원하는 판매처는 없음)', SL.marketChips(st11).chips.map(c => [c.market, c.title]), [['smartstore', ''], ['11st', '이 판매처는 상태 자동 확인을 지원하지 않습니다']])
+  const st11 = SL.groupSentProducts([T('e1', '11st', 'registered', '2026-10-01T01:00:00Z'), T('e2', 'smartstore', 'registered', '2026-10-01T01:00:00Z'), T('g1', 'gmarket', 'registered', '2026-10-01T01:00:00Z')])[0]
+  eq('상태 자동 확인을 지원하지 않는 판매처 칩 title = 안내 한 줄 (지원하는 판매처 — 11번가 포함 2026-10-02 — 는 없음)', SL.marketChips(st11).chips.map(c => [c.market, c.title]), [['smartstore', ''], ['11st', ''], ['gmarket', '이 판매처는 상태 자동 확인을 지원하지 않습니다']])
+  eq('판매 종료(ended): 회색(gone) · 상태 고르기 "판매처에서 판매 종료" · 칩 짧은 표기 "판매 종료"', [SL.chipTone('ended'), SL.STATUS_FILTERS.find(g => g.key === 'ended').label, R.sendStatusLabel('ended', { short: true })], ['gone', '판매처에서 판매 종료', '판매 종료'])
   // 10분 규칙
   const now = Date.parse('2026-10-02T01:30:00Z')
   const S = (market, status, synced, pid = '123') => ({ id: `${market}-${status}-${synced}`, market, status, sellerProductId: pid, lastSyncedAt: synced })
   eq('자동 확인(10분): 확인 대상 중 확인 안 했거나 10분 넘은 기록이 있으면 · 5분 전 확인 = 안 함 · 지원 안 하는 판매처·실패·삭제됨·상품번호 없음은 대상 아님', [
     SL.needsAutoCheck([S('coupang', 'approved', '2026-10-02T01:25:00Z')], now), SL.needsAutoCheck([S('coupang', 'approved', '2026-10-02T01:19:00Z')], now), SL.needsAutoCheck([S('smartstore', 'registered', null)], now),
-    SL.needsAutoCheck([S('11st', 'registered', null), S('coupang', 'failed', null), S('coupang', 'deleted', null), S('coupang', 'approved', null, null)], now), SL.needsAutoCheck([], now),
-  ], [false, true, true, false, false])
+    SL.needsAutoCheck([S('gmarket', 'registered', null), S('coupang', 'failed', null), S('coupang', 'deleted', null), S('11st', 'ended', null), S('coupang', 'approved', null, null)], now), SL.needsAutoCheck([], now),
+    SL.needsAutoCheck([S('11st', 'registered', null)], now),
+  ], [false, true, true, false, false, true])
   eq('마지막 확인 = 기록 중 가장 최근 lastSyncedAt · "10/2 10:20"(한국 시각) · 없으면 "-" · 멈출 오류', [
     SL.lastCheckedAt([S('coupang', 'approved', '2026-10-02T01:20:00Z'), S('smartstore', 'registered', '2026-10-02T00:10:00Z'), S('11st', 'registered', null)]), SL.fmtCheckedAt('2026-10-02T01:20:00Z'), SL.fmtCheckedAt(null), SL.lastCheckedAt([]),
     SL.checkShouldStop([{ code: 'market_rejected' }]), SL.checkShouldStop([{ code: 'breaker_open' }]),
@@ -3080,9 +3092,9 @@ function elevenstRelay(u, method, opts) {
   eq('updatePlan: 살아 있는 상품 없음(실패·삭제됨·반려·전송 중·번호 없음) → 새로 등록', plan([S('a', 'failed', null, 'V', '2026-10-01'), S('b', 'deleted', '1', 'V', '2026-10-02'), S('c', 'rejected', '2', 'V', '2026-10-03'), S('d', 'sending', null, 'V', '2026-10-04'), S('e', 'registered', null, 'V', '2026-10-05')], 'coupang', 'V'), ['create', null, [], 0])
   eq('updatePlan: 살아 있는 상품 = 등록 완료·승인 완료·승인 대기 → 가장 최근 것을 수정 · 나머지 수 = extra · 같은 계정이 먼저 · 다른 계정은 후보에서 뺌',
     plan([S('a', 'approved', '1', 'V', '2026-10-01'), S('b', 'approval_pending', '2', 'V', '2026-10-03'), S('c', 'registered', '3', null, '2026-10-04'), S('d', 'approved', '4', 'OTHER', '2026-10-05')], 'coupang', 'V'), ['modify', 'b', ['b', 'a', 'c'], 2])
-  eq('updatePlan: 지금 계정을 모르면(null) 다른 계정 판정 없이 최근순 · 11번가 = manual · 목록 밖 판매처 = 새로 등록', [
+  eq('updatePlan: 지금 계정을 모르면(null) 다른 계정 판정 없이 최근순 · 11번가 = modify(2026-10-02) · 목록 밖 판매처 = 새로 등록', [
     plan([S('a', 'registered', '1', 'X', '2026-10-01'), S('b', 'registered', '2', 'Y', '2026-10-02')], 'smartstore', null), plan([S('e', 'registered', '7', null, '2026-10-01')], '11st', null), plan([S('k', 'registered', '9', null, '2026-10-01')], 'gmarket', null),
-  ], [['modify', 'b', ['b', 'a'], 1], ['manual', 'e', ['e'], 0], ['create', null, [], 0]])
+  ], [['modify', 'b', ['b', 'a'], 1], ['modify', 'e', ['e'], 0], ['create', null, [], 0]])
   eq('쿠팡 주인: vendorId 같음 mine · 다름 other · "다른 업체…조회할 수 없습니다" other · "…의 데이터가 없습니다" none · "등록 또는 수정되고 있습니다" unknown · vendorId 없음 unknown', [
     U.coupangOwnerOf({ ok: true, data: { vendorId: 'A1' } }, 'A1'), U.coupangOwnerOf({ ok: true, data: { vendorId: 'A2' } }, 'A1'),
     U.coupangOwnerOf({ ok: false, raw: '{"code":"ERROR","message":"업체[A00123456]는 다른 업체[A0011***5]의 상품을 조회할 수 없습니다."}' }, 'A1'), U.coupangOwnerOf({ ok: false, raw: '상품(123456789)의 데이터가 없습니다.' }, 'A1'),
@@ -3289,9 +3301,13 @@ function elevenstRelay(u, method, opts) {
   const s7 = await post('smartstore_send', SSU)
   eq('스마트스토어 삭제됨만 → 새로 등록 · 원상품 조회 없음', [!!s7.body.updated, ssPaths().some(x => x.startsWith('GET /v2/products/origin-products'))], [false, false])
 
-  // 11번가 — 수정 API 근거 없음 → 이미 등록된 상품이 있으면 막는다
+  const dec = buf => new TextDecoder('euc-kr').decode(buf)
+  // 11번가 (2026-10-02) — 다시 보내기 = 상품수정 PUT (전체 덮어쓰기 · 등록과 같은 본문 + cuponcheck=S · 판매자 상품코드로 주인 확인)
   const st11Before = relay.calls.length
-  db.marketplace_sends.push({ id: newId(), user_id: UID, export_id: UEID, market: '11st', status: 'registered', seller_product_id: '7001', created_at: new Date().toISOString(), request_json: {} })
+  const e11Rows = () => db.marketplace_sends.filter(r => r.export_id === UEID && r.market === '11st')
+  const e11Paths = () => relay.calls.filter(c => c.path.startsWith('/11st/')).map(c => `${c.method} ${c.path.replace('/11st', '')}`)
+  const CODE = UEID.replace(/-/g, '')
+  db.marketplace_sends.push({ id: newId(), user_id: UID, export_id: UEID, market: '11st', status: 'registered', seller_product_id: '7001', created_at: new Date().toISOString(), request_json: { summary: { prdNm: '예전 이름', selPrc: 12900 }, files: { rep: 'old/rep.jpg' } } })
   if (!db.marketplace_accounts.some(a => a.user_id === UID && a.market === '11st')) db.marketplace_accounts.push({ id: newId(), user_id: UID, market: '11st', seller_login_id: 'zozo', vendor_id: null, access_key_enc: encryptSecret('11st-key-ABCD1234', K), secret_key_enc: null, key_last4: '1234', expires_at: null, status: 'connected' })
   const E11U = {
     exportId: UEID, productName: '수정 머그', brand: '', categoryId: '1017898', categoryName: '주방용품>컵>머그컵', price: 12900, stock: 30, repImageId: UIMG, fit: 'contain',
@@ -3299,15 +3315,90 @@ function elevenstRelay(u, method, opts) {
     delivery: { feeType: '01', fee: null, jejuFee: 3000, islandFee: 5000, returnFee: 3000, exchangeFee: 6000, outAddr: '12', inAddr: '22' },
     asDetail: '상세페이지 참조', rtngExchDetail: '상세페이지 참조', notice: { type: '891045', maker: '이유씨', country: '중국', phone: '010-1234-5678' },
   }
-  relay.calls = []
-  const e1 = await post('elevenst_send', E11U)
-  eq('11번가 이미 등록된 상품 → 409 edit_in_market · "판매처에서 직접 수정" 안내(상품번호) · 11번가 호출 없음 · 새 기록 없음', [e1.statusCode, e1.body.code, e1.body.message, relay.calls.filter(c => c.path.startsWith('/11st/')).length, db.marketplace_sends.filter(r => r.export_id === UEID && r.market === '11st').length],
-    [409, 'edit_in_market', '판매처에 등록된 상품이 있습니다(상품번호 7001). 판매처에서 직접 수정하세요.', 0, 1])
   const pre2 = await post('send_prepare', { exportId: UEID })
-  eq('보내기 창 재료: existing["11st"] = manual(상품번호) · 화면 안내·빠짐 목록', [pre2.body.existing['11st']?.mode, pre2.body.existing['11st']?.sellerProductId, R.existingNote('11st', pre2.body.existing).lines, R.manualEditKeys(['11st', 'smartstore'], pre2.body.existing)], ['manual', '7001', ['판매처에 등록된 상품이 있습니다(상품번호 7001). 판매처에서 직접 수정하세요.'], ['11st']])
-  for (const r of db.marketplace_sends) if (r.export_id === UEID && r.market === '11st') r.status = 'deleted'
-  const e2 = await post('elevenst_send', E11U)
-  eq('11번가 삭제됨만 → 막지 않음(새로 등록)', [e2.body.code === 'edit_in_market', e2.statusCode], [false, 200])
+  eq('보내기 창 재료: existing["11st"] = modify(상품번호) · 안내 "판매처에 있는 상품을 수정합니다" · 빠짐 목록 없음 · 버튼 "변경사항 전송"', [pre2.body.existing['11st']?.mode, pre2.body.existing['11st']?.sellerProductId, R.existingNote('11st', pre2.body.existing).lines, R.manualEditKeys(['11st'], pre2.body.existing), R.bulkSendLabel(['11st'], [], false, pre2.body.existing)],
+    ['modify', '7001', ['판매처에 있는 상품을 수정합니다'], [], '변경사항 전송'])
+  relay.calls = []
+  st11.puts = []
+  const e1 = await post('elevenst_send', E11U)
+  const put1 = st11.puts.at(-1)
+  const putXml = put1 ? dec(put1.raw) : ''
+  eq('11번가 판매자 상품코드 없는 예전 기록 → 조회 없이 상품수정 PUT /rest/prodservices/product/7001 · 등록(POST) 없음 · 새 기록 없음 · updated',
+    [e1.statusCode, e1.body.updated, e1.body.productNo, e11Paths(), e11Rows().length], [200, true, '7001', ['PUT /rest/prodservices/product/7001'], 1])
+  const tagsOf = x => [...x.matchAll(/<([A-Za-z][\w]*)>/g)].map(m => m[1])
+  const regBuilt = E11.buildElevenstProduct({ ...E11U, price: 12900, stock: 30, repUrl: 'https://x/r.jpg', detailUrls: ['https://x/1.jpg'], sellerPrdCd: CODE })
+  eq('수정 본문 = 등록 본문과 같은 칸 전부 + cuponcheck=S(기존 즉시할인 유지) · 출고지·반품지 주소코드 포함(12·22) · 판매자 상품코드 = 내 상품 id 32자 · EUC-KR text/xml',
+    [tagsOf(putXml).filter(t => t !== 'cuponcheck'), E11.xmlTag(putXml, 'cuponcheck'), E11.xmlTag(putXml, 'addrSeqOut'), E11.xmlTag(putXml, 'addrSeqIn'), E11.xmlTag(putXml, 'sellerPrdCd'), relay.calls.find(c => c.method === 'PUT')?.headers['Content-Type']],
+    [tagsOf(regBuilt.xml), 'S', '12', '22', CODE, 'text/xml'])
+  eq('등록 본문(새 등록)에는 cuponcheck 없음 · 판매자 상품코드 자리 = 부가세 코드 바로 앞', [E11.xmlTag(regBuilt.xml, 'cuponcheck'), tagsOf(regBuilt.xml)[tagsOf(regBuilt.xml).indexOf('sellerPrdCd') + 1]], [null, 'suplDtyfrPrdClfCd'])
+  eq('11번가 수정 기록: 같은 기록에 회차 이력(modify · 코드) · summary 새 값(이름·코드) · 대표 이미지 = 그 기록의 회차 파일(토큰이 이 기록 files.rep를 읽음) · 상태 그대로',
+    [e11Rows()[0].request_json.revisions.map(r => [r.n, r.via, r.sellerPrdCd]), e11Rows()[0].request_json.summary.prdNm, e11Rows()[0].request_json.summary.sellerPrdCd, /_rep_r1\.jpg$/.test(e11Rows()[0].request_json.files.rep), e11Rows()[0].status, e11Rows()[0].result_json.step],
+    [[[1, 'modify', CODE]], '수정 머그', CODE, true, 'registered', 'update'])
+  // 코드가 생긴 뒤 — 조회로 주인 확인 → 판매중(103) = 수정
+  st11.byCode = { [CODE]: [{ prdNo: '9999', cd: '103', nm: '판매중' }, { prdNo: '7001', cd: '104', nm: '품절' }] }
+  relay.calls = []
+  const e2 = await post('elevenst_send', { ...E11U, productName: '두 번째 이름' })
+  eq('판매자 상품코드 있는 기록 → 코드 조회(GET) → 우리 상품번호(7001, 품절) 있음 → 수정 PUT · 회차 2', [e2.statusCode, e2.body.updated, e11Paths(), e11Rows()[0].request_json.revisions.length],
+    [200, true, [`GET /rest/prodmarketservice/sellerprodcode/${CODE}`, 'PUT /rest/prodservices/product/7001'], 2])
+  // 판매처가 수정을 거절 → 문구 그대로 · 기록(요청 본문·대표 이미지 파일) 되돌림
+  const beforeReject = JSON.stringify(e11Rows()[0].request_json)
+  st11.mode = 'put-reject'
+  const e3 = await post('elevenst_send', { ...E11U, price: 99900 })
+  st11.mode = 'ok'
+  eq('수정 거절 → 502 "판매처에서 수정을 거절했습니다: …"(11번가 문구 그대로) · 기록 되돌림(회차·본문·files 그대로) · 새 기록 없음',
+    [e3.statusCode, e3.body.message, JSON.stringify(e11Rows()[0].request_json) === beforeReject, e11Rows().length], [502, '판매처에서 수정을 거절했습니다: 판매가는 최대 50%까지 인상할 수 있습니다.', true, 1])
+  // 판매정상종료(106) — 살아 있지 않음 → 새로 등록 · 예전 기록 상태는 보내기에서 바꾸지 않는다(상태 확인이 바꾼다)
+  st11.byCode = { [CODE]: [{ prdNo: '7001', cd: '106', nm: '판매정상종료' }] }
+  relay.calls = []
+  const e4 = await post('elevenst_send', E11U)
+  const newRec = e11Rows().find(r => r.seller_product_id === '3456789012')
+  eq('조회 결과 106 판매정상종료 → 수정하지 않고 새로 등록(POST) · 새 기록에 같은 판매자 상품코드 · 예전 기록 상태 그대로', [e4.statusCode, !!e4.body.updated, e11Paths(), e11Rows().length, newRec?.request_json.summary.sellerPrdCd, e11Rows()[0].status],
+    [200, false, [`GET /rest/prodmarketservice/sellerprodcode/${CODE}`, 'POST /rest/prodservices/product'], 2, CODE, 'registered'])
+  for (const r of e11Rows()) r.status = 'deleted'
+  relay.calls = []
+  const e5 = await post('elevenst_send', E11U)
+  eq('11번가 삭제됨만 → 조회 없이 새로 등록', [e5.statusCode, !!e5.body.updated, e11Paths()], [200, false, ['POST /rest/prodservices/product']])
+  st11.byCode = {}
+  // 11번가 상태 확인 (2026-10-02) — 판매자 상품코드 조회 · 응답 prdNo가 우리 기록과 같을 때만 판정
+  {
+    const MS2 = await import('../api/_marketStatus.js')
+    eq('11번가 상태 매핑: 101·102 승인 대기 · 103 판매중·104 품절·105 전시중지 = 등록 완료(원문 그대로) · 106·108 = 판매 종료(ended) · 모르는 값 null · 원문 없으면 표 이름',
+      ['101', '102', '103', '104', '105', '106', '108', '107'].map(c => MS2.elevenstStatusOf(c, c === '104' ? '품절' : '')),
+      [{ status: 'approval_pending', raw: '승인대기' }, { status: 'approval_pending', raw: '승인전' }, { status: 'registered', raw: '판매중' }, { status: 'registered', raw: '품절' }, { status: 'registered', raw: '전시중지' }, { status: 'ended', raw: '판매정상종료' }, { status: 'ended', raw: '판매금지' }, null])
+    const one = '<?xml version="1.0" encoding="euc-kr"?><ns2:product xmlns:ns2="x"><selStatCd>103</selStatCd><prdNo>11</prdNo><selStatNm>판매중</selStatNm></ns2:product>'
+    const many = '<a><b><prdNo>11</prdNo><selStatCd>103</selStatCd><selStatNm>판매중</selStatNm></b><b><prdNo>12</prdNo><selStatCd>106</selStatCd><selStatNm>판매정상종료</selStatNm></b></a>'
+    eq('조회 응답 읽기: 상품 하나(칸 순서 무관) · 여럿(prdNo마다 나눔) · 상품 없음 = [] · 상품번호로 우리 기록 찾기', [E11.parseSellerCodeProducts(one), E11.parseSellerCodeProducts(many).map(p => [p.prdNo, p.selStatCd]), E11.parseSellerCodeProducts('<ClientMessage><resultCode>200</resultCode></ClientMessage>'), MS2.elevenstProductOf(E11.parseSellerCodeProducts(many), '12')?.selStatCd, MS2.elevenstProductOf([], '1')],
+      [[{ prdNo: '11', selStatCd: '103', selStatNm: '판매중' }], [['11', '103'], ['12', '106']], [], '106', null])
+    eq('11번가 주인: 코드 없음 = legacy(확인 없이 수정 시도) · 우리 번호 있음 = mine · 106·108 = none(새로 등록) · 응답에 없음 = none · 조회 실패 = unknown(보내기 멈춤)', [
+      U.elevenstOwnerOf({ ok: true, products: [] }, '1', null), U.elevenstOwnerOf({ ok: true, products: [{ prdNo: '1', selStatCd: '105' }] }, '1', CODE), U.elevenstOwnerOf({ ok: true, products: [{ prdNo: '1', selStatCd: '108' }] }, '1', CODE),
+      U.elevenstOwnerOf({ ok: true, products: [{ prdNo: '2', selStatCd: '103' }] }, '1', CODE), U.elevenstOwnerOf({ ok: false }, '1', CODE),
+    ], ['legacy', 'mine', 'none', 'none', 'unknown'])
+    eq('판매자 상품코드 = 내 상품 id 하이픈 뺀 32자 · 이상한 값은 null · 등록 본문이 이상한 코드를 거절', [E11.elevenstSellerCode(UEID), E11.elevenstSellerCode('x'), E11.buildElevenstProduct({ ...E11U, repUrl: 'u', detailUrls: ['u'], sellerPrdCd: 'bad code' }).message], [CODE, null, '판매자 상품코드가 올바르지 않습니다.'])
+
+    const keep = db.marketplace_sends
+    const CODE2 = 'ab'.repeat(16)
+    const r11 = (id, pid, status, code) => ({ id, user_id: UID, export_id: UEID, market: '11st', status, seller_product_id: pid, market_status: null, market_account: null, reason: null, last_synced_at: null, created_at: new Date().toISOString(), request_json: code ? { summary: { prdNm: '머그', sellerPrdCd: code } } : { summary: { prdNm: '예전' } } })
+    db.marketplace_sends = [r11('t1', '7001', 'registered', CODE), r11('t2', '7002', 'registered', CODE), r11('t3', '7005', 'registered', null), r11('t4', '7003', 'registered', CODE), r11('t5', '7004', 'approval_pending', CODE2)]
+    st11.byCode = { [CODE]: [{ prdNo: '7001', cd: '106', nm: '판매정상종료' }, { prdNo: '7002', cd: '105', nm: '전시중지' }], [CODE2]: [{ prdNo: '7004', cd: '103', nm: '판매중' }] }
+    relay.calls = []
+    const sy = await post('sync', {})
+    const by = Object.fromEntries(db.marketplace_sends.map(r => [r.id, r]))
+    eq('sync 11번가: 106 → 판매 종료(ended, 원문) · 105 → 등록 완료 + 원문 "전시중지" · 코드 없는 예전 기록 = 판정 안 함 · 응답에 없는 상품 = 판정 안 함 · 승인 대기 → 103 등록 완료 · 모두 확인 시각',
+      [sy.statusCode, sy.body.errors, ['t1', 't2', 't3', 't4', 't5'].map(id => [by[id].status, by[id].market_status, !!by[id].last_synced_at])],
+      [200, [], [['ended', '판매정상종료', true], ['registered', '전시중지', true], ['registered', null, true], ['registered', null, true], ['registered', '판매중', true]]])
+    eq('sync 11번가 호출 = 서로 다른 코드마다 GET 1번 · 수정·삭제 호출 없음', [e11Paths().sort(), relay.calls.some(c => c.path.startsWith('/11st/') && c.method !== 'GET')], [[`GET /rest/prodmarketservice/sellerprodcode/${CODE}`, `GET /rest/prodmarketservice/sellerprodcode/${CODE2}`].sort(), false])
+    eq('보낸 상품 목록: 판매 종료 = 살아 있지 않음(다시 보내면 새로 등록) · 문구 "판매처에서 판매 종료"', [U.LIVE_SEND_STATUSES.includes('ended'), R.sendStatusLabel('ended'), sy.body.sends.find(s => s.id === 't1').marketStatus], [false, '판매처에서 판매 종료', '판매정상종료'])
+    // SQL 실행 전 — ended를 DB check가 거절하면 상태는 그대로 + 원문·확인 시각만
+    db.marketplace_sends = [r11('t9', '7001', 'registered', CODE)]
+    const realFetch6 = globalThis.fetch
+    globalThis.fetch = async (url, o = {}) => (new URL(url).pathname === '/rest/v1/marketplace_sends' && o.method === 'PATCH' && JSON.parse(o.body).status === 'ended'
+      ? json({ code: '23514', message: 'new row for relation "marketplace_sends" violates check constraint "marketplace_sends_status_check"' }, 400) : realFetch6(url, o))
+    const sy2 = await post('sync', {})
+    globalThis.fetch = realFetch6
+    eq('SQL 실행 전: ended 저장이 막히면 상태 그대로(등록 완료) + 원문 "판매정상종료" + 확인 시각 · 오류로 끝나지 않음', [sy2.statusCode, db.marketplace_sends[0].status, db.marketplace_sends[0].market_status, !!db.marketplace_sends[0].last_synced_at], [200, 'registered', '판매정상종료', true])
+    db.marketplace_sends = keep
+    st11.byCode = {}
+  }
   void st11Before
 
   // 3) 화면 배선
@@ -3315,6 +3406,7 @@ function elevenstRelay(u, method, opts) {
   eq('화면: 쿠팡 결과 문구(수정·가격·재고만·바뀐 것 없음·옵션별 변경 실패) · 스마트스토어 "판매처에 있는 상품을 수정했습니다." · 합니다체', [
     cpv.includes('판매처에 있는 상품을 수정하고 승인 요청했습니다.'), cpv.includes('판매처에 있는 상품의 가격·재고를 변경했습니다.'), cpv.includes('변경된 내용이 없어 판매처에 전송하지 않았습니다.'), /data-mk-s-price-error/.test(cpv), ssv.includes("'판매처에 있는 상품을 수정했습니다.'"),
   ], [true, true, true, true, true])
+  eq('화면: 11번가 결과 문구 "판매처에 있는 상품을 수정했습니다." · 서버에 예전 막기(edit_in_market) 없음', [read('src/components/studio/StudioSendElevenst.vue').includes("'판매처에 있는 상품을 수정했습니다.'"), api.includes('edit_in_market')], [true, false])
   eq('서버: 판매처 3곳 모두 보내기 전에 findUpdateTarget · 판매처 수정 호출은 이 작업의 경로만(원상품 수정·상품 수정·옵션별 변경) · 삭제 API 없음', [
     ['async function send(', 'async function smartstoreSend(', 'async function elevenstSend('].map(f => { const b = api.slice(api.indexOf(f)); return b.indexOf('findUpdateTarget(') > 0 && b.indexOf('findUpdateTarget(') < b.indexOf("status: 'sending'") }),
     /method: 'DELETE', path/.test(api),
