@@ -3,15 +3,21 @@
  *
  * 재료 = 서버 sends_list 응답(api/marketplace.js publicSend — 전송 기록 1건 = 1줄, created_at 최근순 최대 100건).
  *   쿠팡 다시 승인 요청은 같은 기록을 고친다(revision) · 스마트스토어·11번가·카페24는 보낼 때마다 새 기록.
- * 상품 1개 = 내 상품(exportId) 1개. 판매처 칸·상태 분류는 판매처마다 가장 최근 기록 1건만 본다(sendsByExport와 같은 규칙).
+ * 상품 1개 = 내 상품(exportId) 1개. 판매처 현황 칩·상태 분류는 판매처마다 가장 최근 기록 1건만 본다(sendsByExport와 같은 규칙).
  * 상태 문구는 studioMarketplaceRules.sendStatusLabel 한 곳 — 여기에는 문구 표를 두지 않는다(묶음 이름만).
  * import는 상대 경로(node 테스트가 그대로 부른다)
  */
-import { MARKETS, canResend } from './studioMarketplaceRules.js'
+import { MARKETS, marketsFor, canResend, sendStatusLabel, badgeReason } from './studioMarketplaceRules.js'
 
-/** 표에 칸으로 보이는 판매처 (순서 = 화면 순서). 그 밖의 판매처 기록(카페24 — 관리자만)은 펼친 이력에만 */
-export const SENT_COLUMNS = ['coupang', 'smartstore', '11st']
+// 판매처 이름·순서·필터 선택지는 판매처 목록 한 곳(studioMarketplaceRules.MARKETS · 보이는 범위 marketsFor)에서만 읽는다 —
+// 목록에 판매처가 늘면 칩·필터에 그대로 나온다. 판매처마다 표 칸을 만들지 않는다 (2026-10-02)
 export const sentMarketName = key => MARKETS.find(m => m.key === key)?.name || String(key || '')
+const marketRank = key => { const i = MARKETS.findIndex(m => m.key === key); return i < 0 ? MARKETS.length : i }
+/**
+ * 판매처 필터 선택지 — marketsFor 순서 그대로. 아직 연결할 수 없는 곳(connect 'planned')은 보낸 기록이 생길 수 없어 뺀다
+ * @returns {[{ key, name }]}
+ */
+export const marketFilterOptions = ({ admin = false } = {}) => marketsFor({ admin }).filter(m => m.connect !== 'planned').map(m => ({ key: m.key, name: m.name }))
 
 /** 상태 묶음 — 위 카드 4개(all·done·pending·failed) + 상태 고르기에만 있는 '전송 중'(sending) */
 export const STATUS_GROUPS = [
@@ -42,6 +48,27 @@ export function chipTone(status) {
   if (status === 'failed' || status === 'rejected') return 'bad'
   return ''
 }
+
+/**
+ * "판매처 현황" 칩 — 이 상품을 실제로 보낸 판매처만(판매처마다 가장 최근 기록 1건). PC 표·폰 카드가 같이 쓴다
+ * 순서: 실패·반려 → 승인 대기·전송 중 → 완료 → 그 밖, 같은 묶음 안은 판매처 목록 순서
+ * max개까지 다 보이고, 넘치면 (max−1)개 + "+N" 칩 — title = 나머지 "판매처 이름 상태"를 줄마다
+ * @returns {{ chips:[{ id, market, status, tone, name, label, title }], more: null | { count, label, title } }}
+ *   label = "판매처 이름 + sendStatusLabel(status)" · title = 실패·반려 사유(badgeReason — 없으면 '')
+ */
+export const CHIP_MAX = 5
+const TONE_ORDER = ['bad', 'wait', 'ok', '']
+export function marketChips(p, { max = CHIP_MAX } = {}) {
+  const all = Object.values(p?.byMarket || {}).map(s => {
+    const name = sentMarketName(s.market)
+    return { id: s.id, market: s.market, status: s.status, tone: chipTone(s.status), name, label: `${name} ${sendStatusLabel(s.status)}`, title: badgeReason(s) }
+  }).sort((a, b) => TONE_ORDER.indexOf(a.tone) - TONE_ORDER.indexOf(b.tone) || marketRank(a.market) - marketRank(b.market) || String(a.market).localeCompare(String(b.market)))
+  if (all.length <= max) return { chips: all, more: null }
+  const rest = all.slice(max - 1)
+  return { chips: all.slice(0, max - 1), more: { count: rest.length, label: `+${rest.length}`, title: rest.map(c => c.label).join('\n') } }
+}
+/** 실패·반려인 판매처별 최근 기록 (판매처 목록 순서) — 폰 카드 "판매처 이름: 실패 사유" + [수정 후 재전송] */
+export const failedLatest = p => Object.values(p?.byMarket || {}).filter(s => chipTone(s.status) === 'bad').sort((a, b) => marketRank(a.market) - marketRank(b.market))
 
 const timeOf = iso => { const t = new Date(iso).getTime(); return Number.isFinite(t) ? t : 0 }
 /** 한국 시각 날짜 'YYYY-MM-DD' (없거나 이상하면 '') */
@@ -127,10 +154,10 @@ export function pageSlice(list, page = 1, size = DEFAULT_PAGE_SIZE) {
   return { items: all.slice((cur - 1) * per, cur * per), page: cur, pages }
 }
 
-/** 이 기록에 [고쳐서 재전송]을 보일지 — 실패·반려이고 그 판매처의 가장 최근 기록일 때만(뒤에 다시 보내 등록됐으면 옛 실패에는 없음) */
+/** 이 기록에 [수정 후 재전송]을 보일지 — 실패·반려이고 그 판매처의 가장 최근 기록일 때만(뒤에 다시 보내 등록됐으면 옛 실패에는 없음) */
 export const canFixResend = (p, s) => !!p && !!s && ['failed', 'rejected'].includes(s.status) && p.byMarket?.[s.market]?.id === s.id
 /**
- * [고쳐서 재전송]이 여는 길 — 둘 다 기존 보내기 창(StudioSendModal)
+ * [수정 후 재전송]이 여는 길 — 둘 다 기존 보내기 창(StudioSendModal)
  *   'resend' = 쿠팡 반려 + 쿠팡 상품번호 있음 → 예전 [수정 후 다시 보내기]와 같은 길(resendToMarketplace — 같은 쿠팡 상품을 고쳐 다시 승인 요청)
  *   'send'   = 그 밖의 실패·반려 → 그 내 상품의 보내기 창을 그 판매처만 체크해서(sendToMarketplace + market)
  *   ''       = 버튼 없음 (실패·반려가 아니거나 최근 기록이 아님, 내 상품 id 없음)

@@ -1291,7 +1291,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   // 3) 반려 사유는 카드에 그대로 · 4) [고쳐서 다시 보내기]
   const R15 = await import('../src/lib/studioMarketplaceRules.js')
   const sl = read('src/components/studio/StudioSendList.vue'), cp15 = read('src/components/studio/StudioSendCoupang.vue')
-  eq('보낸 상품 목록(2026-10-02): 사유 칸 = 기록된 사유 그대로 · 실패·반려 최근 기록에만 [고쳐서 재전송](fixAction) · 보내면 목록 다시 읽기 · 로그아웃 때 비움', [/:data-mk-send-reason="s\.id">\{\{ s\.reason \}\}</.test(sl), /<button v-if="fixAction\(p, s\)"[^>]*data-mk-send-resend/.test(sl), sl.includes("const FIX_LABEL = '고쳐서 재전송'"), /@sent="onResent"/.test(sl), /resendPrepare\.value = null/.test(sl)], [true, true, true, true, true])
+  eq('보낸 상품 목록(2026-10-02): 사유 칸 = 기록된 사유 그대로 · 실패·반려 최근 기록에만 [수정 후 재전송](fixAction) · 보내면 목록 다시 읽기 · 로그아웃 때 비움', [/:data-mk-send-reason="s\.id">\{\{ s\.reason \}\}</.test(sl), /<button v-if="fixAction\(p, s\)"[^>]*data-mk-send-resend/.test(sl), sl.includes("const FIX_LABEL = '수정 후 재전송'"), /@sent="onResent"/.test(sl), /resendPrepare\.value = null/.test(sl)], [true, true, true, true, true])
   eq('[고쳐서 다시 보내기]는 반려 + 쿠팡 상품 번호가 있을 때만', [R15.canResend({ status: 'rejected', sellerProductId: '16397573540' }), R15.canResend({ status: 'rejected', sellerProductId: null }), R15.canResend({ status: 'failed', sellerProductId: '1' }), R15.canResend({ status: 'approval_pending', sellerProductId: '1' }), R15.canResend(null)], [true, false, false, false, false])
   eq('버튼 글자: 다시 보내기 = "다시 승인 요청" · 아니면 예전 그대로', [R15.sendActionLabel(['coupang'], true), R15.sendActionLabel(['coupang'], false), R15.sendActionLabel([], false)], ['다시 승인 요청', '쿠팡으로 보내기', '선택한 판매처로 보내기'])
   eq('쿠팡 섹션: 다시 보내기면 resendId를 같이 보냄 · 템플릿 택배사 검사 · 요약 표에 상세 이미지', [cp15.includes('...(resend.value ? { resendId: resend.value.sendId } : {}),'), cp15.includes("else if (!templateCourierOk.value) out.push('배송/반품 템플릿의 택배사 (판매처 > 기본 설정에서 다시 저장)')"), cp15.includes("detailFiles: props.prepare?.export?.files || []")], [true, true, true])
@@ -2738,16 +2738,46 @@ function elevenstRelay(u, method, opts) {
   const B = P.find(p => p.key === 'B'), C = P.find(p => p.key === 'C')
   const lone = { key: 'send:z', exportId: null, byMarket: { smartstore: { id: 'z', market: 'smartstore', status: 'failed' } } }
   const noPid = { key: 'Q', exportId: 'Q', byMarket: { coupang: { id: 'q', market: 'coupang', status: 'rejected', sellerProductId: null } } }
-  eq('[고쳐서 재전송]: 쿠팡 반려 + 상품번호 = resend(예전 다시 승인 요청 길) · 그 밖 실패·반려 = send(그 판매처만 체크) · 지난 실패·완료·내 상품 id 없음 = 없음', [
+  eq('[수정 후 재전송]: 쿠팡 반려 + 상품번호 = resend(예전 다시 승인 요청 길) · 그 밖 실패·반려 = send(그 판매처만 체크) · 지난 실패·완료·내 상품 id 없음 = 없음', [
     SL.fixAction(C, C.byMarket.coupang), SL.fixAction(B, B.byMarket['11st']), SL.fixAction(noPid, noPid.byMarket.coupang), SL.fixAction(A, A.history[2]), SL.fixAction(A, A.byMarket.coupang), SL.fixAction(lone, lone.byMarket.smartstore),
   ], ['resend', 'send', 'send', '', '', ''])
   const sl = read('src/components/studio/StudioSendList.vue'), slib = read('src/lib/studioSentList.js')
   const tpl = sl.slice(sl.indexOf('<template>'), sl.lastIndexOf('</template>'))
-  eq('화면: 판매처 칸 3개(쿠팡·스마트스토어·11번가) · 칩 문구 = sendStatusLabel만(새 문구 표 없음) · 보낸 적 없음 "미등록" · 칩 색 값 · 상태 카드 = 상태 고르기와 같은 값', [
-    SL.SENT_COLUMNS, /SEND_STATUS_LABEL|const \w+_LABEL = \{/.test(sl + slib), (tpl.match(/\{\{ sendStatusLabel\(/g) || []).length >= 3, /<span v-else class="st-desc-sm">미등록<\/span>/.test(tpl),
-    ['#DCFCE7', '#166534', '#FEF3C7', '#92400E', '#FEE2E2', '#991B1B'].every(c => sl.includes(c)), /function pickStatusCard\(key\) \{ status\.value = status\.value === key && key !== 'all' \? 'all' : key \}/.test(sl),
-  ], [['coupang', 'smartstore', '11st'], false, true, true, true, true])
-  eq('화면: 필터·검색·정렬·페이지는 화면 안에서만(localStorage 없음) · 새로고침 = 기존 syncSends만 · 고쳐서 재전송 = 기존 창(sendToMarketplace·resendToMarketplace) · [판매처에서 보기]는 adminUrl 있을 때만 · 폰 44px', [
+  eq('화면: 표 칸 = 상품·판매처 현황·최근 전송·펼치기(판매처별 칸 없음) · 칩 = marketChips(PC·폰 같은 값) · 문구 표 없음 · "미등록" 없음 · 칩 색 값 · 상태 카드 = 상태 고르기와 같은 값', [
+    (tpl.match(/<th[ >]/g) || []).length - (tpl.match(/<table class="w-full sl-hist"[\s\S]*?<\/thead>/)?.[0].match(/<th[ >]/g) || []).length, /판매처 현황<\/th>/.test(tpl), 'SENT_COLUMNS' in SL, /SENT_COLUMNS/.test(sl),
+    /const chipMap = computed\(\(\) => Object\.fromEntries\(paged\.value\.items\.map\(p => \[p\.key, marketChips\(p\)\]\)\)\)/.test(sl), (tpl.match(/v-for="c in chipMap\[p\.key\]\.chips"/g) || []).length,
+    /SEND_STATUS_LABEL|const \w+_LABEL = \{/.test(sl + slib), /미등록/.test(sl), ['#DCFCE7', '#166534', '#FEF3C7', '#92400E', '#FEE2E2', '#991B1B'].every(c => sl.includes(c)), /function pickStatusCard\(key\) \{ status\.value = status\.value === key && key !== 'all' \? 'all' : key \}/.test(sl),
+  ], [4, true, false, false, true, 2, false, false, true, true])
+  eq('문구: 버튼 = "수정 후 재전송"(PC 이력·폰 카드 같은 FIX_LABEL) · 이력 칸 이름 "실패 사유" · 폰 실패 줄 "판매처 이름: 실패 사유" · 스튜디오 화면에 "고쳐서 재전송" 없음 · 상품번호는 이력 표에만', [
+    (tpl.match(/: FIX_LABEL \}\}/g) || []).length, /<th>실패 사유<\/th>/.test(tpl), /\{\{ sentMarketName\(s\.market\) \}\}: \{\{ s\.reason \|\| '-' \}\}/.test(tpl), /고쳐서 재전송/.test(sl + slib), (tpl.match(/sellerProductId/g) || []).length,
+  ], [2, true, true, false, 1])
+  // 판매처 7곳 가짜 데이터 — 판매처 목록(MARKETS)에 있는 곳 중 메이크샵·고도몰은 보낸 적 없음
+  const R = await import('../src/lib/studioMarketplaceRules.js')
+  const seven = [['coupang', 'approved'], ['smartstore', 'failed'], ['11st', 'registered'], ['gmarket', 'approval_pending'], ['ably', 'rejected'], ['zigzag', 'sending'], ['cafe24', 'registered']]
+    .map(([market, status], i) => ({ id: `m${i}`, exportId: 'X', market, status, productName: '7곳 상품', reason: status === 'failed' || status === 'rejected' ? `${market} 사유` : null, createdAt: `2026-10-0${1 + (i % 2)}T00:00:00Z` }))
+  const X = SL.groupSentProducts(seven)[0]
+  const ch = SL.marketChips(X)
+  eq('칩 (a) 순서: 실패·반려 → 승인 대기·전송 중 → 완료, 같은 묶음 안은 판매처 목록 순서 · 문구 = 판매처 이름 + sendStatusLabel · 실패 칩 title = 사유', [
+    SL.marketChips(X, { max: 99 }).chips.map(c => c.label), ch.chips.map(c => c.tone), ch.chips[0].title, ch.chips[2].title,
+  ], [['스마트스토어 실패', '에이블리 반려', 'G마켓·옥션 승인 대기', '지그재그 전송 중', '쿠팡 승인 완료', '11번가 등록 완료', '카페24 등록 완료'], ['bad', 'bad', 'wait', 'wait'], 'smartstore 사유', ''])
+  eq('칩 (b) 7곳 = 4개 + "+3" · "+3" title = 나머지 판매처와 상태 전부 · 5곳 이하면 다 보이고 "+N" 없음', [
+    ch.chips.length, ch.more, SL.marketChips(SL.groupSentProducts(seven.slice(0, 5))[0]).chips.length, SL.marketChips(SL.groupSentProducts(seven.slice(0, 5))[0]).more, SL.CHIP_MAX,
+  ], [4, { count: 3, label: '+3', title: '쿠팡 승인 완료\n11번가 등록 완료\n카페24 등록 완료' }, 5, null, 5])
+  eq('칩 (c) 보낸 적 없는 판매처 제외(메이크샵·고도몰 없음) · 판매처마다 최근 기록 1건(같은 판매처 두 번 = 칩 하나, 최근 상태)', [
+    [...ch.chips.map(c => c.market), ...ch.more.title.split('\n')].some(x => /makeshop|godomall|메이크샵|고도몰/.test(x)), ch.chips.length + ch.more.count,
+    SL.marketChips(SL.groupSentProducts([...seven, { id: 'm9', exportId: 'X', market: 'smartstore', status: 'registered', createdAt: '2026-10-02T05:00:00Z' }])[0], { max: 99 }).chips.filter(c => c.market === 'smartstore').map(c => c.label),
+  ], [false, 7, ['스마트스토어 등록 완료']])
+  const planned = R.MARKETS.filter(m => m.connect === 'planned').map(m => m.key)
+  const optsBefore = SL.marketFilterOptions({ admin: false }), optsAdmin = SL.marketFilterOptions({ admin: true })
+  R.MARKETS.push({ key: 'kakaostyle', name: '카카오스타일', connect: 'key' }) // 목록에 판매처가 늘었을 때 — 잠깐 넣었다 뺀다
+  const optsAdded = SL.marketFilterOptions({ admin: false }).map(m => m.key)
+  const addedChip = SL.marketChips(SL.groupSentProducts([{ id: 'k1', exportId: 'K', market: 'kakaostyle', status: 'registered', createdAt: '2026-10-02T00:00:00Z' }])[0]).chips[0].label
+  R.MARKETS.pop()
+  eq('칩 (d) 판매처 필터 선택지 = 판매처 목록(marketsFor) 순서에서 "예정"(planned) 뺀 것 · 관리자만 보이는 곳은 marketsFor 규칙 그대로 · 목록에 판매처를 더하면 필터·칩에 그대로 나옴', [
+    optsBefore.map(m => m.key), optsBefore.map(m => m.name), optsAdmin.map(m => m.key).includes('cafe24'), optsBefore.some(m => planned.includes(m.key)),
+    optsBefore.map(m => m.key).join() === R.marketsFor({ admin: false }).filter(m => m.connect !== 'planned').map(m => m.key).join(), optsAdded.at(-1), addedChip, /<option v-for="m in marketOptions"/.test(tpl), /'(coupang|smartstore|11st)'\s*[,\]]/.test(slib),
+  ], [['coupang', 'smartstore', '11st'], ['쿠팡', '스마트스토어', '11번가'], true, false, true, 'kakaostyle', '카카오스타일 등록 완료', true, false])
+  eq('화면: 필터·검색·정렬·페이지는 화면 안에서만(localStorage 없음) · 새로고침 = 기존 syncSends만 · 수정 후 재전송 = 기존 창(sendToMarketplace·resendToMarketplace) · [판매처에서 보기]는 adminUrl 있을 때만 · 폰 44px', [
     /localStorage|sessionStorage/.test(sl + slib), /await syncSends\(\)/.test(sl), /callStudioApi|fetch\(/.test(sl + slib), /fixHow\.value === 'resend' \? await resendToMarketplace\(id\) : await sendToMarketplace\(fixExportId\.value\)/.test(sl),
     /<StudioSendModal [^>]*:market="fixMarket" :sent="fixSent"/.test(tpl), /v-if="chipTone\(s\.status\) === 'ok' && s\.adminUrl"/.test(tpl), /@media \(max-width: 767\.98px\) \{\s+\.sl-tap \{ height: 44px; min-height: 44px; \}/.test(sl),
   ], [false, true, false, true, true, true, true])

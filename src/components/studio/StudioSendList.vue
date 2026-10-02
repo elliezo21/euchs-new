@@ -32,7 +32,7 @@
         <label class="sl-filter">판매처
           <select v-model="market" class="st-input sl-select sl-tap" data-sl-filter-market>
             <option value="">전체</option>
-            <option v-for="k in SENT_COLUMNS" :key="k" :value="k">{{ sentMarketName(k) }}</option>
+            <option v-for="m in marketOptions" :key="m.key" :value="m.key">{{ m.name }}</option>
           </select>
         </label>
         <label class="sl-filter">상태
@@ -66,8 +66,8 @@
           <table class="w-full sl-table">
             <thead>
               <tr>
-                <th class="text-left">상품</th>
-                <th v-for="k in SENT_COLUMNS" :key="k" class="text-left sl-col-market">{{ sentMarketName(k) }}</th>
+                <th class="text-left sl-col-product">상품</th>
+                <th class="text-left">판매처 현황</th>
                 <th class="text-left sl-col-time">최근 전송</th>
                 <th class="sl-col-open"><span class="sr-only">펼치기</span></th>
               </tr>
@@ -83,12 +83,12 @@
                       <span class="sl-name st-ink" :title="p.productName || undefined">{{ p.productName || '(상품명 없음)' }}</span>
                     </div>
                   </td>
-                  <td v-for="k in SENT_COLUMNS" :key="k" :data-sl-cell="k">
-                    <template v-if="p.byMarket[k]">
-                      <span class="sl-chip" :class="`is-${chipTone(p.byMarket[k].status)}`" :title="badgeReason(p.byMarket[k]) || undefined">{{ sendStatusLabel(p.byMarket[k].status) }}</span>
-                      <div v-if="p.byMarket[k].sellerProductId" class="st-desc-sm mt-0.5 truncate">{{ p.byMarket[k].sellerProductId }}</div>
-                    </template>
-                    <span v-else class="st-desc-sm">미등록</span>
+                  <!-- 판매처 현황 = 보낸 판매처만 칩 (marketChips — 순서·5개·+N) -->
+                  <td data-sl-markets>
+                    <div class="flex flex-wrap gap-1">
+                      <span v-for="c in chipMap[p.key].chips" :key="c.market" class="sl-chip" :class="`is-${c.tone}`" :title="c.title || undefined" :data-sl-chip="c.market">{{ c.label }}</span>
+                      <span v-if="chipMap[p.key].more" class="sl-chip is-more" :title="chipMap[p.key].more.title" data-sl-chip-more>{{ chipMap[p.key].more.label }}</span>
+                    </div>
                   </td>
                   <td class="st-desc-sm whitespace-nowrap">{{ fmtDate(p.latestAt) }}</td>
                   <td class="text-center">
@@ -99,10 +99,10 @@
                 </tr>
                 <!-- 펼친 줄 = 이 상품의 모든 전송 기록(최근순) -->
                 <tr v-if="openKeys[p.key]" class="sl-detail-row">
-                  <td :colspan="SENT_COLUMNS.length + 3">
+                  <td colspan="4">
                     <table class="w-full sl-hist" :data-sl-history="p.key">
                       <thead>
-                        <tr><th>판매처</th><th>상태</th><th>상품번호</th><th>전송 시각</th><th>사유</th><th><span class="sr-only">버튼</span></th></tr>
+                        <tr><th>판매처</th><th>상태</th><th>상품번호</th><th>전송 시각</th><th>실패 사유</th><th><span class="sr-only">버튼</span></th></tr>
                       </thead>
                       <tbody>
                         <tr v-for="s in p.history" :key="s.id" :class="{ 'is-focus': focusId === s.id }" :data-mk-send="s.id" :data-mk-send-status="s.status">
@@ -111,6 +111,10 @@
                             <span class="sl-chip" :class="`is-${chipTone(s.status)}`">{{ sendStatusLabel(s.status) }}</span>
                             <div v-if="s.coupangStatus" class="st-desc-sm mt-0.5">쿠팡 상태: {{ s.coupangStatus }}</div>
                             <div v-if="s.revision" class="st-desc-sm mt-0.5" :data-mk-send-revision="s.id">다시 보낸 횟수 {{ s.revision }}</div>
+                            <!-- 카페24 = 등록 완료 → 진열상태(보낸 값) (2026-09-30) -->
+                            <div v-if="s.market === 'cafe24' && s.status === 'registered'" class="st-desc-sm mt-0.5 break-keep" :data-mk-send-display="s.id">진열상태: {{ s.display === 'T' ? '진열함' : '진열안함' }}</div>
+                            <!-- 스마트스토어 = 등록 완료 → 보낸 전시상태 (2026-10-01) -->
+                            <div v-if="s.market === 'smartstore' && s.status === 'registered'" class="st-desc-sm mt-0.5 break-keep" :data-mk-send-ss-display="s.id">전시상태: {{ s.ssDisplay === 'ON' ? '전시중' : '전시중지' }}</div>
                           </td>
                           <td>
                             <span>{{ s.sellerProductId || '-' }}</span>
@@ -119,10 +123,6 @@
                           <td class="whitespace-nowrap">{{ fmtDate(s.createdAt) }}</td>
                           <td class="sl-reason-cell">
                             <p v-if="s.reason" class="break-keep" :class="chipTone(s.status) === 'bad' ? 'st-danger-text' : 'st-muted'" :data-mk-send-reason="s.id">{{ s.reason }}</p>
-                            <!-- 카페24 = 등록 완료 → 진열상태(보낸 값) (2026-09-30) -->
-                            <p v-if="s.market === 'cafe24' && s.status === 'registered'" class="st-desc-sm break-keep" :data-mk-send-display="s.id">진열상태: {{ s.display === 'T' ? '진열함' : '진열안함' }}</p>
-                            <!-- 스마트스토어 = 등록 완료 → 보낸 전시상태 (2026-10-01) -->
-                            <p v-if="s.market === 'smartstore' && s.status === 'registered'" class="st-desc-sm break-keep" :data-mk-send-ss-display="s.id">전시상태: {{ s.ssDisplay === 'ON' ? '전시중' : '전시중지' }}</p>
                           </td>
                           <td class="text-right whitespace-nowrap">
                             <!-- 판매처 상품 주소 함수가 있는 곳만(지금은 카페24 관리자 주소 adminUrl뿐) -->
@@ -149,14 +149,16 @@
               <div class="min-w-0 flex-1">
                 <div class="sl-name st-ink">{{ p.productName || '(상품명 없음)' }}</div>
                 <div class="flex flex-wrap gap-1 mt-1.5">
-                  <span v-for="s in latestList(p)" :key="s.market" class="sl-chip" :class="`is-${chipTone(s.status)}`">{{ sentMarketName(s.market) }} {{ sendStatusLabel(s.status) }}</span>
+                  <span v-for="c in chipMap[p.key].chips" :key="c.market" class="sl-chip" :class="`is-${c.tone}`" :title="c.title || undefined">{{ c.label }}</span>
+                  <span v-if="chipMap[p.key].more" class="sl-chip is-more" :title="chipMap[p.key].more.title">{{ chipMap[p.key].more.label }}</span>
                 </div>
                 <div class="st-desc-sm mt-1.5">최근 전송 {{ fmtDate(p.latestAt) }}</div>
               </div>
             </div>
-            <div v-for="s in latestList(p).filter(x => chipTone(x.status) === 'bad')" :key="s.id" class="mt-2.5">
-              <p v-if="s.reason" class="text-[12px] st-danger-text sl-line1" :title="s.reason">{{ sentMarketName(s.market) }}: {{ s.reason }}</p>
-              <button v-if="fixAction(p, s)" type="button" class="st-btn st-btn-primary sl-tap w-full mt-1.5" :disabled="resendBusy === s.id" @click="openFix(p, s)">{{ resendBusy === s.id ? '여는 중…' : `${sentMarketName(s.market)} ${FIX_LABEL}` }}</button>
+            <!-- 실패·반려 = "판매처 이름: 실패 사유" 한 줄 + [수정 후 재전송] -->
+            <div v-for="s in failedLatest(p)" :key="s.id" class="mt-2.5" :data-sl-card-fail="s.id">
+              <p class="text-[12px] st-danger-text sl-line1" :title="s.reason || undefined">{{ sentMarketName(s.market) }}: {{ s.reason || '-' }}</p>
+              <button v-if="fixAction(p, s)" type="button" class="st-btn st-btn-primary sl-tap w-full mt-1.5" :disabled="resendBusy === s.id" @click="openFix(p, s)">{{ resendBusy === s.id ? '여는 중…' : FIX_LABEL }}</button>
             </div>
           </li>
         </ul>
@@ -178,19 +180,20 @@
 // 판매처 > [보낸 상품] 탭 (2026-10-02 카드형 → 목록형) — marketplace_sends(서버 sends_list, 최근 100건)를 한 번 읽어 화면에서 상품별로 묶고·거르고·나눈다.
 // 규칙은 studioSentList.js 순수 함수. 상태 문구 = sendStatusLabel 한 곳. 필터·검색·정렬·페이지는 이 화면 안에서만(저장하지 않음).
 // [쿠팡 상태 새로고침] = 서버 sync(쿠팡 상품 조회 + histories로 반려 사유 — 쿠팡 기록만, 고른 상품만 따로 부를 수는 없다)
-// [고쳐서 재전송] = 기존 보내기 창 — 쿠팡 반려는 예전 [수정 후 다시 보내기] 길(resendToMarketplace), 그 밖은 그 상품 + 그 판매처만 체크(sendToMarketplace + market)
+// [수정 후 재전송] = 기존 보내기 창 — 쿠팡 반려는 예전 다시 승인 요청 길(resendToMarketplace), 그 밖은 그 상품 + 그 판매처만 체크(sendToMarketplace + market)
+// 판매처는 칸을 따로 두지 않고 "판매처 현황" 칩(marketChips) — 이름·순서·필터 선택지는 판매처 목록 한 곳(MARKETS·marketsFor)에서
 // 목록이 바뀔 때마다 'update'로 올려 보낸다
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ChevronDown } from 'lucide-vue-next'
 import StudioSendModal from '@/components/studio/StudioSendModal.vue'
-import { resendToMarketplace, sendToMarketplace, listSends, syncSends, sendStatusLabel, sendsByExport, fmtDate, isNotReady, needsGuide, badgeReason } from '@/lib/studioMarketplace'
-import { MARKETS } from '@/lib/studioMarketplaceRules'
+import { resendToMarketplace, sendToMarketplace, listSends, syncSends, sendStatusLabel, sendsByExport, fmtDate, isNotReady, needsGuide } from '@/lib/studioMarketplace'
+import { isAdminOrStaff } from '@/lib/auth'
 import {
-  SENT_COLUMNS, STATUS_GROUPS, STATUS_FILTERS, PERIODS, SORTS, SEARCH_FIELDS, PAGE_SIZES, DEFAULT_PAGE_SIZE,
-  sentMarketName, chipTone, groupSentProducts, statusCounts, filterSentProducts, sortSentProducts, pageSlice, fixAction,
+  STATUS_GROUPS, STATUS_FILTERS, PERIODS, SORTS, SEARCH_FIELDS, PAGE_SIZES, DEFAULT_PAGE_SIZE,
+  sentMarketName, marketFilterOptions, marketChips, failedLatest, chipTone, groupSentProducts, statusCounts, filterSentProducts, sortSentProducts, pageSlice, fixAction,
 } from '@/lib/studioSentList'
 
-const FIX_LABEL = '고쳐서 재전송'
+const FIX_LABEL = '수정 후 재전송'
 const props = defineProps({ exports: { type: Array, default: () => [] } }) // 내 상품 목록 (StudioExportList가 읽은 것 — 미리보기 사진)
 const emit = defineEmits(['update'])
 const previewOf = computed(() => Object.fromEntries((props.exports || []).filter(x => x && x.previewUrl).map(x => [x.id, x.previewUrl])))
@@ -221,8 +224,10 @@ const counts = computed(() => statusCounts(products.value))
 const filtered = computed(() => sortSentProducts(filterSentProducts(products.value, { market: market.value, status: status.value, period: period.value, field: search.value.field, text: search.value.text, now: Date.now() }), sort.value))
 const paged = computed(() => pageSlice(filtered.value, page.value, pageSize.value))
 const hasCoupang = computed(() => sends.value.some(s => (s.market || 'coupang') === 'coupang'))
-const marketOrder = MARKETS.map(m => m.key)
-const latestList = p => Object.values(p.byMarket).sort((a, b) => marketOrder.indexOf(a.market) - marketOrder.indexOf(b.market))
+// 판매처 필터 = 판매처 목록에서 (카페24처럼 관리자·스태프만 보는 곳은 marketsFor 규칙 그대로)
+const marketOptions = computed(() => marketFilterOptions({ admin: isAdminOrStaff.value }))
+// 이 페이지 상품의 판매처 현황 칩 (PC 표·폰 카드 같은 값)
+const chipMap = computed(() => Object.fromEntries(paged.value.items.map(p => [p.key, marketChips(p)])))
 watch([status, market, period, sort, pageSize, search], () => { page.value = 1 })
 
 function pickStatusCard(key) { status.value = status.value === key && key !== 'all' ? 'all' : key }
@@ -274,7 +279,7 @@ async function sync() {
   }
 }
 
-// [고쳐서 재전송] — 창을 먼저 열고 준비 데이터(send_prepare)는 창 안에서 기다린다 — 못 받으면 창 안에 이유 + [다시 시도] (2026-09-30과 같음)
+// [수정 후 재전송] — 창을 먼저 열고 준비 데이터(send_prepare)는 창 안에서 기다린다 — 못 받으면 창 안에 이유 + [다시 시도] (2026-09-30과 같음)
 // (이름 resend*는 예전 [수정 후 다시 보내기] 때 그대로 — 지금은 두 길 모두 이 창)
 const resendOpen = ref(false)
 const resendPrepare = ref(null)
@@ -385,6 +390,7 @@ defineExpose({ load, clear, focus })
 .sl-chip.is-ok { background: #DCFCE7; color: #166534; }
 .sl-chip.is-wait { background: #FEF3C7; color: #92400E; }
 .sl-chip.is-bad { background: #FEE2E2; color: #991B1B; }
+.sl-chip.is-more { cursor: help; } /* "+N" — 마우스를 올리면 나머지 판매처·상태(title) */
 
 .sl-card { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 14px; border-radius: 12px; background: var(--st-surface); border: 1px solid var(--st-line); text-align: left; cursor: pointer; min-height: 44px; transition: border-color 0.15s, box-shadow 0.15s; }
 .sl-card:hover { border-color: var(--st-ink-2); }
@@ -399,7 +405,7 @@ defineExpose({ load, clear, focus })
 .sl-table { border-collapse: collapse; font-size: 13px; }
 .sl-table > thead th { padding: 10px 12px; font-size: 12px; font-weight: 700; color: var(--st-muted); background: var(--st-soft); border-bottom: 1px solid var(--st-line); }
 .sl-table > tbody > tr > td { padding: 10px 12px; border-bottom: 1px solid var(--st-line); vertical-align: middle; }
-.sl-col-market { width: 15%; }
+.sl-col-product { width: 34%; }
 .sl-col-time { width: 140px; }
 .sl-col-open { width: 52px; }
 .sl-row { cursor: pointer; }
