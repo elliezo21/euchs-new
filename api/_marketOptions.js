@@ -20,6 +20,7 @@
  *   [2차 출처 — 공식 API 문서에는 없음] 옵션가 범위(스마트스토어센터 규칙): 판매가 2,000원 미만 0~+100% · 2,000~10,000원 미만 -50%~+100% · 10,000원 이상 -50%~+50%
  *     네이버가 어차피 거절하는 값을 보내기 전에 알아볼 문구로 막는다. 운영에서 다른 결과가 나오면 SS_OPTION_PRICE_RULE 하나만 고친다
  *   [모름 — 막지 않음] 옵션명·옵션값 글자 수 상한은 공식 API 문서에 없다
+ *   [운영 실측 2026-10-02 — 공식 문서에는 없음] 옵션값에 \ * ? " < > / 가 있으면 네이버가 "등록불가 특수문자"로 거절 → SS_OPTION_VALUE_BAD (옵션 종류 이름은 응답에 없어 검사하지 않는다)
  *
  * [11번가 — 싱글옵션] 공식 개발가이드 상품등록(categoryNo=81 · apiSeq=1003) + 공식 예제 http://openapi.11st.co.kr/example/singleOption1.txt (2026-10-01 채팅 Claude 확인)
  *   <optSelectYn>Y</optSelectYn> <txtColCnt>1</txtColCnt>(옵션 등록 시 1 고정) <colTitle>색상/사이즈</colTitle>
@@ -83,6 +84,7 @@ export function ssOptionPriceRange(salePrice) {
   return { min: Math.ceil(salePrice * lo / 100), max: Math.floor(salePrice * hi / 100) }
 }
 const won = n => `${n.toLocaleString('ko-KR')}원`
+export const SS_OPTION_VALUE_BAD = /[\\*?"<>/]/g // 운영 실측 — 머리 주석 (역슬래시 · 별표 · 물음표 · 큰따옴표 · 꺾쇠 · 슬래시)
 
 /**
  * 스마트스토어 옵션 검사 — 고객이 알아볼 문구 목록 (빈 배열 = 보낼 수 있음). 화면 빠짐 목록과 서버가 같은 함수
@@ -107,6 +109,9 @@ export function smartstoreOptionProblems(p, salePrice) {
     if (!(Number.isInteger(r?.addPrice) && Math.abs(r.addPrice) <= SS_OPTION_PRICE_ABS_MAX)) badPrice = true
     else if (range && (r.addPrice < range.min || r.addPrice > range.max)) outOfRange = true
   }
+  const ssBad = new Set()
+  for (const r of rows) for (const v of Array.isArray(r?.values) ? r.values : []) for (const ch of String(v ?? '').match(SS_OPTION_VALUE_BAD) || []) ssBad.add(ch)
+  if (ssBad.size) out.push(`옵션값에 쓸 수 없는 문자(${[...ssBad].join(' ')})`)
   if (emptyValue) out.push('판매할 옵션의 옵션값을 모두 입력하세요.')
   if (dup) out.push('같은 옵션값 조합이 두 번 있습니다. 옵션값을 다르게 하거나 한 줄을 판매 안 함으로 바꾸세요.')
   if (badStock) out.push(`판매할 옵션의 재고 수량을 0~${SS_OPTION_STOCK_MAX.toLocaleString('ko-KR')} 사이 정수로 입력하세요.`)

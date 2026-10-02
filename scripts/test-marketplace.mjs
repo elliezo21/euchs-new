@@ -3739,5 +3739,19 @@ function elevenstRelay(u, method, opts) {
   ], [true, true])
 }
 
+// ── 26. 스마트스토어 옵션값 금지 문자 (2026-10-02 운영: 네이버가 \ * ? " < > / 가 든 옵션값을 "등록불가 특수문자"로 거절) ──
+{
+  const MO = await import('../api/_marketOptions.js')
+  const row = v => ({ values: [v], addPrice: 0, stock: 1 })
+  const p = vals => ({ groupNames: ['색상'], rows: vals.map(row) })
+  eq('금지 문자 7개 모두 잡음 · 겹치면 한 번 · 문구 = "옵션값에 쓸 수 없는 문자(…)"', [
+    MO.smartstoreOptionProblems(p(['블랙*', '화이트*', 'a/b', 'c\\d', '"e"', '<f>', 'g?']), 10000),
+  ], [['옵션값에 쓸 수 없는 문자(* / \\ " < > ?)']])
+  eq('보통 글자·하이픈·괄호·쉼표는 통과 · 옵션 종류 이름은 검사 안 함(응답에 없음)', [
+    MO.smartstoreOptionProblems(p(['블랙-L (95)', 'M,L']), 10000), MO.smartstoreOptionProblems({ groupNames: ['색상/무늬'], rows: [row('블랙')] }, 10000),
+  ], [[], []])
+  eq('서버도 같은 검사로 거절 (smartstoreOptionInfo)', MO.smartstoreOptionInfo(p(['블랙*']), 10000), { ok: false, message: '옵션값에 쓸 수 없는 문자(*)' })
+}
+
 console.log(`\n${pass} 통과 · ${fail} 실패`)
 if (fail) process.exit(1)
