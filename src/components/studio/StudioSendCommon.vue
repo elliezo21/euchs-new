@@ -2,7 +2,7 @@
   <div class="space-y-5 st-border rounded-[12px] p-4" data-mk-cm>
     <div class="space-y-1">
       <h4 class="st-h-card">공통 정보</h4>
-      <p class="st-desc-sm break-keep" data-mk-cm-desc>여기에 입력한 값은 아래 {{ marketNames }} 칸에 동일하게 적용됩니다. 판매처별로 다르게 입력하려면 해당 판매처 칸에서 [이 판매처만 다르게]를 선택합니다.</p>
+      <p class="st-desc-sm break-keep" data-mk-cm-desc>여기에 입력한 값은 아래 {{ marketNames }} 칸에 동일하게 적용됩니다. 판매처별로 다르게 입력하려면 해당 판매처 칸의 [공통 정보 사용] 체크를 풉니다.</p>
       <p v-if="coupang" class="st-desc-sm break-keep" data-mk-cm-coupang>{{ COUPANG_COMMON_NOTE }}</p>
     </div>
 
@@ -49,7 +49,7 @@
 </template>
 
 <script setup>
-// 보내기 창 "공통 정보" (2026-10-01) — 스마트스토어·11번가를 함께 보낼 때 상품명·판매가·재고·옵션·대표 이미지를 한 번만 넣는다.
+// 보내기 창 "공통 정보" (2026-10-01) — 상품명·판매가·재고·옵션·대표 이미지를 한 번만 넣는다 (2026-10-02 ②-1: 공통 대상 판매처 1곳만 보내도 여기서 — 대표 이미지는 여기 한 곳에서만 고른다).
 // 값(common)은 창(StudioSendModal)이 들고 있고 여기서는 고치기만 한다. 판매처 섹션이 commonPatch(src/lib/studioSendCommon.js)로 자기 칸에 옮겨 담는다.
 // 판매처 규칙 검사(10원 단위·재고 1개 이상·옵션 범위 등)는 섹션 빠짐 목록과 서버가 예전대로 한다 — 여기서는 안내만
 import { computed } from 'vue'

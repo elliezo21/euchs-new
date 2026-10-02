@@ -36,14 +36,8 @@
       <a :href="SELLER_OFFICE_URL" target="_blank" rel="noopener noreferrer" class="st-link" data-mk-11st-office>셀러오피스 열기</a>
     </div>
 
-    <!-- 공통 정보를 쓰는 중 (2026-10-01) — 이 판매처만 다르게 할 묶음을 켜면 아래에 그 칸이 다시 보인다 -->
-    <div v-if="common" class="st-surface st-border rounded-[10px] p-3 space-y-1.5" data-mk-11st-common>
-      <p class="text-[13px] st-ink break-keep">상품명·판매가·재고·옵션·대표 이미지는 위 공통 정보 값을 사용합니다.</p>
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] st-ink">
-        <span class="st-desc-sm">이 판매처만 다르게:</span>
-        <label v-for="g in COMMON_GROUPS" :key="g.key" class="flex items-center gap-1.5"><input v-model="own[g.key]" type="checkbox" :disabled="!!done" :data-mk-11st-own="g.key" /> {{ g.label }}</label>
-      </div>
-    </div>
+    <!-- [공통 정보 사용] (2026-10-02 ②-1) — 처음에는 모두 체크(공통 값). 체크를 풀면 아래에 그 칸이 열린다 (useSendCommon) -->
+    <StudioSendUseCommon v-if="common" market="11st" :groups="cm.groups" :use="cm.use" :disabled="!!done" data-mk-11st-common @toggle="cm.setUse" />
 
     <!-- 상품명 · 브랜드 -->
     <div ref="nameEl" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -280,7 +274,8 @@
 import { ref, reactive, computed, watch, onMounted, inject, nextTick } from 'vue'
 import { matchCategory } from '@/lib/studioBulkSend'
 import { listElevenstCategories, listElevenstAddresses, sendElevenstProduct, isNotReady } from '@/lib/studioMarketplace'
-import { COMMON_GROUPS, commonPatch } from '@/lib/studioSendCommon'
+import { useSendCommon } from '@/lib/useSendCommon'
+import StudioSendUseCommon from './StudioSendUseCommon.vue'
 import { listListingTemplates, createListingTemplate } from '@/lib/studioListingTemplates'
 import { TEMPLATE_KINDS, TEMPLATE_NAME_MAX, pickDefaultTemplate, uniqueTemplateName } from '../../../api/_listingTemplates.js'
 import { SEND_CACHE_KEY, repImageCandidates, defaultRepImageId, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
@@ -352,17 +347,9 @@ const optionsOut = computed(() => (useOptions.value ? optionsPayload(opts.value)
 const optionStockTotal = computed(() => (optionsOut.value?.rows || []).reduce((s, r) => s + (Number.isInteger(r.stock) ? r.stock : 0), 0))
 const optionRange = computed(() => elevenstOptionPriceRange(f.value.price))
 
-// ── 공통 정보 (2026-10-01) — 스마트스토어 섹션과 같은 방식. 칸에 들어간 값은 예전 f·opts 그대로라 빠짐 목록(10원 단위 등)·요약 표·보내기는 바뀌지 않는다
-const own = reactive(Object.fromEntries(COMMON_GROUPS.map(g => [g.key, false])))
-const showOwn = key => !props.common || own[key]
-function syncCommon() {
-  if (!props.common || done.value) return
-  const p = commonPatch('11st', props.common, own)
-  Object.assign(f.value, p.form)
-  if (p.opts) opts.value = p.opts
-}
-watch(() => props.common, syncCommon, { deep: true, immediate: true })
-watch(own, syncCommon)
+// ── 공통 정보 (2026-10-01) — 스마트스토어 섹션과 같은 방식(useSendCommon — [공통 정보 사용] 2026-10-02 ②-1). 칸에 들어간 값은 예전 f·opts 그대로라 빠짐 목록(10원 단위 등)·요약 표·보내기는 바뀌지 않는다
+const cm = useSendCommon('11st', { props, f, opts, done })
+const showOwn = cm.showOwn
 
 const catMatches = computed(() => {
   const q = catQuery.value.trim().toLowerCase()
@@ -662,11 +649,11 @@ onMounted(() => {
 })
 // 입력값 기억 (2026-10-02 — src/lib/studioSendDraft.js): 창이 [보내기] 때 draftOut()을 받아 두고, 같은 상품을 다시 열면 applyDraft()로 돌려준다
 const DRAFT_FORM = ['productName', 'price', 'stock']
-function draftOut() { return { category: pickedCategory.value, form: pickFields(f.value, DRAFT_FORM), opts: cloneOptionEditor(opts.value) } }
+function draftOut() { return { category: pickedCategory.value, form: pickFields(f.value, DRAFT_FORM), opts: cloneOptionEditor(opts.value), use: cm.useOut() } }
 function applyDraft(d) {
   if (!d || done.value) return
   if (d.category?.id != null) applyPreset({ category: d.category })
-  if (props.common) return // 상품명·판매가·재고·옵션은 공통 정보가 채운다 (창이 공통 값을 따로 되살린다)
+  if (props.common) return cm.applyUseDraft(d) // 상품명·판매가·재고·옵션은 공통 정보가 채운다 (창이 공통 값을 따로 되살린다) — [공통 정보 사용]을 풀어 둔 묶음만 이 판매처 값으로
   Object.assign(f.value, pickFields(d.form || {}, DRAFT_FORM))
   if (d.opts && Array.isArray(d.opts.groups)) opts.value = cloneOptionEditor(d.opts)
 }

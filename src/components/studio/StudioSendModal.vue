@@ -35,7 +35,8 @@
 
       <!-- 판매처별 섹션 — 연결된 판매처마다 하나 만들어 두고, 체크된 것만 보인다(v-show).
            체크를 풀었다 다시 켜도 넣었던 값이 남는다(섹션을 없애지 않는다). 판매처가 늘면 SECTIONS에 컴포넌트를 더한다 -->
-      <!-- 공통 정보 (2026-10-01) — 스마트스토어·11번가를 함께 체크했을 때만. 그 두 섹션은 이 값을 자기 칸에 옮겨 담는다(commonPatch). 쿠팡은 자기 칸 그대로 -->
+      <!-- 공통 정보 (2026-10-01) — 공통 대상 판매처(쿠팡·스마트스토어·11번가·지그재그)를 1곳 이상 체크했을 때 (2026-10-02 ②-1: 1곳이어도 — 대표 이미지는 여기 한 곳에서 고른다).
+           섹션은 이 값을 자기 칸에 옮겨 담는다(commonPatch·commonCoupangRows). 다시 보내기(쿠팡 반려 고치기)는 쿠팡 칸 그대로 -->
       <StudioSendCommon v-if="useCommon" :key="`common:${openSeq}`" :common="common" :prepare="prepare" :markets="commonMarkets(picked)" :coupang="picked.includes('coupang')" :disabled="sending" />
 
       <template v-for="key in mounted" :key="`${openSeq}:${key}`">
@@ -143,7 +144,7 @@ const existing = computed(() => (props.prepare?.resend ? {} : props.prepare?.exi
 const doneKeys = computed(() => picked.value.filter(k => !!sections[k]?.done))
 const existingNotes = computed(() => picked.value.filter(k => !doneKeys.value.includes(k)).map(k => ({ key: k, ...existingNote(k, existing.value) })).filter(n => n.mode))
 const manualKeys = computed(() => manualEditKeys(picked.value, existing.value, doneKeys.value))
-// 공통 정보 — 창을 열 때(준비 데이터가 올 때) 새로 만든다. 스마트스토어·11번가를 함께 체크했고 다시 보내기가 아닐 때만 쓴다(commonActive)
+// 공통 정보 — 창을 열 때(준비 데이터가 올 때) 새로 만든다. 공통 대상 판매처를 1곳 이상 체크했고 다시 보내기가 아닐 때 쓴다(commonActive)
 const common = ref(null)
 const useCommon = computed(() => !!common.value && commonActive(picked.value, { resend: !!props.prepare?.resend }))
 // 입력값 기억 (2026-10-02 — src/lib/studioSendDraft.js): [보내기]를 누를 때 이 브라우저에 남기고, 같은 상품을 다시 열면 되살린다
@@ -197,7 +198,8 @@ const missing = computed(() => {
   const out = []
   for (const key of picked.value) {
     const list = sections[key]?.missing || []
-    for (const m of list) out.push(picked.value.length > 1 ? `${nameOf(key)} · ${m}` : m)
+    // 판매처 이름을 앞에 — 2곳 이상이거나 공통 정보를 쓸 때(공통 칸 값이 어느 판매처 규칙에 걸렸는지 보이게 — 예: "11번가 · 상품명: 100바이트…")
+    for (const m of list) out.push(picked.value.length > 1 || useCommon.value ? `${nameOf(key)} · ${m}` : m)
     // 판매처별 상세 이미지 장 수 (api/_marketDetailLimits.js — 서버와 같은 규칙). 어느 판매처인지 늘 앞에 붙인다
     const count = props.prepare?.export?.files?.length ?? 0
     const over = sections[key]?.done ? null : detailImageOver(key, count)

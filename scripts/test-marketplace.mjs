@@ -2643,11 +2643,11 @@ function elevenstRelay(u, method, opts) {
   const SC = await import('../src/lib/studioSendCommon.js')
   const O = await import('../api/_marketOptions.js')
   eq('공통 정보 대상 = 쿠팡·스마트스토어·11번가·지그재그 (카페24 아님 — 2026-10-02 쿠팡·지그재그 포함)', SC.COMMON_MARKETS, ['coupang', 'smartstore', '11st', 'zigzag'])
-  eq('공통 정보를 쓰는 때: 대상 2곳 이상 · 1곳만이면 예전 그대로 · 쿠팡+1곳도 공통 · 다시 보내기는 아님', [
+  eq('공통 정보를 쓰는 때(2026-10-02 ②-1): 대상 1곳 이상 — 1곳만이어도 공통(대표 이미지를 한 곳에서) · 다시 보내기는 아님', [
     SC.commonActive(['smartstore']), SC.commonActive(['11st']), SC.commonActive(['coupang', 'smartstore']), SC.commonActive(['smartstore', '11st']), SC.commonActive(['coupang', 'smartstore', '11st']),
     SC.commonActive(['smartstore', '11st'], { resend: true }), SC.commonActive([]), SC.commonActive(undefined),
-  ], [false, false, true, true, true, false, false, false])
-  eq('쿠팡만 1곳 = 예전 그대로(쿠팡 칸에서 직접) · 쿠팡+지그재그 = 공통 · 카페24는 공통 대상 아님', [SC.commonActive(['coupang']), SC.commonActive(['coupang', 'zigzag']), SC.commonActive(['coupang', 'cafe24'])], [false, true, false])
+  ], [true, true, true, true, true, false, false, false])
+  eq('쿠팡만 1곳도 공통 · 쿠팡+지그재그 = 공통 · 카페24만은 공통 대상 아님 · 쿠팡 다시 보내기는 공통 아님', [SC.commonActive(['coupang']), SC.commonActive(['coupang', 'zigzag']), SC.commonActive(['cafe24']), SC.commonActive(['coupang'], { resend: true })], [true, true, false, false])
   eq('지그재그 칸 이름 = 스마트스토어와 같음(productName·price·stock) · commonPatch로 옮김', SC.commonPatch('zigzag', { productName: 'a', price: 1000, stock: 3, opts: { enabled: false, groups: [], groupNames: [], rows: [] }, repImageId: 'i', fit: 'contain' }).form, { productName: 'a', price: 1000, stock: 3, repImageId: 'i', fit: 'contain' })
   eq('추가금액 범위: 쿠팡은 범위 규칙이 없어 빼고 계산 (쿠팡+스마트스토어 = 스마트스토어 범위)', [SC.commonOptionRange(['coupang', 'smartstore'], 12900), SC.commonOptionRange(['smartstore'], 12900), SC.commonOptionRange(['coupang'], 12900)].map(x => JSON.stringify(x)), [JSON.stringify(SC.commonOptionRange(['smartstore'], 12900)), JSON.stringify(SC.commonOptionRange(['smartstore'], 12900)), 'null'])
 
@@ -2686,9 +2686,19 @@ function elevenstRelay(u, method, opts) {
   ], [12345, null, '', 0])
   eq('옵션은 복사본: 섹션이 고쳐도 공통 값·다른 판매처 값이 안 바뀜', (() => { ss.opts.rows[0].addPrice = 999; ss.opts.groupNames[0] = 'x'; ss.opts.rows[0].values[0] = 'y'; return [C.opts.rows[0].addPrice, C.opts.groupNames[0], C.opts.rows[0].values[0], e11.opts.rows[0].addPrice] })(), [0, '색상', '블랙', 0])
   eq('옵션 단순 상품(옵션 1개) · 옵션 끔 = 그대로 넘김', [SC.commonPatch('smartstore', { ...C, opts: { enabled: false, groupNames: ['색상'], rows: [{ values: ['블랙'], originals: ['黑色'], addPrice: 0, stock: 5, use: true }] } }).opts.enabled, O.optionsPayload(SC.commonPatch('11st', { ...C, opts: { enabled: false, groupNames: [], rows: [] } }).opts)], [false, null])
-  eq('이 판매처만 다르게: 켠 묶음은 넣지 않음 (상품명 · 판매가 · 재고·옵션 = opts null · 대표 이미지)', [
-    SC.commonPatch('11st', C, { name: true }).form, SC.commonPatch('11st', C, { price: true }).form, SC.commonPatch('smartstore', C, { stock: true }), SC.commonPatch('smartstore', C, { image: true }).form,
-  ], [{ price: 12900, stock: 30, repImageId: 'img2', fit: 'cover' }, { productName: '머그컵 350ml', stock: 30, repImageId: 'img2', fit: 'cover' }, { form: { productName: '머그컵 350ml', salePrice: 12900, repImageId: 'img2', fit: 'cover' }, opts: null }, { productName: '머그컵 350ml', salePrice: 12900, stock: 30 }])
+  eq('[공통 정보 사용](2026-10-02 ②-1): 처음 = 모두 켜짐 · 푼 묶음은 넣지 않음(상품명 · 판매가 · 재고·옵션 = opts null) · 대표 이미지는 늘 공통 값(판매처별로 고르지 않음)', [
+    SC.initialUse(), SC.initialUse(SC.COUPANG_GROUPS), SC.COMMON_GROUPS.map(g => g.key), SC.COUPANG_GROUPS.map(g => g.key),
+    SC.commonPatch('11st', C, { name: false }).form, SC.commonPatch('11st', C, { price: false }).form, SC.commonPatch('smartstore', C, { stock: false }), SC.commonPatch('smartstore', C, { image: false }).form, SC.commonPatch('11st', C, { name: true, price: true, stock: true }).form,
+  ], [{ name: true, price: true, stock: true }, { name: true, items: true }, ['name', 'price', 'stock'], ['name', 'items'],
+    { price: 12900, stock: 30, repImageId: 'img2', fit: 'cover' }, { productName: '머그컵 350ml', stock: 30, repImageId: 'img2', fit: 'cover' }, { form: { productName: '머그컵 350ml', salePrice: 12900, repImageId: 'img2', fit: 'cover' }, opts: null }, { productName: '머그컵 350ml', salePrice: 12900, stock: 30, repImageId: 'img2', fit: 'cover' }, { productName: '머그컵 350ml', price: 12900, stock: 30, repImageId: 'img2', fit: 'cover' }])
+  {
+    // 다시 켤 때 넣어 둘 값(stashGroup) — 판매처 칸 값 그대로 · 옵션은 복사본(공통 값 옮기기가 건드리지 않게)
+    const form = { productName: '내 이름', salePrice: 9900, stock: 3 }
+    const st = SC.stashGroup('smartstore', 'stock', form, C.opts)
+    st.opts.rows[0].stock = 777
+    eq('[공통 정보 사용] 다시 켤 때 넣어 두는 값: 상품명·판매가·재고(옵션 복사본) · 묶음이 아니면 오류', [SC.stashGroup('smartstore', 'name', form, C.opts), SC.stashGroup('11st', 'price', { price: 1000 }, null), st.form, C.opts.rows[0].stock !== 777, (() => { try { SC.stashGroup('smartstore', 'image', form); return 'no-throw' } catch (e) { return /묶음/.test(e.message) } })()],
+      [{ form: { productName: '내 이름' }, opts: null }, { form: { price: 1000 }, opts: null }, { stock: 3 }, true, true])
+  }
   eq('공통 대상이 아닌 판매처(쿠팡)는 오류로 멈춤 (조용히 넘어가지 않음)', (() => { try { SC.commonPatch('coupang', C); return 'no-throw' } catch (e) { return /쿠팡|coupang/.test(e.message) } })(), true)
 
   // ── 보내기 결과 표 · 실패한 판매처만 다시 보내기 ──
@@ -2772,12 +2782,15 @@ function elevenstRelay(u, method, opts) {
   ], [{ min: -6450, max: 6450 }, { min: -2500, max: 5000 }, null, { min: -6450, max: 12900 }, null])
   {
     const ssv = read('src/components/studio/StudioSendSmartstore.vue'), e11v = read('src/components/studio/StudioSendElevenst.vue'), cpv = read('src/components/studio/StudioSendCoupang.vue')
-    eq('창: 공통 정보는 대상 2곳 이상일 때만(commonActive) · common은 쿠팡·스마트스토어·11번가 섹션에 · 쿠팡 섹션도 common을 받음(2026-10-02)', [
+    eq('창: 공통 정보는 대상 1곳 이상일 때(commonActive — 2026-10-02 ②-1) · common은 쿠팡·스마트스토어·11번가 섹션에 · 쿠팡 섹션도 common을 받음(2026-10-02)', [
       /useCommon = computed\(\(\) => !!common\.value && commonActive\(picked\.value, \{ resend: !!props\.prepare\?\.resend \}\)\)/.test(modal), /v-bind="COMMON_MARKETS\.includes\(key\) \? \{ common: useCommon \? common : null \} : \{\}"/.test(modal), /common: \{ type: Object, default: null \}/.test(cpv),
     ], [true, true, true])
-    eq('섹션: 공통 값은 commonPatch로 자기 f·opts에 옮김(빠짐 목록·요약·보내기는 예전 그대로) · 보낸 뒤(done)는 안 옮김 · submit 본문은 공통 정보를 직접 안 봄', [
-      /commonPatch\('smartstore', props\.common, own\)/.test(ssv), /commonPatch\('11st', props\.common, own\)/.test(e11v), [ssv, e11v].every(s => /if \(!props\.common \|\| done\.value\) return/.test(s)), [ssv, e11v].every(s => !/props\.common/.test(s.slice(s.indexOf('async function submit()'), s.indexOf('async function submit()') + 3000))),
-    ], [true, true, true, true])
+    const usc = read('src/lib/useSendCommon.js'), zzv = read('src/components/studio/StudioSendZigzag.vue')
+    eq('섹션: 공통 값은 useSendCommon(commonPatch)으로 자기 f·opts에 옮김(빠짐 목록·요약·보내기는 예전 그대로) · 보낸 뒤(done)는 안 옮김 · submit 본문은 공통 정보를 직접 안 봄 · 예전 "이 판매처만 다르게" 없음', [
+      /useSendCommon\('smartstore', \{ props, f, opts, done \}\)/.test(ssv), /useSendCommon\('11st', \{ props, f, opts, done \}\)/.test(e11v), /useSendCommon\('zigzag', \{ props, f, opts, done \}\)/.test(zzv),
+      /commonPatch\(market, props\.common, use\)/.test(usc) && /if \(!props\.common \|\| done\.value\) return/.test(usc), [ssv, e11v].every(s => !/props\.common/.test(s.slice(s.indexOf('async function submit()'), s.indexOf('async function submit()') + 3000))),
+      [ssv, e11v, zzv, cpv].some(s => s.includes('이 판매처만 다르게:')),
+    ], [true, true, true, true, true, false])
   }
   eq('보내기 탭: [여러 판매처로 한 번에 보내기] = 보낼 수 있는 곳 2곳 이상일 때만 · 판매처 없이 창을 엶(= 연결된 곳 모두 체크, 이미 보낸 곳 뺌) · 판매처별 버튼은 그대로', [
     /<div v-if="sendableCount > 1"[^>]*data-ch-send-all-box>/.test(view), /data-ch-send-all @click="openSend\(''\)"/.test(view), /sendableCount = computed\(\(\) => rows\.value\.filter\(r => r\.state === 'connected'\)\.length\)/.test(view),
@@ -3087,6 +3100,51 @@ function elevenstRelay(u, method, opts) {
     SL.marketChips(del).chips[0].label, SL.STATUS_FILTERS.find(g => g.key === 'deleted').label, SL.marketChips(mis).chips[0].title, SL.isCheckTarget(mis.history[0]), SL.needsAutoCheck(mis.history, Date.now()),
     /sendStatusLabel\(s\.status\)/.test(read('src/components/studio/StudioSendList.vue')),
   ], ['스마트스토어 삭제됨', '판매처에서 삭제됨', '지금 연결된 계정과 다른 계정으로 보낸 상품이라 상태를 확인할 수 없습니다', false, false, true])
+}
+
+// ── 22-2. [공통 정보 사용] 체크 (2026-10-02 ②-1) — src/lib/useSendCommon.js 동작 (예전 "이 판매처만 다르게"를 대신함) ──
+{
+  const { reactive, ref, nextTick } = await import('vue')
+  const { useSendCommon } = await import('../src/lib/useSendCommon.js')
+  const OE = await import('../src/lib/studioOptionEditor.js')
+  const common = reactive({ productName: '공통 이름', price: 12900, stock: 5, opts: OE.emptyOptionEditor(), repImageId: 'img1', fit: 'contain' })
+  const props = reactive({ common })
+  const f = ref({ productName: '', salePrice: null, stock: null, repImageId: null, fit: 'contain' })
+  const opts = ref(OE.emptyOptionEditor())
+  const done = ref(null)
+  const cm = useSendCommon('smartstore', { props, f, opts, done })
+  const snap = () => [f.value.productName, f.value.salePrice, f.value.stock, f.value.repImageId]
+  const steps = []
+  steps.push([{ ...cm.use }, snap(), cm.showOwn('name'), cm.showOwn('image')]) // 처음 = 모두 체크 · 공통 값 · 칸 가림 · 대표 이미지는 늘 가림
+  cm.setUse('name', false) // 체크를 풂 → 칸이 열리고 공통 값에서 시작
+  steps.push([cm.use.name, f.value.productName, cm.showOwn('name')])
+  f.value.productName = '스마트스토어 전용 이름'
+  common.productName = '공통 이름 바뀜'; await nextTick()
+  steps.push([f.value.productName]) // 풀어 둔 동안 공통 값이 바뀌어도 덮지 않음
+  cm.setUse('name', true) // 다시 체크 → 공통 값
+  steps.push([f.value.productName, cm.showOwn('name')])
+  cm.setUse('name', false) // 다시 풂 → 넣어 둔 값이 돌아옴(지우지 않음)
+  steps.push([f.value.productName])
+  common.price = 15000; await nextTick()
+  steps.push([f.value.salePrice, f.value.repImageId]) // 다른 묶음(판매가)은 그대로 공통 값을 따라감
+  done.value = { ok: true }; cm.setUse('price', false)
+  steps.push([cm.use.price]) // 보낸 뒤에는 바꾸지 않음
+  eq('[공통 정보 사용]: 처음 모두 체크·공통 값 → 풀면 칸이 열림(공통 값에서 시작) → 풀어 둔 동안 공통 값이 바뀌어도 안 덮음 → 다시 체크 = 공통 값 → 다시 풀면 넣었던 값 되살림 · 대표 이미지는 늘 공통 · 보낸 뒤엔 안 바뀜', steps, [
+    [{ name: true, price: true, stock: true }, ['공통 이름', 12900, 5, 'img1'], false, false],
+    [false, '공통 이름', true],
+    ['스마트스토어 전용 이름'],
+    ['공통 이름 바뀜', false],
+    ['스마트스토어 전용 이름'],
+    [15000, 'img1'],
+    [true],
+  ])
+  eq('[공통 정보 사용] 입력값 기억: 풀어 둔 묶음만 { name:false } · 되살리면 그 묶음을 다시 풀고 그 값으로', (() => {
+    const out = cm.useOut()
+    const f2 = ref({ productName: '', salePrice: null, stock: null, repImageId: null, fit: 'contain' })
+    const cm2 = useSendCommon('smartstore', { props, f: f2, opts: ref(OE.emptyOptionEditor()), done: ref(null) })
+    cm2.applyUseDraft({ use: out, form: { productName: '기억한 이름', salePrice: 1, stock: 2 } })
+    return [out, cm2.use.name, cm2.use.price, f2.value.productName, f2.value.salePrice]
+  })(), [{ name: false }, false, true, '기억한 이름', 15000])
 }
 
 // ── 23. 다시 보내기 = 판매처에 있는 상품 수정 (2026-10-02) — api/_marketUpdate.js 순수 함수 + 서버(가짜 쿠팡·네이버·11번가, 실제 호출 없음) ──
@@ -3857,8 +3915,8 @@ function elevenstRelay(u, method, opts) {
     sm.includes("if (d && typeof el.applyDraft === 'function') { delete pendingDraft[key]; el.applyDraft(d) }"),
   ], [true, true, true, true])
   eq('판매처 칸: 카테고리(스마트스토어·11번가·지그재그·쿠팡 = applyPreset) · 판매가·재고·옵션(공통 정보가 아닐 때) · 지그재그 배송비(부분 반품비 포함)', [
-    [ss, e11, zz].every(s => s.includes('function draftOut() { return { category: pickedCategory.value, form: pickFields(f.value, DRAFT_FORM), opts: cloneOptionEditor(opts.value)') && s.includes('if (d.category?.id != null) applyPreset({ category: d.category })') && s.includes('if (props.common) return')),
-    zz.includes("const DRAFT_DELIVERY = ['feeType', 'baseFee', 'freeOver', 'jejuFee', 'isolatedFee', 'returnFee', 'partialReturnFee', 'exchangeFee', 'shippingDays', 'bundle']") && zz.indexOf('Object.assign(f.value, pickFields(d.delivery, DRAFT_DELIVERY))') < zz.indexOf("if (props.common) return // 상품명"),
+    [ss, e11, zz].every(s => s.includes('function draftOut() { return { category: pickedCategory.value, form: pickFields(f.value, DRAFT_FORM), opts: cloneOptionEditor(opts.value), use: cm.useOut()') && s.includes('if (d.category?.id != null) applyPreset({ category: d.category })') && s.includes('if (props.common) return cm.applyUseDraft(d)')),
+    zz.includes("const DRAFT_DELIVERY = ['feeType', 'baseFee', 'freeOver', 'jejuFee', 'isolatedFee', 'returnFee', 'partialReturnFee', 'exchangeFee', 'shippingDays', 'bundle']") && zz.indexOf('Object.assign(f.value, pickFields(d.delivery, DRAFT_DELIVERY))') < zz.indexOf("if (props.common) return cm.applyUseDraft(d)"),
     cp.includes('const draftOut = () => ({ category: pickedCategory.value })'), [ss, e11, zz, cp].every(s => /defineExpose\(\{[^}]*draftOut, applyDraft \}\)/.test(s)),
   ], [true, true, true, true])
 }

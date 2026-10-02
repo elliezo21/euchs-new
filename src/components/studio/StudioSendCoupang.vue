@@ -5,14 +5,9 @@
         <span class="st-desc-sm break-keep">상품 등록 후 승인 요청까지 진행합니다.</span>
       </div>
 
-      <!-- 공통 정보를 쓰는 중 (2026-10-02) — 이 판매처만 다르게 할 묶음을 켜면 아래에 그 칸이 다시 보인다 (판매가·재고·옵션 중 하나를 켜면 옵션 표 전체를 이 칸에서 넣는다) -->
-      <div v-if="common" class="st-surface st-border rounded-[10px] p-3 space-y-1.5" data-mk-s-common>
-        <p class="text-[13px] st-ink break-keep">상품명·판매가·재고·옵션·대표 이미지는 위 공통 정보 값을 사용합니다.</p>
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] st-ink">
-          <span class="st-desc-sm">이 판매처만 다르게:</span>
-          <label v-for="g in COMMON_GROUPS" :key="g.key" class="flex items-center gap-1.5"><input v-model="own[g.key]" type="checkbox" :disabled="!!done" :data-mk-s-own="g.key" /> {{ g.label }}</label>
-        </div>
-      </div>
+      <!-- [공통 정보 사용] (2026-10-02 ②-1) — 처음에는 모두 체크(공통 값). 체크를 풀면 그 칸이 열린다.
+           쿠팡은 판매가·재고·옵션이 옵션 표 한 벌이라 한 묶음 (COUPANG_GROUPS) — 풀면 옵션 표 전체를 이 칸에서 넣는다 -->
+      <StudioSendUseCommon v-if="common" market="coupang" :groups="COUPANG_GROUPS" :use="use" :disabled="!!done" data-mk-s-common @toggle="setUse" />
 
       <!-- 1. 판매 방식 (기본값 없음) -->
       <section class="space-y-2" data-mk-s-mode>
@@ -314,7 +309,8 @@ import { ref, reactive, computed, watch, inject, onMounted, onBeforeUnmount } fr
 import StudioSourceOptionPicker from '@/components/studio/StudioSourceOptionPicker.vue'
 import StudioTagChips from '@/components/studio/StudioTagChips.vue'
 import { optionTableMode, SEND_CACHE_KEY, repImageCandidates, defaultRepImageId, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
-import { COMMON_GROUPS } from '@/lib/studioSendCommon'
+import { COUPANG_GROUPS, initialUse } from '@/lib/studioSendCommon'
+import StudioSendUseCommon from '@/components/studio/StudioSendUseCommon.vue'
 import {
   COUPANG_LINK_TITLE, COMMON_ITEMS_NOTE, OPTION_CHANGE_NOTE, OPTION_CHANGE_CONFIRM, OPTION_CHANGE_MISSING, LINK_EMPTY, LINK_FILL,
   commonCoupangRows, autoLinks, linkRows, linkProblems, linksPayload, linksFromSaved, unitValueOk, unitHint, optionSetChanged,
@@ -822,10 +818,25 @@ async function submit() {
 
 // ── 공통 정보 (2026-10-02) — 창이 common을 주면 상품명·대표 이미지·판매가·재고·옵션을 그 값으로 채운다.
 //    판매가·재고·옵션 = 공통 옵션 줄마다 쿠팡 옵션 1개, 판매가 = 공통 판매가 + 추가금액(studioCoupangLink.commonCoupangRows).
-//    쿠팡 칸에 남는 것: 옵션 이름 연결 · 정가 · 품번 · GTIN · 필수 속성 · 옵션 이미지. [이 판매처만 다르게]에서 판매가나 재고·옵션을 켜면 예전처럼 이 칸에서 직접 넣는다
-const own = reactive(Object.fromEntries(COMMON_GROUPS.map(g => [g.key, false])))
-const showOwn = key => !props.common || own[key]
-const commonItems = computed(() => !!props.common && !own.price && !own.stock)
+//    쿠팡 칸에 남는 것: 옵션 이름 연결 · 정가 · 품번 · GTIN · 필수 속성 · 옵션 이미지. [공통 정보 사용]의 "판매가·재고·옵션"을 풀면 예전처럼 이 칸에서 직접 넣는다
+//    [공통 정보 사용] (2026-10-02 ②-1 — 예전 "이 판매처만 다르게"를 대신함): 처음에는 모두 켜짐. 다시 켜면 이 칸에 넣은 값은 지우지 않고 넣어 두었다가(stash) 다시 풀면 되살린다.
+//      예전에는 판매가·재고·옵션 체크가 둘로 나뉘어 있었지만 쿠팡 옵션 표는 한 벌이라, 하나만 켜도 둘 다 따로 입력으로 바뀌었다(체크하지 않은 쪽까지 — 거꾸로 동작 보고의 원인 중 하나)
+const use = reactive(initialUse(COUPANG_GROUPS))
+const stash = {}
+const showOwn = key => !props.common || (key === 'name' && use.name === false) || ((key === 'price' || key === 'stock') && use.items === false)
+const commonItems = computed(() => !!props.common && use.items !== false)
+// 옵션 줄 복사 — 넣어 둔 줄을 공통 값 옮기기(syncCommon — 같은 줄 객체를 고쳐 쓴다)가 건드리지 않게
+const cloneItem = it => ({ ...it, opt: { ...it.opt }, originals: { ...it.originals }, attributes: { ...it.attributes } })
+function setUse(key, on) {
+  if (done.value || !(key in use) || use[key] === on) return
+  if (on) stash[key] = key === 'name' ? { productName: f.value.productName } : { optionTypes: f.value.optionTypes.map(t => ({ ...t, names: [...(t.names || [])] })), items: f.value.items.map(cloneItem) }
+  use[key] = on
+  if (!on && stash[key]) {
+    if (key === 'name') f.value.productName = stash.name.productName
+    else { f.value.optionTypes = stash.items.optionTypes; f.value.items = stash.items.items; pickFor.value = -1 }
+  }
+  syncCommon()
+}
 const existingCoupang = computed(() => props.prepare?.existing?.coupang || null)
 const savedLinks = computed(() => linksFromSaved(existingCoupang.value?.optionLinks))
 const attrMeta = n => (meta.value?.attributes || []).find(a => a.name === n) || null
@@ -845,8 +856,8 @@ function nextSku(used) {
 function syncCommon() {
   if (!props.common || done.value) return
   const c = props.common
-  if (!own.name) f.value.productName = c.productName
-  if (!own.image) { f.value.repImageId = c.repImageId; f.value.fit = c.fit }
+  if (use.name !== false) f.value.productName = c.productName
+  f.value.repImageId = c.repImageId; f.value.fit = c.fit // 대표 이미지는 공통 정보 한 곳에서만 고른다
   if (!commonItems.value) return
   const { groupNames, rows } = commonCoupangRows(c)
   const links = autoLinks(groupNames, meta.value?.attributes || [], savedLinks.value, Object.fromEntries(f.value.optionTypes.map(t => [t.label, t.mapped])))
@@ -906,7 +917,6 @@ const pickedCategory = computed(() => (/^\d+$/.test(f.value.categoryCode) ? { id
 
 init()
 watch(() => props.common, syncCommon, { deep: true, immediate: true })
-watch(own, syncCommon)
 // 입력값 기억 (2026-10-02 — src/lib/studioSendDraft.js): 창이 [보내기] 때 draftOut()을 받아 두고, 같은 상품을 다시 열면 applyDraft()로 돌려준다
 // 쿠팡은 카테고리만 (옵션별 판매가·재고는 공통 정보 또는 옵션 표 — 옵션 표는 다시 열면 다시 불러온다)
 const draftOut = () => ({ category: pickedCategory.value })
