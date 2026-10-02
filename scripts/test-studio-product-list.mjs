@@ -88,11 +88,12 @@ eq('탭 개수', P.tabCounts(rows), { all: 6, draft: 1, ready: 1, live: 2, check
 eq('탭 목록·순서·확인 필요만 빨간 숫자', [P.PRODUCT_TABS.map(t => t.label), P.PRODUCT_TABS.filter(t => t.alert).map(t => t.key)], [['전체', '작성 중', '보내기 전', '판매처에 올라감', '확인 필요'], ['check']])
 
 // ── 이름 하나 · 출처 ──
-// 2026-10-02: 이름 순서 = 작업 이름 → 1688 제목 한글(번역 캐시 titlesKo) → 1688 원래 제목 → 저장할 때 이름(작업 이름·제목이 다 없을 때만)
-eq('상품 이름 = 작업 이름 → 1688 제목 한글 → 1688 원래 제목 → 저장할 때 이름 (화면마다 같은 값)', [
+// 2026-10-02 ②-1: 이름 순서 = 작업 이름 → 1688 제목 한글(번역 캐시 titlesKo) → "이름 없는 상품". 중국어 원문(1688 원래 제목·중국어가 든 이름·저장할 때 이름)은 보이지 않는다
+eq('상품 이름 = 작업 이름 → 1688 제목 한글 → "이름 없는 상품" (화면마다 같은 값 · 중국어 원문 표시 안 함)', [
   by.p1.name, by.p2.name, P.buildProducts({ projects, exports: exportsList, sends, titlesKo: { p2: '여성 슬리퍼', p1: '헤어핀' } }).filter(r => r.id === 'p1' || r.id === 'p2').map(r => r.name),
   P.productName({ title_zh: '发夹' }, null), P.productName({ title_zh: '发夹' }, null, '헤어핀'), P.productName({}, { title: '저장 이름' }), P.productName({}, null),
-], ['도트 헤어핀', '女士拖鞋', ['도트 헤어핀', '여성 슬리퍼'], '发夹', '헤어핀', '저장 이름', '이름 없는 상품'])
+  P.productName({ title: '发夹 복사본', title_zh: '发夹' }, null, '헤어핀'), P.productName({ title: '  내 헤어핀  ' }, null, '헤어핀'), P.koreanDisplayName([null, '', '发夹', '헤어핀 发夹']),
+], ['도트 헤어핀', '이름 없는 상품', ['도트 헤어핀', '여성 슬리퍼'], '이름 없는 상품', '헤어핀', '이름 없는 상품', '이름 없는 상품', '헤어핀', '내 헤어핀', '이름 없는 상품'])
 {
   const fs = await import('node:fs')
   const up = fs.readFileSync(new URL('../api/studio-upload.js', import.meta.url), 'utf8'), lv = fs.readFileSync(new URL('../src/components/studio/StudioProductList.vue', import.meta.url), 'utf8')

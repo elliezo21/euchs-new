@@ -89,5 +89,17 @@ snapshots = [{ offer_id: '1081981728994', status: 'error', item: null }]
 eq('스냅샷이 오류 → no_snapshot', (await call({ action: 'product_facts', projectId: PID })).body.reason, 'no_snapshot')
 eq('로그인 없음 → 401', (await call({ action: 'product_facts', projectId: PID }, 'bad')).code, 401)
 
+// ── title_ko (2026-10-02 ②-1) — 편집기 위쪽 상품 이름용 1688 제목 한글 (번역 캐시만) ──
+projects[0].title_zh = '三层滑动鸡蛋收纳盒'
+projects[1].title_zh = '没有翻译的标题'
+{
+  seen.length = 0
+  const r = await call({ action: 'title_ko', projectId: PID })
+  eq('title_ko: 작업의 title_zh → 번역 캐시 한국어 · 외부 호출 없음', [r.code, r.body, [...new Set(seen)].every(x => x.startsWith('/rest/v1/') || x === '/auth/v1/user')], [200, { titleKo: '3단 슬라이드 계란 보관함' }, true])
+}
+eq('title_ko: 캐시에 없으면 빈 글자(중국어를 돌려주지 않음) · 남의 작업 404 · 로그인 없음 401', [
+  (await call({ action: 'title_ko', projectId: PID2 })).body, (await call({ action: 'title_ko', projectId: OTHER })).code, (await call({ action: 'title_ko', projectId: PID }, 'bad')).code,
+], [{ titleKo: '' }, 404, 401])
+
 console.log(`\n${pass} 통과 · ${fail} 실패`)
 if (fail) process.exit(1)

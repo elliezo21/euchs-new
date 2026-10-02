@@ -89,6 +89,11 @@
  *   → { facts: { title, attrs, options } | null, reason: null|'no_offer'|'no_snapshot', texts, translated }
  * 에러: not_found 404
  *
+ * POST { action:'title_ko', projectId } (2026-10-02 ②-1 — 편집기 위쪽 상품 이름에 중국어를 보이지 않게)
+ *   본인 작업의 title_zh → 번역 캐시의 한국어만(lookupCachedTranslations — 캐시 조회만, 외부 호출·과금 없음) → { titleKo } (없으면 '')
+ *   화면 표시용이다 — 작업 이름(title)을 바꾸지 않는다
+ * 에러: not_found 404
+ *
  * ── 내 상품 보관 (2026-09-28) ── [내보내기]로 받은 이미지를 한 벌 더 둔다 (_studioExports.js). 같은 2단계 방식. 돈이 들지 않는다.
  * POST { action:'export_begin', projectId, title, format, scale, mode, count } → { exportId, stamp }  (studio_exports 행, 폴더 = {uid}/{projectId}/exports/{stamp})
  * POST { action:'export_file_prepare', exportId, key, size } → { exists:true, path } | { path, token }   key = 01·02…·all·thumb(목록 미리보기 JPG)
@@ -1159,6 +1164,16 @@ async function productFacts(ctx, body, res) {
   return res.status(200).json({ facts: withKo(f, ko), reason: null, texts: texts.length, translated: ko.size })
 }
 
+// ── title_ko (2026-10-02 ②-1) — 편집기 위쪽 상품 이름용 1688 제목 한글 ──
+async function titleKo(ctx, body, res) {
+  const project = await loadOwnedRow(ctx, 'studio_projects', String(body.projectId ?? ''), 'id,title_zh')
+  if (!project) return sendError(res, 404, 'not_found', '프로젝트를 찾을 수 없습니다.')
+  const zh = typeof project.title_zh === 'string' ? project.title_zh.trim() : ''
+  if (!zh) return res.status(200).json({ titleKo: '' })
+  const t = (await lookupCachedTranslations([zh], CACHE_SOURCE_LANG, CACHE_TARGET_LANG)).get(zh)
+  return res.status(200).json({ titleKo: typeof t === 'string' && t.trim() && t.trim() !== zh ? t.trim() : '' })
+}
+
 // ── 내 상품 보관 (2026-09-28) ────────────────────────────────────────────────
 // 받기(브라우저 다운로드)는 그대로 — 받은 파일을 한 벌 더 둘 뿐이다. 표(studio_exports)가 없으면 503 export_sql_missing(보관만 준비 중).
 const EXPORT_SELECT = 'id,project_id,stamp,folder,title,format,scale,mode,file_count,files,thumb_path,created_at'
@@ -1611,6 +1626,7 @@ export default async function handler(req, res) {
     if (body.action === 'bg_gen_status') return await bgGenStatus(ctx, body, res)
     if (body.action === 'bg_generate') return await bgGenerate(ctx, body, res)
     if (body.action === 'product_facts') return await productFacts(ctx, body, res)
+    if (body.action === 'title_ko') return await titleKo(ctx, body, res)
     if (body.action === 'export_begin') return await exportBegin(ctx, body, res)
     if (body.action === 'export_file_prepare') return await exportFilePrepare(ctx, body, res)
     if (body.action === 'export_file_confirm') return await exportFileConfirm(ctx, body, res)
@@ -1620,7 +1636,7 @@ export default async function handler(req, res) {
     if (body.action === 'work_save') return await workSave(ctx, body, res)
     if (body.action === 'export_render_status') return await exportRenderStatus(ctx, body, res)
     if (body.action === 'export_discard') return await exportDiscard(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'access'·'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'project_blank'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_local_prepare'·'bg_local_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download'·'export_save_commit'·'work_save'·'export_render_status'·'export_discard' 중 하나여야 합니다.")
+    return sendError(res, 400, 'invalid_input', "action은 'access'·'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'project_blank'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_local_prepare'·'bg_local_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'title_ko'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download'·'export_save_commit'·'work_save'·'export_render_status'·'export_discard' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')

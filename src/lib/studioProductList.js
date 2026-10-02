@@ -22,6 +22,7 @@
 import { MARKETS, OFF_MARKETS } from './studioMarketplaceRules.js'
 import { LIVE_SEND_STATUSES } from '../../api/_marketUpdate.js'
 import { fixAction } from './studioSentList.js'
+import { hasUntranslated } from '../../api/_coupangFields.js'
 
 export const STAGE_LABEL = { draft: '작성 중', ready: '보내기 전', sent: '보냄', changed: '변경사항 미전송' }
 export const STAGE_BADGE = { draft: 'st-badge st-badge-outline', ready: 'st-badge st-badge-accent', sent: 'st-badge st-badge-ok', changed: 'st-badge st-badge-danger' }
@@ -47,14 +48,23 @@ const clean = s => String(s ?? '').replace(/\s+/g, ' ').trim()
 const time = v => { const t = new Date(v).getTime(); return Number.isFinite(t) ? t : 0 }
 const rank = key => { const i = MARKETS.findIndex(m => m.key === key); return i < 0 ? MARKETS.length : i }
 
+export const NO_NAME = '이름 없는 상품'
 /**
- * 상품 이름 하나 — 화면마다 같은 이름 (목록·보내기 창 제목)
- * 작업 이름(고객이 붙인 이름 = studio_projects.title) → 1688 제목 한글(titleKo — 번역 캐시, 서버 exports_list titlesKo) → 1688 원래 제목(title_zh)
- *   → 결과물을 저장할 때 이름(studio_exports.title — 작업이 없을 때만) → '이름 없는 상품'
- *   (2026-10-02: 예전에는 결과물 이름이 1688 원래 제목보다 앞이라, 이름을 안 바꾼 1688 상품은 원래 제목이 그대로 보였다)
+ * 화면에 보일 상품 이름 하나 (2026-10-02 ②-1) — 후보 중 처음 나오는 한국어 이름. 중국어(번역 안 된 한자)가 든 후보는 건너뛴다. 없으면 '이름 없는 상품'
+ *   화면 표시용이다 — 판매처 상품명 입력칸에는 넣지 않는다(보내기 창 상품명은 빈칸 시작)
+ */
+export function koreanDisplayName(cands) {
+  for (const c of Array.isArray(cands) ? cands : []) { const t = clean(c); if (t && !hasUntranslated(t)) return t }
+  return NO_NAME
+}
+/**
+ * 상품 이름 하나 — 화면마다 같은 이름 ([내 상품] 목록·여러 상품 보내기 목록·보내기 창 제목·편집기 위쪽)
+ * 셀러가 붙인 작업 이름(studio_projects.title) → 1688 제목 한글(titleKo — 번역 캐시, 서버 exports_list titlesKo) → '이름 없는 상품'
+ *   1688 원래 제목(title_zh)·결과물 이름(studio_exports.title — 저장할 때의 작업 이름이라 중국어일 수 있다)은 보이지 않는다(2026-10-02 ②-1 — 중국어 원문 표시 안 함).
+ *   작업 이름이라도 중국어가 들어 있으면(예: 1688 상품 복사본 "原标题 복사본") 건너뛴다
  */
 export function productName(project, ex = null, titleKo = '') {
-  return clean(project?.title) || clean(titleKo) || clean(project?.title_zh) || clean(ex?.title) || '이름 없는 상품'
+  return koreanDisplayName([project?.title, titleKo])
 }
 /** 출처 — DB에는 1688 상품(source_type '1688')과 내 사진('upload')만 있다(찜·주문·주소 붙여넣기는 구분이 저장되지 않음) */
 export const sourceLabelOf = project => (project?.source_type === 'upload' ? '내 사진' : '1688 상품')

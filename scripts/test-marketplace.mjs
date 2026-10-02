@@ -3829,7 +3829,7 @@ function elevenstRelay(u, method, opts) {
   const sp = api.slice(api.indexOf('async function sendPrepare'), api.indexOf('async function categoryPredict'))
   eq('서버: 사진 서명을 동시에(SIGN_POOL) · kind·sortOrder를 응답에 · 원천·기존 상품·지난 값도 동시에', [
     /const SIGN_POOL = \d+/.test(api), sp.includes('runSignPool(') && !/for \(const im of[^\n]*\n[^\n]*await storageSignDownload/.test(sp), sp.includes('kind: im.kind, sortOrder: im.sort_order'),
-    sp.includes('await Promise.all([loadSource(ctx, projRows?.[0]?.offer_id), existingP, prevRowsP, loadOrdered(ctx, projRows?.[0]?.offer_id)])'),
+    sp.includes('await Promise.all([loadSource(ctx, projRows?.[0]?.offer_id), existingP, prevRowsP, loadOrdered(ctx, projRows?.[0]?.offer_id), titleKoOf(projRows?.[0]?.title_zh)])'),
   ], [true, true, true, true])
   const secs = ['Common', 'Coupang', 'Smartstore', 'Elevenst', 'Zigzag', 'Cafe24'].map(n => read(`src/components/studio/StudioSend${n}.vue`))
   eq('화면: 대표 이미지 그리드 6곳 = repImages · 처음 값 = defaultRepImageId · 사진은 loading="lazy" · 쿠팡 옵션 사진 고르기는 사진 전부', [
@@ -3917,6 +3917,20 @@ function elevenstRelay(u, method, opts) {
   eq('쿠팡 옵션별 사진: 이름 "옵션별 사진"(대표 이미지와 다름) · 안내 한 줄 · 예전 "대표 이미지 사용"·"옵션 이미지" 글자 없음', [
     cp.includes('<th class="c-img" title="옵션별 사진">옵션별 사진</th>'), cp.includes('data-mk-s-option-image-note'), /대표 이미지 사용|>옵션 이미지<|'옵션 이미지/.test(cp),
   ], [true, true, false])
+}
+
+// ── 28-3. 화면 표시용 상품 이름 = 한국어만 (2026-10-02 ②-1) — 보내기 창 제목 · 여러 상품 보내기 목록 · 편집기 위쪽 ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const modal = read('src/components/studio/StudioSendModal.vue'), bulk = read('src/components/studio/StudioBulkSendModal.vue'), ed = read('src/views/studio/StudioEditorView.vue'), api = read('api/marketplace.js')
+  eq('보내기 창 제목 = productName(작업 이름 → 1688 제목 한글 → "이름 없는 상품") · 서버 send_prepare가 export.titleKo(번역 캐시만) · 예전 export.title 직접 표시 없음', [
+    modal.includes('const shownName = computed(() => productName({ title: props.prepare?.export?.projectTitle }, null, props.prepare?.export?.titleKo))') && modal.includes('{{ shownName }}'), /prepare\.export\.projectTitle \|\| prepare\.export\.title/.test(modal),
+    api.includes("studio_projects?select=title,title_zh,offer_id") && /export: \{ id: ex\.id, [^\n]*titleKo,/.test(api),
+  ], [true, false, true])
+  eq('여러 상품 보내기 목록 이름 = [내 상품] 줄 이름(productName) · 편집기 위쪽 = koreanDisplayName([작업 이름, 서버 title_ko]) · 이름 칸에 "이름 없는 상품" 글자를 넣지 않음', [
+    bulk.includes('{{ it.name }}') && bulk.includes('name: r.name'), ed.includes('>{{ shownTitle }}</button>') && ed.includes('koreanDisplayName([project.value.title, titleKo.value])') && ed.includes('fetchProjectTitleKo(p.id)'), ed.includes("titleEdit.value = shown === NO_NAME ? '' : shown"),
+  ], [true, true, true])
+  eq('상품명 입력칸에는 넣지 않음 (보내기 창 섹션·공통 정보에 titleKo·koreanDisplayName 없음)', ['Common', 'Coupang', 'Smartstore', 'Elevenst', 'Zigzag', 'Cafe24'].some(n => /titleKo|koreanDisplayName|productName\(\{/.test(read(`src/components/studio/StudioSend${n}.vue`))) || /titleKo/.test(read('src/lib/studioSendCommon.js')), false)
 }
 
 // ── 29. 실패 뒤 다시 열 때 입력값 유지 (2026-10-02 운영: 공통 판매가·재고·카테고리·지그재그 배송비가 비어 있었음) ──

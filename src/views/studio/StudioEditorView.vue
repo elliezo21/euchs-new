@@ -20,7 +20,7 @@
           <button
             v-else type="button" class="st-title-btn truncate" :disabled="!project" title="눌러서 이름 바꾸기" data-title
             @click="openTitleEdit"
-          >{{ project ? projectDisplayTitle(project) : '' }}</button>
+          >{{ shownTitle }}</button>
           <div v-if="project" class="relative shrink-0">
             <button type="button" class="st-icon-btn st-title-more" title="작업 메뉴" :aria-expanded="titleMenuOpen" data-title-menu @click="titleMenuOpen = !titleMenuOpen">
               <MoreHorizontal class="w-4 h-4" :stroke-width="2" />
@@ -553,7 +553,9 @@ import { useAutoBuild } from '@/composables/useAutoBuild'
 import { createExportDeps, renderExportFile } from '@/lib/studioExportDeps'
 import { startBackgroundRender, ensureProductImages, renderState, renderProgressText } from '@/lib/studioProductImages'
 import { saveWork } from '@/lib/studioExportArchive'
-import { fetchProductFacts } from '@/lib/studioFactsApi'
+import { fetchProductFacts, fetchProjectTitleKo } from '@/lib/studioFactsApi'
+import { koreanDisplayName, NO_NAME } from '@/lib/studioProductList'
+import { hasUntranslated } from '../../../api/_coupangFields.js'
 import {
   reviewMark, buildDrafts, autoTemplate, oneClickTarget, draftSectionIds, withDraftMark, isDraftSection, problemList,
   isAutoPage, readNoticeClosed, writeNoticeClosed,
@@ -835,10 +837,25 @@ function startTemplateFromRoute() {
 const titleEdit = reactive({ open: false, value: '' })
 const titleInput = ref(null)
 const titleMenuOpen = ref(false)
+// 위쪽 상품 이름 (2026-10-02 ②-1) — [내 상품] 목록과 같은 규칙(studioProductList.koreanDisplayName): 작업 이름 → 1688 제목 한글(번역 캐시 — 서버 title_ko) → "이름 없는 상품".
+//   중국어 원문(title_zh·중국어가 든 이름)은 보이지 않는다. 작업 이름이 한국어면 서버를 부르지 않는다
+const titleKo = ref('')
+let titleKoFor = ''
+watch(() => project.value?.id, id => {
+  if (id === titleKoFor) return
+  titleKoFor = id || ''
+  titleKo.value = ''
+  const p = project.value
+  if (!p || (p.title && !hasUntranslated(p.title)) || !p.title_zh) return
+  fetchProjectTitleKo(p.id).then(t => { if (titleKoFor === p.id) titleKo.value = t })
+})
+const shownTitle = computed(() => (project.value ? koreanDisplayName([project.value.title, titleKo.value]) : ''))
 function openTitleEdit() {
   titleMenuOpen.value = false
   if (!project.value) return
-  titleEdit.value = projectDisplayTitle(project.value)
+  // 이름 칸 처음 값 = 보이는 한국어 이름(없으면 빈칸 — "이름 없는 상품" 글자를 칸에 넣지 않는다)
+  const shown = koreanDisplayName([project.value.title, titleKo.value])
+  titleEdit.value = shown === NO_NAME ? '' : shown
   titleEdit.open = true
   nextTick(() => { titleInput.value?.focus(); titleInput.value?.select() })
 }
@@ -848,7 +865,7 @@ async function commitTitle() {
   titleEdit.open = false
   const p = project.value
   const next = titleEdit.value.trim()
-  if (!p || !next || next === projectDisplayTitle(p)) return // 빈 이름·그대로면 저장하지 않는다
+  if (!p || !next || next === p.title) return // 빈 이름·그대로면 저장하지 않는다
   const prev = p.title
   p.title = next
   try {

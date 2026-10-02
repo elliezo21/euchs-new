@@ -1,7 +1,7 @@
 <template>
   <StudioModal :open="open" :title="prepare?.resend ? '수정 후 다시 보내기' : '판매처로 보내기'" full @close="close">
     <div v-if="prepare" class="space-y-5 max-h-[70vh] overflow-y-auto pr-1" data-mk-send-modal>
-      <p class="st-desc break-keep">상품 <b class="st-ink">{{ prepare.export.projectTitle || prepare.export.title || '이름 없는 상품' }}</b> · 이미지 {{ prepare.export.files.length }}장</p>
+      <p class="st-desc break-keep">상품 <b class="st-ink">{{ shownName }}</b> · 이미지 {{ prepare.export.files.length }}장</p>
       <p v-if="prepare.resend" class="st-surface st-border rounded-[10px] p-3 text-[13px] break-keep" data-mk-s-resend-note>쿠팡 상품번호 <b class="st-ink">{{ prepare.resend.sellerProductId }}</b> 을 수정하여 다시 승인 요청합니다. 새 상품은 생성되지 않습니다.<span v-if="prepare.resend.reason" class="block mt-1 st-danger-text">반려 사유: {{ prepare.resend.reason }}</span></p>
 
       <!-- 0. 보낼 판매처 -->
@@ -107,6 +107,7 @@ import { detailImageOver, detailImageMissing } from '../../../api/_marketDetailL
 import { isAdminOrStaff, currentUser } from '@/lib/auth'
 import { readDraft, writeDraft, commonDraft, applyCommonDraft } from '@/lib/studioSendDraft'
 import { repImageCandidates } from '@/lib/studioMarketplaceRules'
+import { productName } from '@/lib/studioProductList'
 
 const SECTIONS = { coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, '11st': StudioSendElevenst, cafe24: StudioSendCafe24, zigzag: StudioSendZigzag } // 2026-09-30 카페24 · 2026-10-01 스마트스토어·11번가 · 2026-10-02 지그재그 섹션 추가 — 쿠팡 섹션은 그대로
 
@@ -137,6 +138,8 @@ const rows = computed(() => marketRows({ ...linkStates(false), ...(props.prepare
 const picked = computed(() => checkedMarkets(rows.value, checked.value))
 const mounted = computed(() => sectionKeys(rows.value, Object.keys(SECTIONS))) // 섹션을 만들어 둘 판매처 (체크와 상관없음)
 const nameOf = key => MARKETS.find(m => m.key === key)?.name || key
+// 창 제목의 상품 이름 — [내 상품] 목록과 같은 규칙(작업 이름 → 1688 제목 한글 → "이름 없는 상품", 중국어 원문은 안 보임 — 2026-10-02 ②-1). 표시용 — 상품명 칸에는 넣지 않는다
+const shownName = computed(() => productName({ title: props.prepare?.export?.projectTitle }, null, props.prepare?.export?.titleKo))
 // 이미 보낸 판매처 — 다시 보내기 창에서는 쓰지 않는다(반려된 쿠팡 상품을 고치는 길)
 const sentMap = computed(() => (props.prepare?.resend ? {} : alreadySent(props.sent)))
 // 판매처에 이미 있는 상품 (서버 send_prepare.existing — 규칙 api/_marketUpdate.js). 다시 보내기 창(쿠팡 반려 고치기)은 자기 안내가 따로 있다

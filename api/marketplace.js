@@ -1665,6 +1665,21 @@ async function existingInMarkets(ctx, exportId) {
   }
   return out
 }
+/**
+ * 작업의 1688 제목(title_zh) → 번역 캐시의 한국어 (2026-10-02 ②-1 — 보내기 창 제목에 중국어를 보이지 않게). 외부 호출 없음. 없거나 실패면 ''(원인 로그)
+ *   화면 표시용이다 — 상품명 입력칸에는 넣지 않는다
+ */
+async function titleKoOf(titleZh) {
+  const zh = typeof titleZh === 'string' ? titleZh.trim() : ''
+  if (!zh) return ''
+  try {
+    const t = (await lookupCachedTranslations([zh], CACHE_SOURCE_LANG, CACHE_TARGET_LANG)).get(zh)
+    return typeof t === 'string' && t.trim() && t.trim() !== zh ? t.trim() : ''
+  } catch (e) {
+    console.error('[marketplace] send_prepare: 제목 번역 캐시 조회 실패 — 이름 없이 보냄:', e.message)
+    return ''
+  }
+}
 /** 이 고객이 이 1688 상품을 주문한 옵션 — 결제 확인된 주문만(ORDER_OK_STATUSES), 최근 ORDERED_ORDERS_MAX건 (규칙·근거 api/_marketOrdered.js) */
 async function loadOrdered(ctx, offerId) {
   if (!OFFER_ID_RE.test(String(offerId ?? ''))) return []
@@ -1698,7 +1713,7 @@ async function sendPrepare(ctx, body, res) {
     catch (e) { console.error('[marketplace] 사진 서명 주소 실패:', im.original_path, e.message); return null }
   })
   const [projRows, templates, places, account, signedList] = await Promise.all([
-    sb(ctx.cfg, `studio_projects?select=title,offer_id&id=eq.${ex.project_id}&limit=1`), loadTemplates(ctx), loadPlaces(ctx), loadAccountRow(ctx), signed,
+    sb(ctx.cfg, `studio_projects?select=title,title_zh,offer_id&id=eq.${ex.project_id}&limit=1`), loadTemplates(ctx), loadPlaces(ctx), loadAccountRow(ctx), signed,
   ])
   const images = signedList.filter(Boolean)
   const connected = !!account && daysLeft(account.expires_at) >= 0
@@ -1706,7 +1721,7 @@ async function sendPrepare(ctx, body, res) {
   // 판매처마다 마지막으로 보낸 판매가·재고·카테고리 (2026-10-02 여러 상품 한 번에 보내기 — 같은 작업의 결과물 전부, 판매처를 부르지 않음)
   const prevRowsP = projectExportIds(ctx, ex.id).then(ids => sb(ctx.cfg, `marketplace_sends?select=${PREVIOUS_SELECT}&user_id=eq.${ctx.userId}&export_id=in.(${ids.join(',')})&order=created_at.desc&limit=200`))
   const existingP = existingInMarkets(ctx, ex.id).then(v => ({ v }), e => ({ e }))
-  const [source, existingR, prevRows, ordered] = await Promise.all([loadSource(ctx, projRows?.[0]?.offer_id), existingP, prevRowsP, loadOrdered(ctx, projRows?.[0]?.offer_id)])
+  const [source, existingR, prevRows, ordered, titleKo] = await Promise.all([loadSource(ctx, projRows?.[0]?.offer_id), existingP, prevRowsP, loadOrdered(ctx, projRows?.[0]?.offer_id), titleKoOf(projRows?.[0]?.title_zh)])
   if (existingR.e) {
     if (isNewColumnMissing(existingR.e)) return newSqlMissing(res, existingR.e, 'send_prepare')
     throw existingR.e
@@ -1718,8 +1733,8 @@ async function sendPrepare(ctx, body, res) {
     previous, // 판매처마다 마지막으로 보낸 { price, stock, category:{ id, name }, at, status } (2026-10-02 — api/_marketPrevious.js)
     ordered, // 이 고객이 이 1688 상품을 이유씨에서 주문한 옵션 [{ specId, color, size, quantity, orders:[주문 번호] }] (2026-10-02 — api/_marketOrdered.js) · 1688 상품이 아니면 []
     connected, markets: { [MARKET]: { connected } }, // 판매처마다 연결 여부 — 보내기 창 "보낼 판매처" 줄이 쓴다
-    // projectTitle = 작업의 지금 이름 (내 상품을 만든 뒤 작업 이름을 한글로 고쳤을 수 있다 — 보내기 창의 상품명 기본값이 먼저 본다)
-    export: { id: ex.id, title: ex.title || projRows?.[0]?.title || '', projectTitle: projRows?.[0]?.title || '', mode: ex.mode, format: ex.format, files: ex.files.map(f => ({ key: f.key, name: f.name, width: f.width, height: f.height })) },
+    // projectTitle = 작업의 지금 이름 · titleKo = 1688 제목의 한국어(번역 캐시) — 보내기 창 제목 표시용(studioProductList.productName과 같은 순서, 2026-10-02 ②-1). 상품명 칸에는 넣지 않는다
+    export: { id: ex.id, title: ex.title || projRows?.[0]?.title || '', projectTitle: projRows?.[0]?.title || '', titleKo, mode: ex.mode, format: ex.format, files: ex.files.map(f => ({ key: f.key, name: f.name, width: f.width, height: f.height })) },
     images, templates, places, source, limits: { optionImages: OPTION_IMAGE_MAX, documents: DOC_MAX, documentBytes: DOC_MAX_BYTES },
     resend: prev ? { sendId: prev.id, sellerProductId: prev.seller_product_id, reason: prev.reason || '', revision: revisionsOf(prev).length, form: formFromBody(prev.request_json?.body), categoryName: prev.request_json?.categoryName || '' } : null,
   })
