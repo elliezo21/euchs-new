@@ -1425,7 +1425,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   ], [true, true, true, true, true, true, true, true])
   eq('보내기 탭: [카페24로 보내기] = 같은 버튼(sendButtonLabel) · 창에 market 전달 · 등록 뒤 "등록되었습니다" + 관리자 링크 · 보낸 상품 카드에도 링크', [
     /:market="sendMarket"/.test(sv), sv.includes("sendMarket.value = market"), /카페24에 등록되었습니다\./.test(sv), /data-ch-admin-link/.test(sv), /:data-mk-send-admin="s\.id"/.test(sl), /s\.market === 'cafe24' && s\.status === 'registered'/.test(sl),
-    lib.includes("registered: '등록됨'"), lib.includes("call('cafe24_send', payload)"), lib.includes("call('cafe24_categories')"),
+    read('src/lib/studioMarketplaceRules.js').includes("registered: '등록 완료'") /* 2026-10-02 상태 문구 한 곳 */, lib.includes("call('cafe24_send', payload)"), lib.includes("call('cafe24_categories')"),
   ], [true, true, true, true, true, true, true, true, true])
   // 서버 배선 — 쿠팡 흐름은 그대로
   const c24send = /async function cafe24Send[\s\S]*?\n\}/.exec(api)[0], cred = /async function cafe24Credentials[\s\S]*?\n\}/.exec(api)[0]
@@ -2510,14 +2510,22 @@ function elevenstRelay(u, method, opts) {
     eq('[일괄 전송]으로 열기: 이미 전송된 스마트스토어는 처음 체크에서 빠짐 · 확인 문구 없음 · 고객이 직접 체크하면 그때 확인 문구', [viaBulk, R.duplicateConfirmKeys(viaBulk, SENT), R.duplicateConfirmKeys([...viaBulk, 'smartstore'], SENT)], [['coupang', '11st'], [], ['smartstore']])
     eq('창: 확인 문구 목록 = duplicateConfirmKeys 하나 · 그 목록이 빠짐 목록에 오름(전송 버튼 꺼짐)', [/const confirmKeys = computed\(\(\) => duplicateConfirmKeys\(picked\.value, sentMap\.value, sentOk\.value/.test(read('src/components/studio/StudioSendModal.vue')), /for \(const key of confirmKeys\.value\) out\.push\(`\$\{nameOf\(key\)\} 중복 등록 확인 \(\[중복 등록\] 또는 \[선택 해제\]\)`\)/.test(read('src/components/studio/StudioSendModal.vue'))], [true, true])
   }
+  {
+    // 상태 문구 한 곳 (2026-10-02) — 보내기 탭 줄 배지·내 상품 배지·보낸 상품 카드·보내기 창 배지·결과 표가 모두 sendStatusLabel
+    const scr = ['src/views/studio/StudioChannelSendView.vue', 'src/components/studio/StudioExportList.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioSendModal.vue'].map(f => read(f))
+    eq('상태 문구 통일: 등록 완료·승인 완료·승인 대기·전송 중·실패·반려 · 모르는 값은 그대로 · 화면 4곳 모두 sendStatusLabel · 따로 둔 표(SEND_STATUS_LABEL[ ]·SENT_BADGE_LABEL) 없음 · studioMarketplace는 다시 내보내기만', [
+      ['registered', 'approved', 'approval_pending', 'sending', 'failed', 'rejected', 'weird'].map(R.sendStatusLabel), scr.map(s => /sendStatusLabel\(/.test(s)), scr.some(s => /SEND_STATUS_LABEL\[|SENT_BADGE_LABEL|RESULT_STATE_LABEL/.test(s)),
+      /export const SEND_STATUS_LABEL/.test(read('src/lib/studioMarketplace.js')), /SEND_STATUS_LABEL, sendStatusLabel/.test(read('src/lib/studioMarketplace.js')),
+    ], [['등록 완료', '승인 완료', '승인 대기', '전송 중', '실패', '반려', 'weird'], [true, true, true, true], false, false, true])
+  }
   eq('업무용어: 배지 = 상태만(등록 완료·승인 대기·승인 완료·전송 중) · 중복 확인 문구 · 결과 표 상태 · [실패 건 재전송]', [
-    R.SENT_BADGE_LABEL, R.sentConfirmText('registered'), R.sentConfirmText('approved'), R.sentConfirmText('approval_pending'), R.sentConfirmText('sending'), R.RESULT_STATE_LABEL, R.RETRY_FAILED_LABEL,
-  ], [{ sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료' }, '이 판매처에 등록 완료된 상품입니다. 중복 등록하시겠습니까?', '이 판매처에 등록 완료된 상품입니다. 중복 등록하시겠습니까?', '승인 대기 중인 상품입니다. 중복 등록하시겠습니까?', '전송 중인 상품입니다. 중복 등록하시겠습니까?', { fail: '실패', wait: '대기', sending: '전송 중' }, '실패 건 재전송'])
+    R.SEND_STATUS_LABEL, R.sentConfirmText('registered'), R.sentConfirmText('approved'), R.sentConfirmText('approval_pending'), R.sentConfirmText('sending'), R.RESULT_WAIT_LABEL, R.RETRY_FAILED_LABEL,
+  ], [{ sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료', rejected: '반려', failed: '실패' }, '이 판매처에 등록 완료된 상품입니다. 중복 등록하시겠습니까?', '이 판매처에 등록 완료된 상품입니다. 중복 등록하시겠습니까?', '승인 대기 중인 상품입니다. 중복 등록하시겠습니까?', '전송 중인 상품입니다. 중복 등록하시겠습니까?', '대기', '실패 건 재전송'])
   {
     // 이번 작업에서 새로 넣은 고객 문구 — 합니다체 · "~요" 끝 없음 · 예전 문구 없음
     const strip = s => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
     const files = ['src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCommon.vue', 'src/views/studio/StudioChannelSendView.vue', 'src/lib/studioSendCommon.js']
-    const shown = files.map(f => strip(read(f))).join('\n') + '\n' + [R.SEND_RESULT_FAIL_HINT, ...Object.values(R.SENT_BADGE_LABEL), R.sentConfirmText('registered'), R.sentConfirmText('approval_pending')].join('\n')
+    const shown = files.map(f => strip(read(f))).join('\n') + '\n' + [R.SEND_RESULT_FAIL_HINT, ...Object.values(R.SEND_STATUS_LABEL), R.sentConfirmText('registered'), R.sentConfirmText('approval_pending')].join('\n')
     eq('새 문구에 예전 표현 없음(이미 보냄·그래도 다시 보내기·체크 해제·보내기 결과·실패한 판매처 다시 보내기·여러 판매처로 한 번에 보내기)', ['이미 보냄', '그래도 다시 보내기', '체크 해제', '보내기 결과', '실패한 판매처 다시 보내기', '여러 판매처로 한 번에 보내기'].filter(w => shown.includes(w)), [])
     eq('새 문구 "~요" 끝 없음 (공통 정보 칸·창 확인 문구·결과 표·[일괄 전송] 안내)', [read('src/components/studio/StudioSendCommon.vue'), R.SEND_RESULT_FAIL_HINT, (await import('../src/lib/studioSendCommon.js')).COUPANG_COMMON_NOTE].map(strip).join('\n').match(/[가-힣]+요[.!"<\s]/g), null)
     eq('보내기 탭 진입 버튼 [일괄 전송] · 안내 합니다체', [/'일괄 전송'/.test(read('src/views/studio/StudioChannelSendView.vue')), read('src/views/studio/StudioChannelSendView.vue').includes('판매처별 항목만 따로 입력합니다.')], [true, true])

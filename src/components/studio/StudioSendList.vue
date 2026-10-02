@@ -19,7 +19,7 @@
         <div class="relative st-thumb-sq st-border st-placeholder">
           <img v-if="previewOf[s.exportId]" :src="previewOf[s.exportId]" alt="" loading="lazy" />
           <span v-else class="text-[11px]">미리보기 없음</span>
-          <span class="st-badge absolute left-1.5 top-1.5" :class="SEND_STATUS_CLASS[s.status]" :title="badgeReason(s) || undefined">{{ marketName(s.market) }} · {{ SEND_STATUS_LABEL[s.status] || s.status }}</span>
+          <span class="st-badge absolute left-1.5 top-1.5" :class="SEND_STATUS_CLASS[s.status]" :title="badgeReason(s) || undefined">{{ marketName(s.market) }} · {{ sendStatusLabel(s.status) }}</span>
         </div>
         <div class="mt-1.5 text-[13px] font-bold st-ink truncate" :title="s.productName || ''">{{ s.productName || '(상품명 없음)' }}</div>
         <div class="st-desc-sm truncate" :title="fmtDate(s.createdAt)">{{ daysAgoLabel(s.createdAt) }}<template v-if="s.sellerProductId"> · #{{ s.sellerProductId }}</template></div>
@@ -50,7 +50,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import StudioSendModal from '@/components/studio/StudioSendModal.vue'
 import { canResend } from '@/lib/studioMarketplaceRules'
-import { resendToMarketplace, listSends, syncSends, SEND_STATUS_LABEL, SEND_STATUS_CLASS, fmtDate, isNotReady, needsGuide, badgeReason } from '@/lib/studioMarketplace'
+import { resendToMarketplace, listSends, syncSends, sendStatusLabel, SEND_STATUS_CLASS, fmtDate, isNotReady, needsGuide, badgeReason } from '@/lib/studioMarketplace'
 import { MARKETS } from '@/lib/studioMarketplaceRules'
 import { daysAgoLabel } from '@/lib/studioProjectList'
 

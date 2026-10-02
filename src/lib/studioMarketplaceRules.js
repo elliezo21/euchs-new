@@ -172,7 +172,12 @@ export function optionTableMode({ width = 0, viewport = 0, flexCols = 2, hasCny 
 }
 export const optionTableNeed = ({ flexCols = 2, hasCny = false } = {}) => OPTION_FIXED_PX + (hasCny ? OPTION_CNY_PX : 0) + Math.max(1, flexCols) * OPTION_FLEX_MIN
 
-// 상태 배지 — 색: 전송 중·승인 대기 = 회색, 승인·등록됨(카페24) = 초록, 반려·실패 = 빨강
+// 판매처 전송 상태 문구 — 고객 화면은 모두 이 한 곳(sendStatusLabel)을 쓴다 (2026-10-02 통일: 보내기 탭 줄 배지·보낸 상품 카드·내 상품 배지·보내기 창 배지·결과 표)
+// 상태 값(DB marketplace_sends.status)은 그대로, 문구만. registered = 카페24·스마트스토어·11번가(승인 절차 없음 — 등록 즉시 끝)
+export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료', rejected: '반려', failed: '실패' }
+/** 상태 → 문구. 목록에 없는 값은 원래 값 그대로(예전 화면과 같음) */
+export const sendStatusLabel = status => SEND_STATUS_LABEL[status] || String(status ?? '')
+// 상태 배지 — 색: 전송 중·승인 대기 = 회색, 승인 완료·등록 완료 = 초록, 반려·실패 = 빨강
 export const SEND_BADGE_CLASS = { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', registered: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger' }
 /**
  * 처음 체크할 판매처 — 특정 판매처 버튼([카페24로 보내기])으로 열었으면 그곳만, 다시 보내기면 쿠팡만, 아니면 연결된 곳 모두(defaultChecked)
@@ -191,8 +196,6 @@ export function initialChecked(rows, { market = '', resend = false, sent = {} } 
  * @param {string[]} picked 체크된 판매처 · @param {object} sent alreadySent · @param {object} ok [중복 등록]을 누른 곳 · @param {string[]} doneKeys 이번 창에서 등록된 곳
  */
 export const duplicateConfirmKeys = (picked, sent, ok = {}, doneKeys = []) => (Array.isArray(picked) ? picked : []).filter(k => sent?.[k] && !ok?.[k] && !doneKeys.includes(k))
-/** 이미 전송된 판매처 줄 배지 — 상태만 업무용어로 (2026-10-02) */
-export const SENT_BADGE_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료' }
 /** 중복 확인 문구 — 승인 대기 · 전송 중 · 그 밖(등록 완료·승인 완료) (2026-10-02) */
 export function sentConfirmText(status) {
   if (status === 'approval_pending') return '승인 대기 중인 상품입니다. 중복 등록하시겠습니까?'
@@ -236,12 +239,12 @@ export const canResend = s => !!s && s.status === 'rejected' && /^\d+$/.test(Str
 export const sendActionLabel = (keys, resend) => (resend ? '다시 승인 요청' : sendButtonLabel(keys))
 
 export const SEND_RESULT_FAIL_HINT = '사유는 아래 판매처 칸에 표시됩니다.'
-/** 결과 표 상태 칸 (2026-10-02 업무용어) — 성공은 서버 status(등록 완료·승인 대기), 실패, 아직 차례가 안 옴 */
-export const RESULT_STATE_LABEL = { fail: '실패', wait: '대기', sending: '전송 중' }
+/** 결과 표에서 아직 차례가 안 온 판매처 (상태 값이 아님) — 나머지 상태 칸은 sendStatusLabel */
+export const RESULT_WAIT_LABEL = '대기'
 /**
  * 여러 판매처로 보낸 결과 줄 (2026-10-01) — 보내기 창 아래 결과 표. 판매처 2곳 이상을 한 번에 보냈을 때만 그린다(1곳이면 예전처럼 섹션 안에만)
  * @param {string[]} keys 이번에 보낸 판매처 (MARKETS 순서로 정렬해 돌려준다)
- * @param {{ [key]: { ok:boolean, id?:string, status?:string, reason?:string } }} results  ok = 보냄(id = 판매처 상품번호, status = 서버 응답 status — 등록됨/승인 대기) · ok false = 실패(reason = 섹션에 보인 사유 그대로)
+ * @param {{ [key]: { ok:boolean, id?:string, status?:string, reason?:string } }} results  ok = 보냄(id = 판매처 상품번호, status = 서버 응답 status — 등록 완료/승인 대기) · ok false = 실패(reason = 섹션에 보인 사유 그대로)
  * @returns {[{ key, name, state:'ok'|'fail'|'wait', id, status, reason }]}  wait = 아직 차례가 안 옴(보내는 중)
  */
 export function sendResultRows(keys, results = {}) {

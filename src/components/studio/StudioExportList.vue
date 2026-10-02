@@ -30,7 +30,7 @@
               <button
                 type="button" :class="SEND_BADGE_CLASS[s.status] || 'st-badge'" :title="badgeReason(s) || undefined"
                 :data-export-send-badge="s.market" :data-export-send-status="s.status" @click.stop="$emit('goto-send', s.id)"
-              >{{ marketName(s.market) }} · {{ SEND_STATUS_LABEL[s.status] || s.status }}</button>
+              >{{ marketName(s.market) }} · {{ sendStatusLabel(s.status) }}</button>
               <button v-if="badgeReason(s)" type="button" class="st-link text-[12px]" :data-export-send-reason="x.id" @click.stop="reasonOf = s">사유 보기</button>
             </template>
           </div>
@@ -69,7 +69,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { Download } from 'lucide-vue-next'
 import { listArchives, downloadArchive } from '@/lib/studioExportArchive'
-import { sendsByExport, badgeReason, SEND_STATUS_LABEL, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
+import { sendsByExport, badgeReason, sendStatusLabel, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
 import { MARKETS } from '@/lib/studioMarketplaceRules'
 import { daysAgoLabel } from '@/lib/studioProjectList'
 import StudioModal from '@/components/studio/StudioModal.vue'

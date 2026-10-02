@@ -46,7 +46,7 @@
             <button
               v-if="lastSendOf(r.key)" type="button" :class="SEND_BADGE_CLASS[lastSendOf(r.key).status] || 'st-badge'" :title="badgeReason(lastSendOf(r.key)) || undefined"
               :data-ch-market-status="r.key" @click="gotoSent(lastSendOf(r.key).id)"
-            >{{ SEND_STATUS_LABEL[lastSendOf(r.key).status] || lastSendOf(r.key).status }}</button>
+            >{{ sendStatusLabel(lastSendOf(r.key).status) }}</button>
             <span class="flex-1" />
             <button
               v-if="r.state === 'connected'" type="button" class="st-btn st-btn-primary ch-btn" :disabled="!!opening"
@@ -96,7 +96,7 @@ import StudioLoginNeeded from '@/components/studio/StudioLoginNeeded.vue'
 import StudioLinkPending from '@/components/studio/StudioLinkPending.vue'
 import { currentUser, isAdminOrStaff, isAuthLoading } from '@/lib/auth'
 import { studioGate } from '@/lib/studioGate'
-import { getMarketplaceStatus, listSends, sendToMarketplace, sendsByExport, badgeReason, isNotReady, SEND_STATUS_LABEL, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
+import { getMarketplaceStatus, listSends, sendToMarketplace, sendsByExport, badgeReason, isNotReady, sendStatusLabel, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
 import { channelRows, sendButtonLabel, MARKETS, PLANNED_LABEL, linkPhase, NOT_CUSTOMER } from '@/lib/studioMarketplaceRules'
 import { linkStates, loadMarketLinks, marketLinksPhase } from '@/lib/studioMarketLinks'
 import { daysAgoLabel } from '@/lib/studioProjectList'

@@ -8,11 +8,11 @@
 import { callStudioApi, studioErrorMessage } from '@/lib/studioApi'
 
 export const MARKET_LABEL = { coupang: '쿠팡', cafe24: '카페24', smartstore: '스마트스토어', '11st': '11번가' }
-export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인', registered: '등록됨', rejected: '반려', failed: '실패' } // registered = 카페24·스마트스토어(승인 절차 없음 — 등록 즉시 끝)
-// 색: 전송 중·승인 대기 = 회색, 승인·등록됨 = 초록, 반려·실패 = 빨강 (st-badge 위에 덧붙이는 클래스)
+// 상태 문구 SEND_STATUS_LABEL·sendStatusLabel은 studioMarketplaceRules 한 곳 (아래 re-export)
+// 색: 전송 중·승인 대기 = 회색, 승인 완료·등록 완료 = 초록, 반려·실패 = 빨강 (st-badge 위에 덧붙이는 클래스)
 export const SEND_STATUS_CLASS = { sending: '', approval_pending: '', approved: 'st-badge-ok', registered: 'st-badge-ok', rejected: 'st-badge-danger', failed: 'st-badge-danger' }
 export const REP_SIZE = 1000 // 브라우저가 만드는 대표 이미지 한 변(px) — 쿠팡 정사각형 500~5000
-export { isNotReady, needsGuide, latestSendByExport, sendsByExport, badgeReason, SEND_BADGE_CLASS, SETTINGS_TABS, CHANNEL_TABS } from '@/lib/studioMarketplaceRules'
+export { isNotReady, needsGuide, latestSendByExport, sendsByExport, badgeReason, SEND_BADGE_CLASS, SEND_STATUS_LABEL, sendStatusLabel, SETTINGS_TABS, CHANNEL_TABS } from '@/lib/studioMarketplaceRules'
 
 /** 서버 응답 → Error (서버가 message를 주면 그대로 — coupang_*·template_invalid·required_missing 등) */
 export function marketplaceError(r) {

@@ -21,7 +21,7 @@
             <span v-else-if="r.state === 'planned'" class="st-badge shrink-0" :data-mk-s-market-planned="r.key">{{ PLANNED_LABEL }}</span>
             <!-- 이 상품이 이미 전송된 판매처 (2026-10-01 중복 등록 방지) — 막지 않고 상태만 표시. [일괄 전송]이면 처음 체크에서 빠지고,
                  판매처 버튼([○○로 보내기])으로 열면 체크된 채 아래 확인 문구가 처음부터 펼쳐진다(2026-10-02) -->
-            <span v-if="sentMap[r.key]" :class="SEND_BADGE_CLASS[sentMap[r.key].status] || 'st-badge'" class="shrink-0" :data-mk-s-market-sent="r.key">{{ SENT_BADGE_LABEL[sentMap[r.key].status] }}</span>
+            <span v-if="sentMap[r.key]" :class="SEND_BADGE_CLASS[sentMap[r.key].status] || 'st-badge'" class="shrink-0" :data-mk-s-market-sent="r.key">{{ sendStatusLabel(sentMap[r.key].status) }}</span>
           </li>
         </ul>
         <!-- 이미 보낸 판매처를 체크했을 때 — 브라우저 확인창 대신 화면 안 문구·버튼. 확인 전에는 보내기 버튼이 꺼진다(빠짐 목록) -->
@@ -59,7 +59,7 @@
         <ul class="st-border rounded-[10px] st-divide overflow-hidden">
           <li v-for="r in resultRows" :key="r.key" class="market-row" :data-mk-s-result="r.key" :data-mk-s-result-state="r.state">
             <span class="text-[14px] font-bold st-ink shrink-0 w-[96px] truncate">{{ r.name }}</span>
-            <span :class="r.state === 'wait' ? 'st-badge' : SEND_BADGE_CLASS[r.status] || 'st-badge'" class="shrink-0">{{ r.state === 'wait' ? RESULT_STATE_LABEL[sections[r.key]?.busy === 'send' ? 'sending' : 'wait'] : r.state === 'fail' ? RESULT_STATE_LABEL.fail : SENT_BADGE_LABEL[r.status] || r.status }}</span>
+            <span :class="r.state === 'wait' ? 'st-badge' : SEND_BADGE_CLASS[r.status] || 'st-badge'" class="shrink-0">{{ r.state === 'wait' ? (sections[r.key]?.busy === 'send' ? sendStatusLabel('sending') : RESULT_WAIT_LABEL) : sendStatusLabel(r.status) }}</span>
             <span v-if="r.state === 'ok'" class="text-[13px] st-ink min-w-0 break-all" :data-mk-s-result-id="r.key">상품번호 {{ r.id }}</span>
             <span v-else-if="r.state === 'fail'" class="text-[13px] st-danger-text min-w-0 break-keep" :data-mk-s-result-reason="r.key">{{ r.reason }}</span>
           </li>
@@ -100,7 +100,7 @@ import StudioSendSmartstore from '@/components/studio/StudioSendSmartstore.vue'
 import StudioSendElevenst from '@/components/studio/StudioSendElevenst.vue'
 import StudioSendCommon from '@/components/studio/StudioSendCommon.vue'
 import { COMMON_MARKETS, commonMarkets, commonActive, commonFromPrepare } from '@/lib/studioSendCommon'
-import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, bulkSendLabel, sendResultRows, alreadySent, duplicateConfirmKeys, sentConfirmText, SENT_BADGE_LABEL, RESULT_STATE_LABEL, RETRY_FAILED_LABEL, SEND_BADGE_CLASS, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
+import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, bulkSendLabel, sendResultRows, alreadySent, duplicateConfirmKeys, sentConfirmText, sendStatusLabel, RESULT_WAIT_LABEL, RETRY_FAILED_LABEL, SEND_BADGE_CLASS, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { linkStates } from '@/lib/studioMarketLinks'
 import { isAdminOrStaff } from '@/lib/auth'
 
