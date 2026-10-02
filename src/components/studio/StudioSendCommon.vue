@@ -10,6 +10,7 @@
     <label class="block">
       <span class="st-label">상품명 *</span>
       <input v-model="common.productName" type="text" class="st-input w-full" maxlength="300" placeholder="판매처에 등록할 상품명 입력" :disabled="disabled" data-mk-cm-name />
+      <span v-if="markets.includes('11st')" class="st-desc-sm block mt-1" :class="{ 'st-danger-text font-bold': nameLeft < 0 }" data-mk-cm-name-bytes>11번가 {{ nameLeft >= 0 ? `남은 ${nameLeft}바이트` : `${-nameLeft}바이트 초과` }} · {{ PRODUCT_NAME_BYTES }}바이트까지(한글 2바이트·영문/숫자 1바이트)</span>
     </label>
 
     <!-- 판매가 · 재고 -->
@@ -58,6 +59,7 @@ import StudioSendOptions from './StudioSendOptions.vue'
 import { MARKETS, repImageCandidates, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
 import { COUPANG_COMMON_NOTE, commonOptionRange } from '@/lib/studioSendCommon'
 import { optionsPayload } from '../../../api/_marketOptions.js'
+import { PRODUCT_NAME_BYTES, nameBytesLeft } from '../../../api/_elevenstFields.js'
 
 const props = defineProps({
   common: { type: Object, required: true }, // commonFromPrepare 모양 — 창의 값을 그대로 고친다
@@ -67,6 +69,7 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
 })
 const repImages = computed(() => repImageCandidates(props.prepare?.images)) // 대표 이미지 후보 = 1688 대표 사진 + 내 사진 (studioMarketplaceRules)
+const nameLeft = computed(() => nameBytesLeft(props.common.productName)) // 11번가 상품명 100바이트 (2026-10-02 ②-1)
 const marketNames = computed(() => MARKETS.filter(m => props.markets.includes(m.key)).map(m => m.name).join('·'))
 const useOptions = computed(() => props.common.opts.enabled) // 판매처 섹션과 같은 규칙 — 켜면 조합이 0개여도 옵션 상품
 const optionStockTotal = computed(() => (useOptions.value ? optionsPayload(props.common.opts)?.rows || [] : []).reduce((s, r) => s + (Number.isInteger(r.stock) ? r.stock : 0), 0))

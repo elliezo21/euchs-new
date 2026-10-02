@@ -44,7 +44,7 @@
       <label v-show="showOwn('name')" class="block sm:col-span-2">
         <span class="st-label">상품명 *</span>
         <input v-model="f.productName" type="text" class="st-input w-full" :maxlength="PRODUCT_NAME_MAX" placeholder="상품명을 입력하세요" :disabled="!!done" data-mk-11st-name />
-        <span class="st-desc-sm block mt-1">{{ [...String(f.productName || '')].length }} / {{ PRODUCT_NAME_MAX }}자</span>
+        <span class="st-desc-sm block mt-1" :class="{ 'st-danger-text font-bold': nameLeft < 0 }" data-mk-11st-name-bytes>{{ nameLeft >= 0 ? `남은 ${nameLeft}바이트` : `${-nameLeft}바이트 초과` }} · {{ PRODUCT_NAME_BYTES }}바이트까지(한글 2바이트·영문/숫자 1바이트)</span>
       </label>
       <label class="block">
         <span class="st-label">브랜드</span>
@@ -282,7 +282,7 @@ import { SEND_CACHE_KEY, repImageCandidates, REP_IMAGE_EMPTY } from '@/lib/studi
 import { isAdminOrStaff } from '@/lib/auth'
 import {
   NOTICE_TYPES, DEFAULT_NOTICE_TYPE, NOTICE_VALUE_MAX, NOTICE_DEFAULT_VALUE, NOTICE_COUNTRY_DEFAULT, HEAVY_NOTICE_TYPES, noticeTypeOf, noticeItemsFor,
-  NOTICE_MAKER_CODES, NOTICE_COUNTRY_CODES, NOTICE_PHONE_CODES, KC_GROUPS, KC_CHOICES, KC_CERT_TYPES, KC_CERT_KEY_MAX, kcFor, VAT_TYPES, PRODUCT_NAME_MAX, is10Won,
+  NOTICE_MAKER_CODES, NOTICE_COUNTRY_CODES, NOTICE_PHONE_CODES, KC_GROUPS, KC_CHOICES, KC_CERT_TYPES, KC_CERT_KEY_MAX, kcFor, VAT_TYPES, PRODUCT_NAME_BYTES, NAME_BYTES_OVER, nameBytesLeft, PRODUCT_NAME_MAX, is10Won,
   pickElevenstAddress, SELLER_OFFICE_URL, ORIGIN_CHINA, ORIGIN_KINDS, ORIGIN_DOMESTIC, ORIGIN_COUNTRIES, originFor, feeHasBase, bundleDeliveryYn, BUNDLE_OFF_NOTE,
   elevenstFormFromProduct, elevenstFormFromShipping, productTemplateFromElevenstForm, shippingTemplateFromElevenstForm,
 } from '../../../api/_elevenstFields.js'
@@ -350,6 +350,7 @@ const optionRange = computed(() => elevenstOptionPriceRange(f.value.price))
 const cm = useSendCommon('11st', { props, f, opts, done })
 const showOwn = cm.showOwn
 
+const nameLeft = computed(() => nameBytesLeft(f.value.productName)) // 11번가 상품명 남은 바이트 (공통 정보를 쓰면 공통 상품명 기준)
 const catMatches = computed(() => {
   const q = catQuery.value.trim().toLowerCase()
   return q ? categories.value.filter(c => c.wholeName.toLowerCase().includes(q)) : categories.value
@@ -373,7 +374,7 @@ const noticeItems = computed(() => noticeItemsFor(f.value.noticeType, { maker: f
 const missing = computed(() => {
   const v = f.value, out = []
   if (!String(v.productName || '').trim()) out.push('상품명')
-  else if ([...String(v.productName).trim()].length > PRODUCT_NAME_MAX) out.push(`상품명 ${PRODUCT_NAME_MAX}자 이내`)
+  else if (nameLeft.value < 0) out.push(NAME_BYTES_OVER) // 100바이트(한글 2) — 근거·세는 법 api/_elevenstFields.js (서버 buildElevenstProduct와 같은 함수)
   if (!v.categoryId) out.push('카테고리')
   if (!is10Won(v.price, 10)) out.push('판매가 (10원 단위)')
   if (useOptions.value) {

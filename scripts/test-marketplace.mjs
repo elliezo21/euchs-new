@@ -3933,6 +3933,24 @@ function elevenstRelay(u, method, opts) {
   eq('상품명 입력칸에는 넣지 않음 (보내기 창 섹션·공통 정보에 titleKo·koreanDisplayName 없음)', ['Common', 'Coupang', 'Smartstore', 'Elevenst', 'Zigzag', 'Cafe24'].some(n => /titleKo|koreanDisplayName|productName\(\{/.test(read(`src/components/studio/StudioSend${n}.vue`))) || /titleKo/.test(read('src/lib/studioSendCommon.js')), false)
 }
 
+// ── 28-4. 11번가 상품명 100바이트 (2026-10-02 ②-1) — 한글 2바이트·영문/숫자 1바이트(EUC-KR) · 근거 api/_elevenstFields.js ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const EF = await import('../api/_elevenstFields.js')
+  const E11 = await import('../api/_elevenst.js')
+  eq('바이트 세기: 한글 2 · 영문/숫자/공백 1 · 한글 50자 = 100 · 51자 = 102 · 남은 바이트(앞뒤 공백·겹친 공백 정리)', [
+    EF.elevenstNameBytes('가'), EF.elevenstNameBytes('a1 '), EF.elevenstNameBytes('가'.repeat(50)), EF.elevenstNameBytes('가'.repeat(51)), EF.nameBytesLeft('  머그컵  350ml  '), EF.nameBytesLeft('가'.repeat(51)), EF.PRODUCT_NAME_BYTES,
+  ], [2, 3, 100, 102, 100 - 12, -2, 100])
+  eq('빠짐 목록 문구 = "상품명: 100바이트(한글 약 50자)를 넘었습니다" (창이 "11번가 · "를 앞에)', EF.NAME_BYTES_OVER, '상품명: 100바이트(한글 약 50자)를 넘었습니다')
+  const base = { productName: '가'.repeat(51), categoryId: '1' }
+  eq('서버도 같은 함수로 거절 (한글 51자 = 102바이트 — 예전 100자 검사로는 통과하던 길이)', [E11.buildElevenstProduct(base).ok, E11.buildElevenstProduct(base).message], [false, '상품명: 100바이트(한글 약 50자)를 넘었습니다.'])
+  const sec = read('src/components/studio/StudioSendElevenst.vue'), cm = read('src/components/studio/StudioSendCommon.vue'), modal = read('src/components/studio/StudioSendModal.vue')
+  eq('화면: 11번가 칸·공통 정보 상품명 옆에 남은 바이트 · 빠짐 목록 NAME_BYTES_OVER · 공통 정보를 쓰면 판매처 이름을 앞에', [
+    sec.includes('data-mk-11st-name-bytes') && sec.includes('const nameLeft = computed(() => nameBytesLeft(f.value.productName))'), cm.includes('data-mk-cm-name-bytes') && cm.includes("v-if=\"markets.includes('11st')\""),
+    sec.includes('else if (nameLeft.value < 0) out.push(NAME_BYTES_OVER)'), modal.includes('picked.value.length > 1 || useCommon.value ?'),
+  ], [true, true, true, true])
+}
+
 // ── 29. 실패 뒤 다시 열 때 입력값 유지 (2026-10-02 운영: 공통 판매가·재고·카테고리·지그재그 배송비가 비어 있었음) ──
 {
   const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')

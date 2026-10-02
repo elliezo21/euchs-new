@@ -144,7 +144,20 @@ export function kstDaySlash(now = new Date()) {
 // 정산계좌 인증 — 11번가가 등록을 거절할 때 message에 이 말이 들어 있다 (2026-10-01 실전 거절). 원문은 기록에 그대로 남기고 화면 문구만 바꾼다
 export const SETTLEMENT_ERROR_RE = /정산대금|입금계좌/
 export const SETTLEMENT_MESSAGE = '11번가 정산계좌 인증이 필요합니다. 셀러오피스 상품등록 페이지에서 정산대금 수령방법과 입금계좌를 인증한 뒤 다시 보내십시오.'
-export const PRODUCT_NAME_MAX = 100 // 상품명 100자
+export const PRODUCT_NAME_MAX = 100 // 입력 칸 글자 수 상한(화면) — 실제 검사는 아래 바이트
+/**
+ * 상품명 100바이트 (2026-10-02 ②-1)
+ * [근거] 11번가 판매자 공지(셀러오피스 공지 ntceNo=856211 "모바일 최적화 상품정보 제공을 위한 상품등록/수정 정책개편" — 셀러오피스·파트너오피스·오픈API 공통):
+ *   상품명 "한글 50자, 영문/숫자 100자까지 입력 가능" = 100바이트(한글 2바이트·영문/숫자 1바이트).
+ *   ※ 공지 본문은 셀러오피스 로그인이 필요해 검색 결과 요약으로 확인했다 — 원문 대조는 해성 계정으로 할 것(보고서에 적음)
+ * [세는 법] 11번가로 보내는 XML은 EUC-KR(api/_elevenst.js encodeEucKr — 한글·한자·기호 등 ASCII 밖 글자는 모두 2바이트, ASCII는 1바이트)과 같게 센다.
+ *   EUC-KR로 못 바꾸는 글자는 등록 때 따로 막는다(encodeEucKr bad) — 여기서는 2바이트로 센다
+ */
+export const PRODUCT_NAME_BYTES = 100
+export const elevenstNameBytes = s => [...String(s ?? '')].reduce((n, ch) => n + (ch.codePointAt(0) < 0x80 ? 1 : 2), 0)
+export const NAME_BYTES_OVER = `상품명: ${PRODUCT_NAME_BYTES}바이트(한글 약 ${PRODUCT_NAME_BYTES / 2}자)를 넘었습니다`
+/** 남은 바이트 (넘으면 음수) */
+export const nameBytesLeft = s => PRODUCT_NAME_BYTES - elevenstNameBytes(String(s ?? '').replace(/\s+/g, ' ').trim())
 export const PRICE_MAX = 999999990 // 10억 원 미만 · 10원 단위
 export const is10Won = (n, min = 0, max = PRICE_MAX) => Number.isInteger(n) && n >= min && n <= max && n % 10 === 0
 

@@ -20,7 +20,7 @@
  */
 import { breakerFor, NOT_READY_MESSAGE, RELAY_IP } from './_coupang.js'
 import {
-  NOTICE_VALUE_MAX, noticeItemsFor, noticeTypeOf, kcFor, originFor, VAT_TYPES, DELIVERY_FEE_TYPES, feeHasBase, PRODUCT_NAME_MAX, PRICE_MAX, is10Won,
+  NOTICE_VALUE_MAX, noticeItemsFor, noticeTypeOf, kcFor, originFor, VAT_TYPES, DELIVERY_FEE_TYPES, feeHasBase, PRODUCT_NAME_BYTES, elevenstNameBytes, NAME_BYTES_OVER, PRICE_MAX, is10Won,
   bundleDeliveryYn, SETTLEMENT_ERROR_RE, SETTLEMENT_MESSAGE, SALE_PERIOD_CLF, SALE_END_DAY, kstDaySlash,
 } from './_elevenstFields.js'
 import { elevenstOptionRows } from './_marketOptions.js'
@@ -295,7 +295,7 @@ const clean = (s, max) => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ')
 export function buildElevenstProduct(p) {
   const name = clean(p?.productName, 1000)
   if (!name) return { ok: false, message: '상품명을 입력하세요.' }
-  if ([...name].length > PRODUCT_NAME_MAX) return { ok: false, message: `상품명은 ${PRODUCT_NAME_MAX}자까지 입력할 수 있습니다.` }
+  if (elevenstNameBytes(name) > PRODUCT_NAME_BYTES) return { ok: false, message: `${NAME_BYTES_OVER}.` } // 100바이트 — 근거 api/_elevenstFields.js
   const cat = String(p?.categoryId ?? '')
   if (!/^\d{1,20}$/.test(cat)) return { ok: false, message: '카테고리를 선택하세요.' }
   if (!is10Won(p?.price, 10, PRICE_MAX)) return { ok: false, message: '판매가는 10원 단위로 입력하세요. (10억 원 미만)' }
