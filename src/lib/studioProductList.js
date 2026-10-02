@@ -8,13 +8,15 @@
  *   그래서 작업 기준 한 줄 + 그 작업의 모든 결과물에 붙은 전송을 모은다(서버 exports_list perProject → exportIds).
  *   보낼 결과물 = 작업의 지금 결과물(save 우선, 없으면 가장 최근 download — api/_studioExports.js currentExportsByProject).
  *   서버도 같은 작업의 예전 결과물로 보낸 상품을 "이미 있는 상품"으로 찾아 수정한다(api/marketplace.js projectExportIds).
- * [만들기 상태 stage]
- *   draft   작성 중 — 결과물이 없음([작업 저장] 전). 보내기 체크 불가 · 할 일 [이어서 편집]
- *   ready   보내기 전 — 결과물이 있고 판매처로 보낸 기록이 없음 · 칩 "아직 안 보냄"
+ * [만들기 상태 stage] — 2026-10-02부터 [작업 저장] = 작업 내용만 저장 + 저장한 시각(studio_projects.last_exported_at, 서버 work_save).
+ *   상세 이미지(결과물)는 뒤에서·보낼 때 만든다(src/lib/studioProductImages.js) → 결과물이 아직 없어도 저장 시각이 있으면 "보내기 전"
+ *   draft   작성 중 — 결과물도 저장 시각도 없음([작업 저장] 전). 보내기 체크 불가 · 할 일 [이어서 편집]
+ *   ready   보내기 전 — [작업 저장]을 했고(또는 예전 결과물이 있고) 판매처로 보낸 기록이 없음 · 칩 "아직 안 보냄"
  *   sent    보냄 — 보낸 기록이 있고 보낸 뒤 바뀐 것이 없음
- *   changed 변경사항 미전송 — 판매처에 살아 있는 상품(등록·승인·승인 대기)이 있는데 그 상품을 마지막으로 보낸 뒤(sentAt) 결과물을 다시 저장함(createdAt)
- *     · 판정 재료는 결과물 저장 시각뿐이다 — 판매가·재고는 보내기 창에서만 넣고 상품에 따로 저장하지 않아 "가격만 바꿈"은 알 수 없다
- *     · 편집기에서 고치고 [작업 저장]을 안 했으면 결과물이 그대로라 changed가 아니다(보낼 결과물이 바뀌지 않았다)
+ *   changed 변경사항 미전송 — 판매처에 살아 있는 상품(등록·승인·승인 대기)이 있는데 그 상품을 마지막으로 보낸 뒤(sentAt) [작업 저장]을 다시 함
+ *     · 저장한 때 = 저장 시각(없으면 예전 결과물 시각 createdAt). 서버는 바뀐 것 없이 다시 누르면 시각을 그대로 둔다(상세 이미지 내용 열쇠가 같으면)
+ *     · 판매가·재고는 보내기 창에서만 넣고 상품에 따로 저장하지 않아 "가격만 바꿈"은 알 수 없다
+ *     · 편집기에서 고치고 [작업 저장]을 안 했으면 changed가 아니다
  * [탭] 전체 · 작성 중 · 보내기 전 · 판매처에 올라감(등록 완료·승인 완료가 하나라도) · 확인 필요(실패·반려·승인 대기가 하나라도 또는 변경사항 미전송)
  */
 import { MARKETS, OFF_MARKETS } from './studioMarketplaceRules.js'
@@ -72,14 +74,16 @@ export function byMarketOf(history) {
 
 /**
  * 만들기 상태
- * @param {{ createdAt }|null} ex 작업의 지금 결과물 (없으면 작성 중)
+ * @param {{ createdAt }|null} ex 작업의 지금 결과물
  * @param {{ [market]: send }} byMarket
+ * @param {string|null} savedAt [작업 저장]을 누른 시각 (studio_projects.last_exported_at — 2026-10-02부터 [작업 저장]은 작업 내용만 저장하고 이 시각을 남긴다)
+ *   결과물도 저장 시각도 없으면 작성 중. "저장한 때" = 저장 시각(없으면 예전처럼 결과물 시각)
  */
-export function productStage(ex, byMarket) {
-  if (!ex) return 'draft'
+export function productStage(ex, byMarket, savedAt = null) {
+  if (!ex && !savedAt) return 'draft'
   const recs = Object.values(byMarket || {})
   if (!recs.length) return 'ready'
-  const saved = time(ex.createdAt)
+  const saved = savedAt ? time(savedAt) : time(ex.createdAt)
   if (recs.some(s => isLive(s) && sentAtOf(s) < saved)) return 'changed'
   return 'sent'
 }
@@ -111,7 +115,7 @@ export function buildProducts({ projects = [], exports = [], sends = [], titlesK
     const ex = exOf.get(p.id) || null
     const history = (sendsOf.get(p.id) || []).sort((a, b) => time(b.createdAt) - time(a.createdAt))
     const byMarket = byMarketOf(history)
-    const stage = productStage(ex, byMarket)
+    const stage = productStage(ex, byMarket, p.last_exported_at || null)
     const recs = Object.values(byMarket)
     return {
       id: p.id, project: p, export: ex, exportId: ex?.id || null, name: productName(p, ex, titlesKo?.[p.id]), source: sourceLabelOf(p),
@@ -152,8 +156,8 @@ export function rowAction(row) {
   return { key: 'send', label: ACTION.send }
 }
 
-/** 보내기에 고를 수 있는지 — 작성 중은 안 됨 */
-export const canPick = row => !!row && row.stage !== 'draft' && !!row.exportId
+/** 보내기에 고를 수 있는지 — 작성 중은 안 됨. 결과물(상세 이미지)이 아직 없어도 [작업 저장]을 했으면 보낼 때 만든다(exportId 없이 작업 id로) */
+export const canPick = row => !!row && row.stage !== 'draft'
 /** 고른 상품 요약 — "새로 보내기 a · 변경사항 전송 b" (변경사항 미전송 = b, 그 밖 = a) */
 export function pickSummary(rows) {
   const list = (Array.isArray(rows) ? rows : []).filter(canPick)

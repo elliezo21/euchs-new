@@ -28,7 +28,8 @@ function requireUid() {
   return uid
 }
 
-const PROJECT_LIST_COLS = 'id, title, title_zh, source_type, offer_id, expires_at, created_at, updated_at'
+// last_exported_at = [작업 저장]을 누른 시각 (2026-10-02 — [내 상품] 만들기 상태, src/lib/studioProductList.js)
+const PROJECT_LIST_COLS = 'id, title, title_zh, source_type, offer_id, expires_at, created_at, updated_at, last_exported_at'
 
 /**
  * 내 프로젝트 (삭제 안 된 것, 최신순). folder_id = 폴더(없으면 null).

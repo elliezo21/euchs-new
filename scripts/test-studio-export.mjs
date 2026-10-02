@@ -303,8 +303,14 @@ const page = sections => ({ v: 1, width: 780, gap: 0, parked: [], sections })
   const c4 = sized(() => 9 * MB)
   const r4 = await canvasToBlobUnder(c4, 'png')
   eq('PNG는 품질을 낮출 수 없어 그대로 한 번', [r4.quality, c4.calls.length, c4.calls[0][0]], [null, 1, 'image/png'])
+  // 그리기 함수는 2026-10-02부터 studioExportDeps.renderExportFile 하나 — 편집기([다운로드]·미리보기)와 편집기 밖(상세 이미지 뒤에서·보낼 때 만들기)이 같이 쓴다
+  const deps = fs.readFileSync(new URL('../src/lib/studioExportDeps.js', import.meta.url), 'utf8')
   const ed = fs.readFileSync(new URL('../src/views/studio/StudioEditorView.vue', import.meta.url), 'utf8')
-  eq('배선: 나눈 한 장(file.range)만 canvasToBlobUnder · 한 장으로 길게·미리보기는 예전 그대로', ed.includes('const blob = file.range ? (await canvasToBlobUnder(out.canvas, format)).blob : await canvasToBlob(out.canvas, format)'), true)
+  const pi = fs.readFileSync(new URL('../src/lib/studioProductImages.js', import.meta.url), 'utf8')
+  eq('배선: 나눈 한 장(file.range)만 canvasToBlobUnder · 한 장으로 길게·미리보기는 예전 그대로 · 편집기·편집기 밖 같은 함수', [
+    deps.includes('const blob = file.range ? (await canvasToBlobUnder(out.canvas, format)).blob : await canvasToBlob(out.canvas, format)'),
+    /renderExportFile\(page\.value, file, exportKit\.deps/.test(ed), /renderExportFile\(page, file, deps/.test(pi),
+  ], [true, true, true])
 }
 
 // ── 6. 한 장으로 길게 ──

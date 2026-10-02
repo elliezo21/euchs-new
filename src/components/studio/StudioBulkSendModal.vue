@@ -92,7 +92,7 @@
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-[14px] font-bold st-ink truncate max-w-[50%]" :title="it.name">{{ it.name }}</span>
               <span v-if="it.loadError" class="st-badge st-badge-danger">불러오지 못함</span>
-              <span v-else-if="!it.prepare" class="st-badge">불러오는 중</span>
+              <span v-else-if="!it.prepare" class="st-badge" :data-bulk-progress="it.id">{{ it.progress || '불러오는 중' }}</span>
               <span v-else-if="ready[it.id]?.ready" class="st-badge st-badge-ok" data-bulk-ready>준비 완료</span>
               <span v-else class="st-badge st-badge-danger" data-bulk-fix>수정 필요</span>
               <span v-if="updateCount(it)" class="st-desc-sm">판매처에 있는 상품 수정 {{ updateCount(it) }}곳</span>
@@ -189,6 +189,7 @@ import StudioSendSmartstore from './StudioSendSmartstore.vue'
 import StudioSendElevenst from './StudioSendElevenst.vue'
 import StudioSendZigzag from './StudioSendZigzag.vue'
 import { sendToMarketplace } from '@/lib/studioMarketplace'
+import { renderProgressText } from '@/lib/studioProductImages'
 import { MARKETS, channelRows, sendStatusLabel, SEND_BADGE_CLASS, SEND_CACHE_KEY, manualEditMissing } from '@/lib/studioMarketplaceRules'
 import { linkStates, loadMarketLinks } from '@/lib/studioMarketLinks'
 import { COMMON_MARKETS, commonFromPrepare } from '@/lib/studioSendCommon'
@@ -209,7 +210,7 @@ const sendCache = reactive({})
 provide(SEND_CACHE_KEY, sendCache)
 const nameOf = key => MARKETS.find(m => m.key === key)?.name || key
 
-const items = ref([]) // [{ id, name, exportId, prepare, loadError, common, base:{ price, stock }, expanded }]
+const items = ref([]) // [{ id(작업 id), name, exportId, prepare, loadError, progress, common, base:{ price, stock }, expanded }]
 const sections = reactive({}) // 'productId:market' → 섹션 인스턴스
 const checked = ref({})
 const bundleSel = ref({})
@@ -242,9 +243,13 @@ watch(marketRows, rows => { for (const r of rows) if (!(r.key in checked.value))
 // ── 상품 불러오기 (send_prepare — 우리 서버만 부른다, 판매처를 부르지 않는다) ──
 async function loadOne(it) {
   it.loadError = ''
+  it.progress = ''
   try {
-    const r = await sendToMarketplace(it.exportId)
+    // 상세 이미지가 최신이 아니면 상품마다 먼저 만든다(한 번에 한 상품씩 그린다 — studioProductImages). 진행은 그 상품 줄에 "상세 이미지 만드는 중 3 / 11"
+    const r = await sendToMarketplace(it.exportId || null, { projectId: it.id, onProgress: p => { it.progress = renderProgressText(p) } })
     const prepare = r.prepare
+    it.exportId = prepare.export?.id || it.exportId
+    it.progress = ''
     const base = latestPrevious(prepare.previous)
     it.base = base
     it.common = commonFromPrepare(prepare)
@@ -253,6 +258,7 @@ async function loadOne(it) {
   } catch (e) {
     console.error('[StudioBulkSendModal] 상품 준비 실패:', it.exportId, e.code, e)
     it.loadError = e.message
+    it.progress = ''
   }
 }
 async function loadAll() {
@@ -275,7 +281,8 @@ async function reset() {
   appliedCat.clear()
   appliedTpl.clear()
   Object.assign(settings, { priceMode: 'keep', rate: 0, stockMode: 'keep', stock: null, coupangTemplateId: '', listing: { product: '', shipping: '' }, marketRate: {} })
-  items.value = props.rows.filter(r => r?.exportId).map(r => reactive({ id: r.id, name: r.name, exportId: r.exportId, prepare: null, loadError: '', common: null, base: { price: null, stock: null }, expanded: false }))
+  // 보낼 수 있는 상품만 — 결과물이 있거나, [작업 저장]을 해서 보낼 때 상세 이미지를 만들 수 있는 것(작성 중 빼기 — studioProductList.canPick과 같은 뜻)
+  items.value = props.rows.filter(r => r?.id && (r.exportId || (r.stage && r.stage !== 'draft'))).map(r => reactive({ id: r.id, name: r.name, exportId: r.exportId || null, prepare: null, loadError: '', progress: '', common: null, base: { price: null, stock: null }, expanded: false }))
   loadMarketLinks().catch(e => console.error('[StudioBulkSendModal] 판매처 연결 상태 조회 실패 (쿠팡 외 판매처 줄이 빠질 수 있음):', e))
   try {
     const b = await listCategoryBundles()

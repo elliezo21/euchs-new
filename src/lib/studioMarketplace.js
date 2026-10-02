@@ -7,6 +7,7 @@
  */
 import { callStudioApi, studioErrorMessage } from '@/lib/studioApi'
 import { visibleSends } from '@/lib/studioMarketplaceRules'
+import { ensureProductImages } from '@/lib/studioProductImages'
 
 export const MARKET_LABEL = { coupang: '쿠팡', cafe24: '카페24', smartstore: '스마트스토어', '11st': '11번가', zigzag: '지그재그' }
 // 상태 문구 SEND_STATUS_LABEL·sendStatusLabel은 studioMarketplaceRules 한 곳 (아래 re-export)
@@ -78,10 +79,16 @@ export const sendZigzagProduct = (payload) => call('zigzag_send', payload)      
 /**
  * [판매처로 보내기] 진입 — 연결·내 상품을 확인하고 보내기 창에 필요한 값을 돌려준다.
  * 연결 전이어도 창은 연다 — 창 맨 위 "보낼 판매처"에서 그 판매처가 자물쇠 + [연결하기]로 보인다(prepare.markets).
+ * 상세 이미지(2026-10-02): [작업 저장]은 작업 내용만 저장한다 → 여기서 내 상품 카드의 상세 이미지가 지금 내용으로 만든 것인지 보고,
+ *   아니면 먼저 만든다(studioProductImages.ensureProductImages — 진행은 onProgress, 문구 renderProgressText). 최신이면 그대로 쓴다.
+ *   보낼 결과물 id는 만든 뒤의 카드 id(prepare.export.id) — 같은 작업이면 예전 id 그대로라 판매처로 보낸 기록이 끊기지 않는다.
+ * @param {string|null} exportId 내 상품 결과물 (아직 상세 이미지를 만든 적 없으면 null + opts.projectId)
+ * @param {{ projectId?:string, onProgress?:Function }} opts
  * @returns {Promise<{ status:'ready', prepare }>}
  */
-export async function sendToMarketplace(exportId) {
-  const prepare = await prepareSend(exportId)
+export async function sendToMarketplace(exportId, { projectId = '', onProgress } = {}) {
+  const made = await ensureProductImages(projectId ? { projectId } : { exportId }, { onProgress })
+  const prepare = await prepareSend(made.exportId)
   return { status: 'ready', prepare }
 }
 

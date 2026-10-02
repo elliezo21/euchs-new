@@ -175,7 +175,7 @@
         </nav>
       </template>
     </template>
-    <StudioSendModal :open="resendOpen" :prepare="resendPrepare" :market="fixMarket" :sent="fixSent" :load-error="resendError" @close="resendOpen = false" @sent="onResent" @retry="loadFix" />
+    <StudioSendModal :open="resendOpen" :prepare="resendPrepare" :market="fixMarket" :sent="fixSent" :load-error="resendError" :progress="fixProgress" @close="resendOpen = false" @sent="onResent" @retry="loadFix" />
   </section>
 </template>
 
@@ -190,6 +190,7 @@
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ChevronDown } from 'lucide-vue-next'
 import StudioSendModal from '@/components/studio/StudioSendModal.vue'
+import { renderProgressText } from '@/lib/studioProductImages'
 import { resendToMarketplace, sendToMarketplace, listSends, syncSends, sendStatusLabel, sendsByExport, fmtDate, isNotReady, needsGuide } from '@/lib/studioMarketplace'
 import { isAdminOrStaff } from '@/lib/auth'
 import {
@@ -328,14 +329,16 @@ const fixMarket = ref('')      // 'send'일 때 그 판매처만 처음 체크 �
 // 'send' = 이 상품의 판매처별 최근 전송 → 창의 중복 확인 (보내기 탭과 같은 규칙). 'resend'는 창이 쓰지 않는다
 const fixSent = computed(() => (fixHow.value === 'send' && fixExportId.value ? sendsByExport(sends.value)[fixExportId.value] || [] : []))
 let resendSeq = 0
+const fixProgress = ref('') // 상세 이미지를 새로 만들 때 진행 (2026-10-02)
 async function loadFix() {
   const my = ++resendSeq
   const id = resendId.value
   resendBusy.value = id
   resendError.value = ''
   try {
-    const r = fixHow.value === 'resend' ? await resendToMarketplace(id) : await sendToMarketplace(fixExportId.value)
-    if (my === resendSeq) resendPrepare.value = r.prepare
+    fixProgress.value = ''
+    const r = fixHow.value === 'resend' ? await resendToMarketplace(id) : await sendToMarketplace(fixExportId.value, { onProgress: p => { if (my === resendSeq) fixProgress.value = renderProgressText(p) } })
+    if (my === resendSeq) { resendPrepare.value = r.prepare; fixProgress.value = '' }
   } catch (e) {
     console.error('[StudioSendList] 재전송 준비 실패:', fixHow.value, id, e.code, e)
     if (my === resendSeq) resendError.value = e.message

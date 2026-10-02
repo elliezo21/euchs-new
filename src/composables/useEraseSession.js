@@ -40,7 +40,7 @@ import { fillPlan } from '@/lib/studioFillPlan'
 import { aiK } from '@/lib/studioAi/aiGeometry'
 import { createAiEngine } from '@/lib/studioAi/aiEngine'
 import { readLook, withLook, normalizeLook } from '@/lib/studioLook'
-import { withShape } from '@/lib/studioCrop'
+import { withShape, shapeFromEdit } from '@/lib/studioCrop'
 import { readBg, withBg } from '@/lib/studioBg'
 import {
   isValidCoverLayer, normalizeCover, autoSource, COVER_FEATHER_MIN, COVER_FEATHER_MAX, COVER_FEATHER_DEFAULT,
@@ -49,14 +49,7 @@ import { readAuto, withAuto, withoutAutoLayers } from '@/lib/studioAutoBuild'
 import { createSelHistory, pushSel, dropSelFuture, undoPlan, redoPlan } from '@/lib/studioSelection'
 import { stepBrush } from '@/lib/studioEraseKeys'
 
-/** edit → 저장된 자르기·띠 (값을 고치지 않고 그대로 — 정리는 그릴 때 studioCrop.geometryOf가 한다) */
-function shapeFromEdit(edit) {
-  const e = edit && typeof edit === 'object' ? edit : {}
-  return {
-    crop: e.crop && typeof e.crop === 'object' ? { ...e.crop } : null,
-    cuts: Array.isArray(e.cuts) ? e.cuts.map(c => ({ ...c })) : [],
-  }
-}
+// edit → 저장된 자르기·띠 = studioCrop.shapeFromEdit (2026-10-02 — 편집기 밖 그리기와 같이 쓰려고 옮김)
 
 export const BRUSH_UI_MIN = BRUSH_SIZE_MIN
 export const BRUSH_UI_MAX = 300

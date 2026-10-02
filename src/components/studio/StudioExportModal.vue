@@ -76,17 +76,22 @@
       </div>
 
       <!-- 받는 중 -->
+      <!-- [작업 저장] 중 — 작업 내용만 저장 (2026-10-02 — 상세 이미지는 뒤에서·보낼 때 만든다) -->
+      <div v-else-if="phase === 'saving'" class="space-y-3" data-export-saving aria-busy="true">
+        <p class="text-[14px] font-bold st-ink">작업 저장하는 중…</p>
+        <div class="st-skeleton h-2 rounded-full" />
+      </div>
+
       <div v-else-if="phase === 'running'" class="space-y-3" data-export-running>
         <p class="text-[14px] font-bold st-ink">{{ progressText }}</p>
         <div class="st-progress"><div :style="{ width: `${progressPct}%` }" /></div>
-        <p v-if="saveOnly" class="st-desc break-keep">저장하는 동안 이 창을 닫지 말아 주세요.</p>
-        <p v-else class="st-desc break-keep">받는 동안 이 창을 닫지 말아 주세요. 브라우저가 "여러 파일 다운로드"를 물으면 허용을 눌러 주세요.</p>
+        <p class="st-desc break-keep">받는 동안 이 창을 닫지 말아 주세요. 브라우저가 "여러 파일 다운로드"를 물으면 허용을 눌러 주세요.</p>
       </div>
 
-      <!-- [작업 저장] 끝 — 내 상품에 저장만 (받지 않는다) -->
+      <!-- [작업 저장] 끝 — 내 상품에 저장 (상세 이미지는 편집기 위쪽 표시에서 뒤에서 만든다) -->
       <div v-else-if="phase === 'saved'" class="space-y-1.5" data-export-saved>
         <p class="text-[15px] font-bold st-success-text">내 상품에 저장됐어요</p>
-        <p class="st-desc break-keep">{{ doneCount }}장 · {{ saved.updated ? '전에 저장한 내 상품을 새 결과물로 바꿨어요.' : '[내 상품]에서 볼 수 있어요.' }}</p>
+        <p class="st-desc break-keep">{{ saved.fresh ? '상세 이미지도 최신이에요.' : '상세 이미지는 계속 편집하는 동안 만들어 둬요. 판매처로 보낼 때 최신이 아니면 그때 만들어요.' }}</p>
       </div>
 
       <!-- [작업 저장] 실패 -->
@@ -132,20 +137,23 @@
         <button type="button" class="st-btn" data-export-now @click="run(0)">기다리지 않고 받기</button>
       </template>
       <template v-else-if="phase === 'running'">
-        <button type="button" class="st-btn" :disabled="stopAsked" data-export-stop @click="stopAsked = true">{{ stopAsked ? '멈추는 중…' : saveOnly ? '그만두기' : '그만 받기' }}</button>
+        <button type="button" class="st-btn" :disabled="stopAsked" data-export-stop @click="stopAsked = true">{{ stopAsked ? '멈추는 중…' : '그만 받기' }}</button>
+      </template>
+      <template v-else-if="phase === 'saving'">
+        <button type="button" class="st-btn" disabled>저장 중…</button>
       </template>
       <template v-else-if="phase === 'saved'">
         <button type="button" class="st-btn" data-export-saved-continue @click="$emit('close')">계속 편집</button>
         <button type="button" class="st-btn" data-export-saved-home @click="$emit('home')">내 상품으로 가기</button>
         <button type="button" class="st-btn st-btn-primary" data-export-saved-send @click="$emit('send', saved.exportId)">판매처로 보내기</button>
       </template>
-      <template v-else-if="phase === 'saveError' || (saveOnly && phase !== 'error')">
+      <template v-else-if="phase === 'saveError' || saveOnly">
         <button type="button" class="st-btn" @click="$emit('close')">닫기</button>
-        <button v-if="phase === 'saveError'" type="button" class="st-btn st-btn-primary" data-export-save-retry @click="run(0)">다시 시도</button>
+        <button v-if="phase === 'saveError'" type="button" class="st-btn st-btn-primary" data-export-save-retry @click="runSave">다시 시도</button>
       </template>
       <template v-else-if="phase === 'error'">
-        <button type="button" class="st-btn" @click="saveOnly ? $emit('close') : (phase = 'setup')">{{ saveOnly ? '닫기' : '처음으로' }}</button>
-        <button type="button" class="st-btn st-btn-primary" data-export-retry @click="run(saveOnly ? 0 : error.fileIndex)">다시 시도</button>
+        <button type="button" class="st-btn" @click="phase = 'setup'">처음으로</button>
+        <button type="button" class="st-btn st-btn-primary" data-export-retry @click="run(error.fileIndex)">다시 시도</button>
       </template>
       <template v-else>
         <button type="button" class="st-btn" @click="phase = 'setup'">다른 설정으로 받기</button>
@@ -156,9 +164,10 @@
 </template>
 
 <script setup>
-// [다운로드] 창 (13-1, 예전 이름 [내보내기]) · [작업 저장] 창 (saveOnly) — 같은 그리기·보관 길을 쓴다.
+// [다운로드] 창 (13-1, 예전 이름 [내보내기]) · [작업 저장] 창 (saveOnly)
 //   [다운로드]  = 고른 설정으로 파일을 만들어 내려받고, 내 상품에도 한 벌 보관 (받을 때마다 새 카드)
-//   [작업 저장] = 받지 않고 기본 설정(여러 장으로 나눠서·JPG·1배·전체)으로 만들어 내 상품에 저장만. 같은 작업을 다시 저장하면 그 카드를 새 결과물로 바꾼다(commitSave)
+//   [작업 저장] = 작업 내용만 저장(편집기가 넘긴 saveWork — 페이지·사진 편집 마저 저장 + 서버 work_save). 1~2초 안에 끝난다 (2026-10-02)
+//     상세 이미지는 그리지 않는다 — 편집기가 뒤에서 만들고(studioProductImages.startBackgroundRender), 보낼 때 최신이 아니면 그때 만든다
 // 받는 방식(여러 장으로 나눠서 기본 — 이어 붙여 세로 SLICE_MAX_PX마다, 섹션 경계 우선 · 한 장으로 길게) · 형식(JPG 품질 92 기본·PNG) · 크기(1배 780px 기본·2배) · 받을 구간.
 // 그리기는 편집기가 넘긴 render(file, { format, scale, onStep }) → { blob, notes } (studioExport 엔진 + 편집기의 사진·글꼴).
 // 파일은 하나씩 만들어 바로 내려받는다 (작업이름_01.jpg …). 실패하면 어느 섹션(또는 몇 번째 장)인지와 원인, [다시 시도] = 멈춘 파일부터.
@@ -167,7 +176,7 @@ import { ref, computed, watch } from 'vue'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import { exportPlan, exportFileName, fileBaseName, EXPORT_FORMATS, EXPORT_SCALES, SLICE_MAX_PX } from '@/lib/studioExport'
 import { summarizeNotes } from '@/lib/studioPreview' // 같은 알림은 한 줄로 (review-1)
-import { beginArchive, archiveFile, archiveThumb, makeThumb, archiveKey, commitSave, ARCHIVE_POOL } from '@/lib/studioExportArchive'
+import { beginArchive, archiveFile, archiveThumb, makeThumb, archiveKey, ARCHIVE_POOL } from '@/lib/studioExportArchive'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -178,7 +187,8 @@ const props = defineProps({
   pendingBySection: { type: Object, default: () => ({}) }, // 구간 id → 적용 중인 사진 수
   render: { type: Function, required: true },              // (file, { format, scale, onStep }) → Promise<{ blob, notes }>
   devCompare: { type: Boolean, default: false },           // 개발 서버에서만 비교 보기 버튼
-  saveOnly: { type: Boolean, default: false },             // [작업 저장] — 받지 않고 내 상품에 저장만
+  saveOnly: { type: Boolean, default: false },             // [작업 저장] — 받지 않고 작업 내용만 저장
+  saveWork: { type: Function, default: null },             // [작업 저장] 함수 () → Promise<{ cardId, fresh }> (편집기)
 })
 const emit = defineEmits(['close', 'compare', 'saved', 'send', 'home'])
 
@@ -190,8 +200,8 @@ const mode = ref('sections')
 const format = ref('jpg')
 const scale = ref(1)
 const picked = ref(new Set())
-const phase = ref('setup') // setup | askBake | waitBake | running | done | error | saved · saveError([작업 저장])
-const saved = ref({ exportId: null, updated: false }) // [작업 저장] 결과 — 내 상품에 남은 카드
+const phase = ref('setup') // setup | askBake | waitBake | running | done | error · saving | saved | saveError([작업 저장])
+const saved = ref({ exportId: null, fresh: false }) // [작업 저장] 결과 — 내 상품 카드(아직 상세 이미지를 만든 적 없으면 null) · 상세 이미지가 최신인지
 const progress = ref({ file: 0, files: 0, step: 0, steps: 0, label: '' })
 const error = ref({ where: '', message: '', fileIndex: 0 })
 const notes = ref([])
@@ -205,7 +215,7 @@ const now = () => (typeof performance !== 'undefined' ? performance.now() : Date
 function logTiming(files) {
   const t = timing
   // 보관 = 장마다 걸린 시간의 합 (동시에 올리므로 전체보다 클 수 있다 — 비교는 "전체"로)
-  console.info(`[StudioExportModal] ${props.saveOnly ? '작업 저장' : '다운로드'} ${doneCount.value}/${files.length}장 · 전체 ${Math.round(now() - t.t0)}ms · 그리기 ${Math.round(t.render)}ms · 보관 ${Math.round(t.archive)}ms · 동시 ${ARCHIVE_POOL}장`)
+  console.info(`[StudioExportModal] 다운로드 ${doneCount.value}/${files.length}장 · 전체 ${Math.round(now() - t.t0)}ms · 그리기 ${Math.round(t.render)}ms · 보관 ${Math.round(t.archive)}ms · 동시 ${ARCHIVE_POOL}장`)
 }
 
 const orderedPicked = computed(() => props.page.sections.filter(s => picked.value.has(s.id)).map(s => s.id))
@@ -223,15 +233,29 @@ watch(() => props.open, v => {
   compareId.value = props.page.sections[0]?.id ?? null
   notes.value = []
   doneCount.value = 0
-  saved.value = { exportId: null, updated: false }
-  if (props.saveOnly) { // 묻지 않고 기본 설정으로 바로 (적용 중인 사진이 있어도 화면에 보이는 모습 그대로 저장)
-    mode.value = 'sections'
-    format.value = 'jpg'
-    scale.value = 1
-    if (canStart.value) run(0)
-    else { error.value = { where: '', message: plan.value.files.length ? '섹션이 너무 길어 이미지로 만들 수 없어요. [다운로드]에서 받을 섹션을 골라 주세요.' : '저장할 섹션이 없어요.', fileIndex: 0 }; phase.value = 'saveError' }
-  }
+  saved.value = { exportId: null, fresh: false }
+  if (props.saveOnly) runSave() // 묻지 않고 바로 — 작업 내용만 저장
 })
+
+/** [작업 저장] — 작업 내용만 (편집기 saveWork). 걸린 시간은 콘솔 한 줄 */
+async function runSave() {
+  if (!props.saveWork) { console.error('[StudioExportModal] 작업 저장: saveWork가 없음'); return }
+  phase.value = 'saving'
+  error.value = { where: '', message: '', fileIndex: 0 }
+  const t0 = now()
+  try {
+    const r = await props.saveWork()
+    console.info(`[StudioExportModal] 작업 저장 · 전체 ${Math.round(now() - t0)}ms · 상세 이미지 ${r.fresh ? '최신(다시 안 만듦)' : '뒤에서 만듦'}`)
+    saved.value = { exportId: r.cardId || null, fresh: r.fresh === true }
+    if (!props.open) return
+    phase.value = 'saved'
+    emit('saved', saved.value)
+  } catch (e) {
+    console.error('[StudioExportModal] 작업 저장 실패:', e.code, e)
+    error.value = { where: '', message: e.message || '잠시 후 다시 시도해 주세요.', fileIndex: 0 }
+    phase.value = 'saveError'
+  }
+}
 // 적용이 끝나길 기다리는 중 — 다 끝나면 바로 받기
 watch(pendingCount, n => { if (phase.value === 'waitBake' && n === 0) run(0) })
 
@@ -293,7 +317,7 @@ async function startArchive(r) {
   if (!props.projectId) return
   archive.value = { ...archive.value, state: 'saving' }
   try {
-    archiveId = await beginArchive({ projectId: props.projectId, title: r.base, format: r.format, scale: r.scale, mode: r.mode, count: r.files.length, source: props.saveOnly ? 'save' : undefined })
+    archiveId = await beginArchive({ projectId: props.projectId, title: r.base, format: r.format, scale: r.scale, mode: r.mode, count: r.files.length })
   } catch (e) {
     console.error('[StudioExportModal] 내 상품 보관 시작 실패:', e.code, e)
     archive.value = { state: e.code === 'export_sql_missing' ? 'soon' : 'failed', saved: 0, failed: r.files.length, message: e.message }
@@ -362,13 +386,13 @@ async function run(from) {
       timing.render += now() - tr
       notes.value.push(...out.notes)
       const name = exportFileName(base, file, FORMAT_OF[fmt].ext)
-      if (!props.saveOnly) download(out.blob, name)
+      download(out.blob, name)
       doneCount.value++
       const ta = now()
       const job = archiveOne(file, out.blob, name, i === from).then(() => { timing.archive += now() - ta; inflight.delete(job) })
       inflight.add(job)
       if (inflight.size >= ARCHIVE_POOL) await Promise.race(inflight)
-      if (!props.saveOnly && i < files.length - 1) await sleep(400) // 여러 파일을 한꺼번에 내려받지 않게 조금씩 띄운다
+      if (i < files.length - 1) await sleep(400) // 여러 파일을 한꺼번에 내려받지 않게 조금씩 띄운다
     } catch (e) {
       console.error('[StudioExportModal] 이미지 만들기 실패:', file, e)
       const sid = e?.sectionId ?? (file.sectionIds.length === 1 ? file.sectionIds[0] : null)
@@ -386,35 +410,12 @@ async function run(from) {
   await settle()
   finishArchive()
   logTiming(files)
-  if (props.saveOnly) return finishSave(files.length)
   phase.value = doneCount.value || !stopAsked.value ? 'done' : 'setup'
 }
 
-/** [작업 저장] 마무리 — 전부 보관됐을 때만 내 상품 카드로 확정한다 (일부만 된 결과물로 예전 카드를 바꾸지 않는다) */
-async function finishSave(total) {
-  const a = archive.value
-  if (stopAsked.value || !props.open) { emit('close'); return }
-  if (!archiveId || a.state !== 'saved' || a.saved !== total) {
-    console.error('[StudioExportModal] 작업 저장: 보관이 끝나지 않음', { state: a.state, saved: a.saved, total, message: a.message })
-    error.value = { where: '', message: a.message || '잠시 후 다시 시도해 주세요.', fileIndex: 0 }
-    phase.value = 'saveError'
-    return
-  }
-  try {
-    const r = await commitSave(archiveId)
-    saved.value = { exportId: r.exportId, updated: r.updated === true }
-    phase.value = 'saved'
-    emit('saved', saved.value)
-  } catch (e) {
-    console.error('[StudioExportModal] 작업 저장 마무리 실패:', e.code, e)
-    error.value = { where: '', message: e.message, fileIndex: 0 }
-    phase.value = 'saveError'
-  }
-}
-
-/** 바깥 누르기·Esc — 받는 중에는 닫지 않는다([그만 받기]로 멈춤) */
+/** 바깥 누르기·Esc — 받는 중·저장 중에는 닫지 않는다([그만 받기]로 멈춤) */
 function requestClose() {
-  if (phase.value === 'running') return
+  if (phase.value === 'running' || phase.value === 'saving') return
   emit('close')
 }
 </script>

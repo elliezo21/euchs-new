@@ -15,14 +15,21 @@ const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
 // ── 서버: 작업마다 지금 결과물 하나 ──
 {
   const rows = [
-    { id: 'd1', project_id: 'A', source: 'download', created_at: '2026-10-01T01:00:00Z', files: [1] },
-    { id: 's1', project_id: 'A', source: 'save', created_at: '2026-09-30T01:00:00Z', files: [1] },
-    { id: 'd2', project_id: 'A', source: 'download', created_at: '2026-10-02T01:00:00Z', files: [1] },
-    { id: 'b1', project_id: 'B', source: 'download', created_at: '2026-09-29T01:00:00Z', files: [1] },
-    { id: 'b2', project_id: 'B', created_at: '2026-10-02T05:00:00Z', files: [1] }, // source 칸 없는 예전 줄 = download
+    { id: 'd1', project_id: 'A', source: 'download', created_at: '2026-10-01T01:00:00Z', files: [1], file_count: 1 },
+    { id: 's1', project_id: 'A', source: 'save', created_at: '2026-09-30T01:00:00Z', files: [1], file_count: 1 },
+    { id: 'd2', project_id: 'A', source: 'download', created_at: '2026-10-02T01:00:00Z', files: [1], file_count: 1 },
+    { id: 'b1', project_id: 'B', source: 'download', created_at: '2026-09-29T01:00:00Z', files: [1], file_count: 1 },
+    { id: 'b2', project_id: 'B', created_at: '2026-10-02T05:00:00Z', files: [1], file_count: 1 }, // source 칸 없는 예전 줄 = download
   ]
   const g = currentExportsByProject(rows)
   eq('작업마다 한 줄 · [작업 저장]이 있으면 그것 · 없으면 가장 최근 · 모든 결과물 id(최근순) · 지금 결과물이 최근인 작업 먼저', g.map(x => [x.current.id, x.ids]), [['b2', ['b2', 'b1']], ['s1', ['d2', 'd1', 's1']]])
+  // 2026-10-02: 상세 이미지를 뒤에서 만드는 중(파일이 다 못 들어온 [작업 저장] 줄)은 지금 결과물이 아니다 — 카드(다 든 것) 그대로
+  const g2 = currentExportsByProject([
+    { id: 'c1', project_id: 'C', source: 'save', created_at: '2026-10-01T01:00:00Z', files: [1, 2], file_count: 2 },
+    { id: 'c2', project_id: 'C', source: 'save', created_at: '2026-10-02T01:00:00Z', files: [1], file_count: 3 },
+    { id: 'e1', project_id: 'E', source: 'save', created_at: '2026-10-02T01:00:00Z', files: [1], file_count: 3 }, // 만드는 중뿐 — 결과물 없음(줄 없음)
+  ])
+  eq('만드는 중(파일 덜 든 [작업 저장] 줄)은 지금 결과물이 아님 · 카드 그대로 · 만드는 중뿐이면 줄 없음', g2.map(x => [x.current.id, x.ids]), [['c1', ['c2', 'c1']]])
   eq('빈 값·작업 없는 줄은 건너뜀', currentExportsByProject([null, { id: 'x' }, { project_id: 'P' }]).length, 0)
 }
 
@@ -36,6 +43,12 @@ const SEND = (id, market, status, at, extra = {}) => ({ id, exportId: extra.expo
   eq('변경사항 미전송 = 살아 있는 상품을 보낸 뒤 결과물을 다시 저장', P.productStage(EX('e1', '2026-10-02T00:00:00Z'), { coupang: SEND('s', 'coupang', 'approved', '2026-10-01T02:00:00Z') }), 'changed')
   eq('수정 회차(sentAt)가 저장보다 늦으면 보냄 (다시 보낸 뒤)', P.productStage(EX('e1', '2026-10-02T00:00:00Z'), { coupang: SEND('s', 'coupang', 'approved', '2026-10-01T02:00:00Z', { sentAt: '2026-10-02T03:00:00Z' }) }), 'sent')
   eq('실패·반려만 있으면 다시 저장해도 변경사항 미전송 아님(살아 있는 상품이 없음) — 보냄 + 확인 필요', P.productStage(EX('e1', '2026-10-02T00:00:00Z'), { coupang: SEND('s', 'coupang', 'failed', '2026-10-01T02:00:00Z') }), 'sent')
+  // 2026-10-02 [작업 저장] = 작업 내용만 + 저장 시각(studio_projects.last_exported_at) — 상세 이미지(결과물)는 뒤에서·보낼 때 만든다
+  eq('저장 시각만 있고 결과물이 아직 없음 = 보내기 전(보낼 때 만든다) · 고를 수 있음', [P.productStage(null, {}, '2026-10-02T00:00:00Z'), P.canPick({ stage: 'ready', exportId: null }), P.canPick({ stage: 'draft', exportId: null })], ['ready', true, false])
+  eq('변경사항 미전송 = 보낸 뒤 [작업 저장](저장 시각) — 결과물 시각이 아니라', [
+    P.productStage(EX('e1', '2026-10-01T00:00:00Z'), { coupang: SEND('s', 'coupang', 'approved', '2026-10-01T02:00:00Z') }, '2026-10-02T00:00:00Z'),
+    P.productStage(EX('e1', '2026-10-03T00:00:00Z'), { coupang: SEND('s', 'coupang', 'approved', '2026-10-01T02:00:00Z') }, '2026-10-01T00:00:00Z'), // 보낼 때 다시 만든 결과물은 저장이 아님
+  ], ['changed', 'sent'])
   eq('다른 계정으로 보낸 상품은 변경사항 판정에서 뺌', P.productStage(EX('e1', '2026-10-02T00:00:00Z'), { coupang: SEND('s', 'coupang', 'approved', '2026-10-01T02:00:00Z', { accountMismatch: true }) }), 'sent')
 }
 

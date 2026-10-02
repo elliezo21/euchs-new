@@ -17,7 +17,7 @@ function eq(name, got, want) {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name.padEnd(64)} ${ok ? '' : `${JSON.stringify(got)}  기대 ${JSON.stringify(want)}`}`)
 }
 
-const API_STUB = '\0sent-list-api-stub', AUTH_STUB = '\0sent-list-auth-stub', MODAL_STUB = '\0sent-list-modal-stub'
+const API_STUB = '\0sent-list-api-stub', AUTH_STUB = '\0sent-list-auth-stub', MODAL_STUB = '\0sent-list-modal-stub', RENDER_STUB = '\0sent-list-render-stub'
 const stubPlugin = {
   name: 'sent-list-test',
   enforce: 'pre',
@@ -27,6 +27,7 @@ const stubPlugin = {
     if (/^@\/lib\/studioApi(\.js)?$/.test(p)) return API_STUB
     if (/^@\/lib\/auth(\.js)?$/.test(p)) return AUTH_STUB
     if (p === '@/components/studio/StudioSendModal.vue') return MODAL_STUB
+    if (/^@\/lib\/studioProductImages(\.js)?$/.test(p)) return RENDER_STUB // 상세 이미지 만들기(2026-10-02) — 이 테스트는 그리지 않는다
     return null
   },
   load(id) {
@@ -36,6 +37,7 @@ const stubPlugin = {
       export const studioErrorMessage = (area, code) => '잠시 후 다시 시도해 주세요. (' + code + ')'`
     if (id === AUTH_STUB) return 'export const isAdminOrStaff = { value: true } // 관리자·스태프로 — 카페24가 관리자에게도 안 보이는지'
     if (id === MODAL_STUB) return 'export default { name: "StudioSendModalStub", render: () => null }'
+    if (id === RENDER_STUB) return 'export const ensureProductImages = async who => ({ exportId: who.exportId || who.projectId, rendered: false, count: 0 }); export const renderProgressText = () => ""'
     return null
   },
 }

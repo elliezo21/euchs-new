@@ -37,7 +37,7 @@ export const ARCHIVE_POOL = 4 // [작업 저장]·[다운로드] 보관을 동�
 // 같은 내 상품의 확인(export_file_confirm)은 한 번에 하나씩(serializeByKey) — 서버가 studio_exports.files(JSON 칸)를 읽고 고쳐 쓰므로(upsertExportFile)
 // 동시에 확인하면 서로의 기록을 덮어 한 장이 빠질 수 있다. 준비(prepare)·업로드는 동시에 해도 된다(파일 경로가 key마다 따로)
 
-async function putFile(exportId, key, blob, name, contentType) {
+async function putFile(exportId, key, blob, name, contentType, contentKey = null) {
   const prep = await callStudioApi('studio-upload', { action: 'export_file_prepare', exportId, key, size: blob.size })
   if (!prep.ok) throw apiError(prep)
   const { path, token, exists } = prep.data
@@ -50,19 +50,22 @@ async function putFile(exportId, key, blob, name, contentType) {
       throw err
     }
   }
-  const conf = await serializeByKey(exportId, () => callStudioApi('studio-upload', { action: 'export_file_confirm', exportId, key, path, name }))
+  const conf = await serializeByKey(exportId, () => callStudioApi('studio-upload', { action: 'export_file_confirm', exportId, key, path, name, ...(contentKey ? { contentKey } : {}) }))
   if (!conf.ok) throw apiError(conf)
   return conf.data
 }
 
-/** 내보낸 파일 하나 보관 — 20MB가 넘으면 올리지 않고 export_too_large */
-export async function archiveFile(exportId, { key, name, blob }) {
+/**
+ * 내보낸 파일 하나 보관 — 20MB가 넘으면 올리지 않고 export_too_large
+ * @param contentKey 상세 이미지를 만든 때의 내용 열쇠(api/_studioContentKey.js) — [작업 저장] 결과물만. 서버가 files 항목에 ck로 적는다
+ */
+export async function archiveFile(exportId, { key, name, blob, contentKey = null }) {
   if (blob.size > ARCHIVE_MAX_BYTES) {
     const err = new Error(studioErrorMessage('export', 'export_too_large'))
     err.code = 'export_too_large'
     throw err
   }
-  return putFile(exportId, key, blob, name, blob.type)
+  return putFile(exportId, key, blob, name, blob.type, contentKey)
 }
 
 /** 목록 미리보기 — 첫 파일을 폭 THUMB_W로 줄이고 위쪽 THUMB_MAX_H까지 JPG */
@@ -99,6 +102,29 @@ export async function commitSave(exportId) {
   const r = await callStudioApi('studio-upload', { action: 'export_save_commit', exportId })
   if (!r.ok) throw apiError(r)
   return r.data
+}
+
+/**
+ * [작업 저장] (2026-10-02) — 편집기가 페이지·사진 편집을 다 저장한 뒤 "저장한 시각"만 남긴다(상세 이미지는 만들지 않는다)
+ * @returns {Promise<{ savedAt, changed, contentKey, cardId, fresh }>}
+ */
+export async function saveWork(projectId) {
+  const r = await callStudioApi('studio-upload', { action: 'work_save', projectId })
+  if (!r.ok) throw apiError(r)
+  return r.data
+}
+
+/** 내 상품 카드의 상세 이미지가 지금 내용으로 만든 것인지 → { projectId, contentKey, cardId, fresh, count } */
+export async function renderStatus({ projectId = '', exportId = '' } = {}) {
+  const r = await callStudioApi('studio-upload', { action: 'export_render_status', ...(projectId ? { projectId } : { exportId }) })
+  if (!r.ok) throw apiError(r)
+  return r.data
+}
+
+/** 만들다 그만둔 [작업 저장] 줄 지우기 (파일이 다 못 들어온 것만 — 서버가 확인) */
+export async function discardArchive(exportId) {
+  const r = await callStudioApi('studio-upload', { action: 'export_discard', exportId })
+  if (!r.ok) throw apiError(r)
 }
 
 /** 작업 홈 내 상품 목록 → { ready, items } (ready=false = 표 설정 전) */

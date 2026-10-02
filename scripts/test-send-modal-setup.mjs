@@ -24,6 +24,7 @@ const DB_STUBS = {
   '@/lib/studioProjectCopy': 'copyProject',
   '@/lib/studioFolders': 'listFolders,createFolder,renameFolder,deleteFolder,moveProjects',
   '@/lib/studioExportArchive': 'listProductExports,downloadArchive',
+  '@/lib/studioProductImages': 'ensureProductImages,renderProgressText', // 상세 이미지 필요할 때 만들기(2026-10-02) — 그리기·DB를 부르지 않는다
   '@/lib/studioGate': 'studioGate',
   '@/lib/studioCategoryBundles': 'listCategoryBundles,createCategoryBundle,deleteCategoryBundle',
 }

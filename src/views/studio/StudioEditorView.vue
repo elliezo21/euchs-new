@@ -39,6 +39,10 @@
           <button v-else-if="topSaveStatus === 'conflict'" type="button" class="text-[11px] font-bold st-danger-text underline" data-save-status="conflict" @click="reopenAnyConflict">저장 안 됨 · 다른 창과 충돌</button>
           <span v-else-if="topSaveStatus === 'pending' || topSaveStatus === 'saving'" class="text-[11px] st-muted" data-save-status="saving">저장 중…</span>
           <span v-else class="text-[11px] st-success-text" :title="savedTitle(topLastSavedAt)" data-save-status="saved">● 저장됨</span>
+          <!-- [작업 저장] 뒤 상세 이미지를 뒤에서 만드는 중 (2026-10-02 — 화면은 막지 않는다. 떠나도 이 탭에서는 이어서, 못 끝내면 보낼 때 만든다) -->
+          <span v-if="bgRender?.status === 'running'" class="text-[11px] st-muted tabular-nums" data-render-status="running">· {{ renderProgressText(bgRender.progress) }}</span>
+          <button v-else-if="bgRender?.status === 'error'" type="button" class="text-[11px] font-bold st-danger-text underline" :title="bgRender.message" data-render-status="error" @click="retryBackgroundRender">· 상세 이미지를 만들지 못했어요 · 다시 시도</button>
+          <span v-else-if="bgRender?.status === 'done' && !(topLastSavedAt > bgRender.at)" class="text-[11px] st-muted" data-render-status="done">· 상세 이미지 준비됨</span>
         </template>
       </div>
       <span class="st-badge ml-2 shrink-0" data-mode-chip><Hand class="w-3 h-3 mr-1" :stroke-width="2" /> 직접 만들기 · 반자동</span>
@@ -384,7 +388,7 @@
          [작업 저장] = 같은 창을 save-only로 — 받지 않고 내 상품에 저장만. 끝나면 [판매처로 보내기](판매처 > 보내기 탭)·[내 작업으로 가기]·[계속 편집] -->
     <StudioExportModal
       v-if="page" :open="exportOpen" :page="page" :project-id="project?.id || ''" :title="project ? projectDisplayTitle(project) : ''" :labels="sectionLabels"
-      :pending-by-section="exportPendingBySection" :render="exportRender" :dev-compare="DEV_EXPORT_COMPARE" :save-only="exportSaveOnly"
+      :pending-by-section="exportPendingBySection" :render="exportRender" :dev-compare="DEV_EXPORT_COMPARE" :save-only="exportSaveOnly" :save-work="saveWorkNow"
       @close="exportOpen = false" @compare="openExportCompare" @home="goHomeAfterSave" @send="sendAfterSave"
     />
     <!-- 개발용 비교 보기 (개발 서버에서만 — 빌드에는 들어가지 않는다) -->
@@ -546,7 +550,9 @@ import {
 import { sectionAddArgs, elementTabOf, SECTION_ADD_HINT, RIGHT_SPLIT, clampRightSplit } from '@/lib/studioCanvasUi'
 import StudioAutoBuildScreen from '@/components/studio/StudioAutoBuildScreen.vue'
 import { useAutoBuild } from '@/composables/useAutoBuild'
-import { AI_MISSING_NOTE } from '@/lib/studioPreview'
+import { createExportDeps, renderExportFile } from '@/lib/studioExportDeps'
+import { startBackgroundRender, ensureProductImages, renderState, renderProgressText } from '@/lib/studioProductImages'
+import { saveWork } from '@/lib/studioExportArchive'
 import { fetchProductFacts } from '@/lib/studioFactsApi'
 import {
   reviewMark, buildDrafts, autoTemplate, oneClickTarget, draftSectionIds, withDraftMark, isDraftSection, problemList,
@@ -584,15 +590,13 @@ import StudioExportModal from '@/components/studio/StudioExportModal.vue'
 import StudioPreview from '@/components/studio/StudioPreview.vue'
 import StudioCropScreen from '@/components/studio/StudioCropScreen.vue'
 import StudioBgRefineScreen from '@/components/studio/StudioBgRefineScreen.vue'
-import { renderSection, renderPage, renderSlice, canvasToBlob, canvasToBlobUnder } from '@/lib/studioExport'
 import { loadWithResign } from '@/lib/studioImageCache'
-import { geometryOf, drawGeometry, shapeMark, readShape } from '@/lib/studioCrop'
+import { geometryOf, shapeMark, readShape } from '@/lib/studioCrop'
 import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
 import StudioTextPanel from '@/components/studio/StudioTextPanel.vue'
 import StudioElementPanel from '@/components/studio/StudioElementPanel.vue'
 import { groupPresetByKey, presetTextParts } from '@/lib/studioDecor'
 import { assetFieldsOf, isAssetPath } from '@/lib/studioAsset'
-import { loadAssetImage } from '@/lib/studioAssetLoad'
 import { isValidTableItem, tableTemplateByKey, tableFieldsOf, hasTableCell, cleanCellText, tableRows, tableCols } from '@/lib/studioTable'
 import { createTextMeasure, ensureStudioFonts, onFontsChanged, fontsReadyNow, loadFontsFor } from '@/lib/studioFonts'
 import {
@@ -607,10 +611,10 @@ import {
 import { createImageCache, createSignedUrlPool } from '@/lib/studioImageCache'
 import { useEraseSession } from '@/composables/useEraseSession'
 import { useBakeQueue } from '@/composables/useBakeQueue'
-import { fillCounts, pixelLayersOf, hasClearLayer } from '@/lib/studioEdit'
+import { fillCounts, hasClearLayer } from '@/lib/studioEdit'
 import { usableFinalVersion, sameLayers } from '@/lib/studioFinal'
 import { usePageSession } from '@/composables/usePageSession'
-import { createViewImageStore, finalPathOf, composeErased, applyBackground, thumbUnderStyle } from '@/lib/studioViewImage'
+import { createViewImageStore, finalPathOf, thumbUnderStyle } from '@/lib/studioViewImage'
 import {
   firstItemOfImage, findItem, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS, PASTE_OFFSET,
   moveItems, setItemRect, setRotation, rotateBy, flipItems, setOpacity, setLocked, setHidden, alignItems, reorderItems,
@@ -2154,81 +2158,26 @@ async function requestBake(id) {
   bakeQueue.request(row, layers, row.edit_version)
 }
 // ── 내보내기 (13-1) — 그리기는 studioExport 엔진, 사진·글꼴은 화면과 같은 것을 넘긴다 ──
+// 그리기 재료는 studioExportDeps 하나(2026-10-02 — 편집기 밖에서 상세 이미지를 만들 때도 같은 함수). 사진 상태는 이 편집기의 세션 값
 // 사진 = 화면 작은 사진과 같은 규칙의 원본 크기: 완성 JPG를 쓸 수 있으면 그것(finalVersionOf — 화면과 같은 판단), 아니면 원본 + 지금 지우기 조각(composeErased)
-/** 지운 사진(원본 크기, 자르기·띠 전) — 내보내기와 자르기 창(12-1)이 같이 쓴다 */
-async function erasedSourceOf(imageId) {
-  const row = imagesById.value.get(imageId)
-  if (!row) throw new Error('이 작업에 없는 사진이에요')
-  if (row.ingest_status !== 'done' || !row.original_path) throw new Error('아직 준비되지 않은 사진이에요')
-  const f = finalVersionOf(row)
-  if (f !== null) {
-    const el = await loadWithResign(urlPool, finalPathOf(row, f))
-    return { source: el, width: el.naturalWidth, height: el.naturalHeight, notes: [] }
-  }
-  const el = await loadWithResign(urlPool, row.original_path)
-  const r = await composeErased(el, pixelLayersOf(session.layerMap[imageId] || []))
-  const notes = [...r.problems]
-  if (r.aiMissing.length || r.aiStale.length) notes.push(AI_MISSING_NOTE) // 미리보기·내보내기가 사진 수로 한 줄에 묶는다 (studioPreview.summarizeNotes)
-  return { source: r.canvas || el, width: el.naturalWidth, height: el.naturalHeight, notes }
-}
-/**
- * 내보낼 사진 = 지운 사진 → 배경 마스크(17-1, 투명일 때 — 화면 작은 사진과 같은 applyBackground) → 띠 잘라내기 → 자르기
- * (12-1, studioCrop.geometryOf — 화면 작은 사진과 같은 함수). 필터·꾸미기는 엔진이. 투명한 곳은 엔진이 먼저 칠한 구간 배경색이 보인다
- */
-async function exportImageOf(imageId) {
-  const erased = await erasedSourceOf(imageId)
-  const masked = await applyBackground(urlPool, erased.source, erased.width, erased.height, session.bgOf(imageId))
-  // 17-2 단색: 사진은 투명 그대로, 색(masked.color)은 엔진 drawPhoto가 사진 자리 아래에 칠한다 (필터는 사진에만)
-  // 17-4 AI 배경: masked.under(원본 크기)를 사진과 같은 띠·자르기로 → bgSource (엔진 drawPhoto가 사진 아래에 그린다, 필터 없음)
-  const src = masked.canvas
-    ? { source: masked.canvas, width: erased.width, height: erased.height, notes: [...erased.notes, ...masked.problems], bgColor: masked.color, bgSource: masked.under }
-    : { ...erased, notes: [...erased.notes, ...masked.problems] }
-  const geo = geometryOf(src.width, src.height, session.shapeOf(imageId))
-  if (geo.identity) return src
-  const notes = geo.cropIgnored ? [...src.notes, '자르기 영역이 모두 잘라낸 띠 안이라 자르기를 쓰지 않았어요'] : src.notes
-  const cut = source => {
-    const c = document.createElement('canvas')
-    c.width = geo.width
-    c.height = geo.height
-    drawGeometry(c.getContext('2d'), source, geo, 0, 0, geo.width, geo.height)
-    return c
-  }
-  return { source: cut(src.source), width: geo.width, height: geo.height, notes, bgColor: src.bgColor ?? null, bgSource: src.bgSource ? cut(src.bgSource) : null }
-}
-const exportDeps = {
-  createCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c },
-  Path2D: window.Path2D,
-  getImage: exportImageOf,
-  getAsset: loadAssetImage, // 에셋 이미지 (같은 사이트의 정적 파일 — 캔버스가 오염되지 않는다)
+const exportKit = createExportDeps({
+  rowOf: id => imagesById.value.get(id),
+  layersOf: id => session.layerMap[id] || [],
   lookOf: id => session.lookMap[id], // 화면(StudioPageView looks)과 같은 값
+  shapeOf: id => session.shapeOf(id),
+  bgOf: id => session.bgOf(id),
+  finalVersionOf,
+  urlPool,
   measure: textMeasure,
-  async prepareFonts(list) {
-    try {
-      return await loadFontsFor(list)
-    } catch (e) {
-      console.error('[StudioEditor] 내보내기 글꼴 준비 실패:', e)
-      return false // 엔진이 "글꼴을 불러오지 못했어요" + [다시 시도]로 알린다
-    }
-  },
-}
+  where: 'StudioEditor',
+})
+/** 지운 사진(원본 크기, 자르기·띠 전) — 내보내기와 자르기 창(12-1)이 같이 쓴다 */
+const erasedSourceOf = exportKit.erasedSourceOf
 // 여러 장으로 나눌 때 다음 장에 걸친 섹션 그림 (studioExport.renderSlice — 같은 페이지·배율일 때만 다시 씀)
 const exportSliceCache = { entry: null }
-/** [다운로드]·[작업 저장] 창이 부른다 — 파일 하나(나눈 한 장 · 한 장으로 길게) → { blob, notes }. 미리보기·비교 보기는 섹션 하나({ sectionIds:[id] }) */
-async function exportRender(file, { format, scale, onStep }) {
-  if (!page.value) throw new Error('페이지가 없어요')
-  const out = file.range
-    ? await renderSlice(page.value, file, exportDeps, { scale, onStep, cache: exportSliceCache })
-    : file.sectionIds.length === 1 && file.no !== null
-      ? await renderSection(page.value, file.sectionIds[0], exportDeps, { scale })
-      : await renderPage(page.value, file.sectionIds, exportDeps, { scale, onStep })
-  try {
-    // 나눈 한 장(JPG)은 3MB 이하로 (품질을 낮춰 다시 — studioExport.canvasToBlobUnder). 한 장으로 길게·미리보기는 예전 그대로
-    const blob = file.range ? (await canvasToBlobUnder(out.canvas, format)).blob : await canvasToBlob(out.canvas, format)
-    return { blob, notes: out.notes }
-  } finally {
-    out.canvas.width = 0 // 큰 캔버스 메모리를 바로 돌려준다
-    out.canvas.height = 0
-  }
+/** [다운로드] 창·미리보기·비교 보기가 부른다 — 파일 하나(나눈 한 장 · 한 장으로 길게) → { blob, notes }. 미리보기·비교 보기는 섹션 하나({ sectionIds:[id] }) */
+function exportRender(file, { format, scale, onStep }) {
+  return renderExportFile(page.value, file, exportKit.deps, { format, scale, onStep, cache: exportSliceCache })
 }
 /** 구간 id → 적용 중(완성 사진 만드는 중)인 사진 수 — 창이 먼저 묻는다 */
 const exportPendingBySection = computed(() => {
@@ -2270,7 +2219,33 @@ function openExport() {
     exportOpen.value = true
   })
 }
-/** 상단 [작업 저장] — 받지 않고 결과물을 만들어 내 상품에 저장만 (같은 작업을 다시 저장하면 그 카드를 바꾼다) */
+/**
+ * 상단 [작업 저장] (2026-10-02) — 작업 내용만 저장하고 바로 끝낸다(예전: 상세 이미지를 그려 올린 뒤에 끝나 11장 46초·19장 113초).
+ *   페이지·사진 편집 자동 저장을 마저 끝내고 → 서버 work_save(저장한 시각 — [내 상품] "보내기 전"·"변경사항 미전송" 판단)
+ *   → 상세 이미지는 뒤에서 만든다(studioProductImages.startBackgroundRender — 편집기 위쪽에 진행 표시만). 바뀐 것이 없으면 만들지 않는다
+ */
+async function saveWorkNow() {
+  const p = project.value
+  if (!p) throw new Error('작업을 불러온 뒤 다시 눌러 주세요.')
+  // 열기만 한 작업(기본 배치를 보여주기만 하는 중)은 그 배치를 페이지로 저장한다 — 편집기 밖에서 같은 페이지로 그리려면 DB에 있어야 한다
+  if (pageSession.isDefault.value && !pageSession.startFromDefault()) {
+    console.error('[StudioEditor] 작업 저장: 기본 배치를 저장하지 못함 (쓸 사진 없음·충돌·크기)')
+    throw new Error('페이지를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.')
+  }
+  const [okEdit, okPage] = await Promise.all([session.flush(), pageSession.flush()])
+  if (!okEdit || !okPage) throw new Error('저장이 끝나지 않았어요. 위쪽 저장 상태를 확인한 뒤 다시 눌러 주세요.')
+  const r = await saveWork(p.id)
+  startBackgroundRender(p.id, r, { pool: urlPool })
+  return r
+}
+/** 위쪽 "상세 이미지를 만들지 못했어요 · 다시 시도" */
+function retryBackgroundRender() {
+  const id = project.value?.id
+  if (!id) return
+  ensureProductImages({ projectId: id }, { pool: urlPool }).catch(e => console.error('[StudioEditor] 상세 이미지 다시 만들기 실패:', e.code, e))
+}
+const bgRender = computed(() => (project.value ? renderState[project.value.id] || null : null))
+/** 상단 [작업 저장] — 작업 내용만 저장하는 창(StudioExportModal save-only → saveWorkNow) */
 function openSave() {
   if (!page.value || !page.value.sections.length || eraseOpen.value || !project.value) return
   pageView.value?.finishEdit()
@@ -2285,14 +2260,17 @@ function goHomeAfterSave() {
   router.push({ name: 'studio-projects' })
 }
 // [작업 저장] 뒤 [판매처로 보내기] — [내 상품]으로, 방금 저장한 상품의 보내기 창을 연 채 (2026-10-02 — 보내기 탭을 [내 상품]으로 합침)
+// 아직 상세 이미지를 만든 적이 없어 카드 id가 없으면 작업 id로 연다(?sendProject — 보내기 창이 상세 이미지를 만든 뒤 연다)
 function sendAfterSave(exportId) {
   exportOpen.value = false
-  if (!exportId) {
-    console.error('[StudioEditor] 판매처로 보내기: 저장한 내 상품 id가 없음 — 창 없이 [내 상품]을 연다')
+  if (exportId) { router.push({ name: 'studio-projects', query: { send: exportId } }); return }
+  const id = project.value?.id
+  if (!id) {
+    console.error('[StudioEditor] 판매처로 보내기: 작업 id가 없음 — 창 없이 [내 상품]을 연다')
     router.push({ name: 'studio-projects' })
     return
   }
-  router.push({ name: 'studio-projects', query: { send: exportId } })
+  router.push({ name: 'studio-projects', query: { sendProject: id } })
 }
 /** 상단 [미리보기] (13-2) — 받게 될 이미지 그대로 PC·모바일로 */
 function openPreview() {

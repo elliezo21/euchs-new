@@ -12,6 +12,7 @@
  */
 import crypto from 'crypto'
 import { sb } from './_studio.js'
+import { isCompleteExport } from './_studioContentKey.js'
 
 export const EXPORT_MAX_BYTES = 20 * 1024 * 1024   // 버킷 file_size_limit 20971520과 같음
 export const EXPORT_FORMATS = { jpg: 'image/jpeg', png: 'image/png' } // 브라우저 studioExport EXPORT_FORMATS와 같은 두 가지
@@ -94,7 +95,9 @@ export function currentExportsByProject(rows) {
   const out = []
   for (const list of by.values()) {
     list.sort((a, b) => t(b) - t(a))
-    const current = list.find(r => r.source === 'save') || list[0]
+    // [작업 저장] 결과물은 파일이 다 들어온 것만 (2026-10-02 — 상세 이미지를 뒤에서 만들므로 만드는 중·멈춘 줄이 잠깐 있을 수 있다)
+    const current = list.find(r => r.source === 'save' && isCompleteExport(r)) || list.find(r => r.source !== 'save') || null
+    if (!current) continue
     out.push({ current, ids: list.map(r => r.id) })
   }
   return out.sort((a, b) => t(b.current) - t(a.current))

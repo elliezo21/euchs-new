@@ -66,6 +66,15 @@ export function normalizeCuts(cuts, H) {
   return H - removed >= SHAPE_MIN ? out : []
 }
 
+/** edit → 저장된 자르기·띠 (값을 고치지 않고 그대로 — 정리는 그릴 때 geometryOf가 한다). 편집기 세션(useEraseSession)·편집기 밖 그리기(studioProductImages)가 같이 쓴다 */
+export function shapeFromEdit(edit) {
+  const e = edit && typeof edit === 'object' ? edit : {}
+  return {
+    crop: e.crop && typeof e.crop === 'object' ? { ...e.crop } : null,
+    cuts: Array.isArray(e.cuts) ? e.cuts.map(c => ({ ...c })) : [],
+  }
+}
+
 /** edit → { crop, cuts } (정리한 값 — 그리기용) */
 export function readShape(edit, W, H) {
   const e = edit && typeof edit === 'object' ? edit : {}

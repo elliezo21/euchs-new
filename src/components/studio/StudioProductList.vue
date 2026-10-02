@@ -100,7 +100,7 @@
                     <button type="button" class="pl-menu" @click="openRename(r)">이름 바꾸기</button>
                     <button v-if="foldersReady" type="button" class="pl-menu" data-card-move @click="openMove([r.id])">폴더로 이동</button>
                     <button type="button" class="pl-menu" :disabled="copyState.status === 'working'" data-card-copy @click="copyCard(r)">복사본 만들기</button>
-                    <button v-if="r.exportId" type="button" class="pl-menu" :disabled="busy[r.id]?.running" :data-product-redownload="r.id" @click="redownload(r)">이미지 다시 받기</button>
+                    <button v-if="canPick(r)" type="button" class="pl-menu" :disabled="busy[r.id]?.running" :data-product-redownload="r.id" @click="redownload(r)">이미지 다시 받기</button>
                     <button type="button" class="pl-menu st-danger-text" @click="openDelete(r)">삭제</button>
                   </div>
                 </div>
@@ -131,7 +131,7 @@
                 <button type="button" class="pl-menu pl-tap" @click="openRename(r)">이름 바꾸기</button>
                 <button v-if="foldersReady" type="button" class="pl-menu pl-tap" @click="openMove([r.id])">폴더로 이동</button>
                 <button type="button" class="pl-menu pl-tap" :disabled="copyState.status === 'working'" @click="copyCard(r)">복사본 만들기</button>
-                <button v-if="r.exportId" type="button" class="pl-menu pl-tap" :disabled="busy[r.id]?.running" @click="redownload(r)">이미지 다시 받기</button>
+                <button v-if="canPick(r)" type="button" class="pl-menu pl-tap" :disabled="busy[r.id]?.running" @click="redownload(r)">이미지 다시 받기</button>
                 <button type="button" class="pl-menu pl-tap st-danger-text" @click="openDelete(r)">삭제</button>
               </div>
             </div>
@@ -232,7 +232,7 @@
     </StudioModal>
 
     <!-- 보내기 창 (상품 하나) — 예전 보내기 탭·보낸 상품의 [수정 후 재전송]과 같은 창·같은 진입(sendToMarketplace / resendToMarketplace) -->
-    <StudioSendModal :open="send.open" :prepare="send.prepare" :market="send.market" :load-error="send.error" :sent="sentOfOpen" @close="send.open = false" @sent="onSent" @retry="loadPrepare" />
+    <StudioSendModal :open="send.open" :prepare="send.prepare" :market="send.market" :load-error="send.error" :sent="sentOfOpen" :progress="send.progress" @close="send.open = false" @sent="onSent" @retry="loadPrepare" />
     <!-- 여러 상품 한 번에 보내기 (2개 이상 골랐을 때) — 열 때마다 새로 만든다 -->
     <StudioBulkSendModal v-if="bulk.open" :open="bulk.open" :rows="bulk.rows" @close="bulk.open = false" @sent="loadSends" />
   </section>
@@ -256,6 +256,7 @@ import { listMyProjects, listImagesOf, signViewUrls, sortStudioImages, renamePro
 import { copyProject } from '@/lib/studioProjectCopy'
 import { listFolders, createFolder, renameFolder, deleteFolder, moveProjects } from '@/lib/studioFolders'
 import { listProductExports, downloadArchive } from '@/lib/studioExportArchive'
+import { ensureProductImages, renderProgressText } from '@/lib/studioProductImages'
 import { listSends, sendToMarketplace, resendToMarketplace, sendsByExport } from '@/lib/studioMarketplace'
 import { MARKETS } from '@/lib/studioMarketplaceRules'
 import { marketChips } from '@/lib/studioSentList'
@@ -413,7 +414,7 @@ function runAction(r, { forceSend = false } = {}) {
 }
 
 // ── 보내기 창 (상품 하나) ──
-const send = reactive({ open: false, prepare: null, error: '', exportId: '', market: '', how: 'send', sendId: null, rowId: '' })
+const send = reactive({ open: false, prepare: null, error: '', exportId: '', market: '', how: 'send', sendId: null, rowId: '', progress: '' })
 const sentOfOpen = computed(() => {
   if (send.how === 'resend') return []
   const r = rows.value.find(x => x.id === send.rowId)
@@ -425,24 +426,28 @@ let prepareSeq = 0
 async function loadPrepare() {
   const my = ++prepareSeq
   send.error = ''
+  send.progress = ''
+  // 상세 이미지가 최신이 아니면 먼저 만든다(sendToMarketplace → studioProductImages) — 창 안에 "상세 이미지 만드는 중 3 / 11"
+  const onProgress = p => { if (my === prepareSeq) send.progress = renderProgressText(p) }
   try {
-    const r = send.how === 'resend' ? await resendToMarketplace(send.sendId) : await sendToMarketplace(send.exportId)
-    if (my === prepareSeq) send.prepare = r.prepare
+    const r = send.how === 'resend' ? await resendToMarketplace(send.sendId) : await sendToMarketplace(send.exportId || null, { projectId: send.rowId, onProgress })
+    if (my === prepareSeq) { send.prepare = r.prepare; send.progress = '' }
   } catch (e) {
     console.error('[StudioProductList] 보내기 준비 실패:', send.exportId, send.sendId, e.code, e)
-    if (my === prepareSeq) send.error = e.message
+    if (my === prepareSeq) { send.error = e.message; send.progress = '' }
   }
 }
 async function openSendFor(r, { how = 'send', market = '', sendId = null } = {}) {
-  if (!r?.exportId || opening.value) return
+  if (!canPick(r) || opening.value) return
   message.value = ''
   opening.value = r.id
   try {
-    Object.assign(send, { open: true, prepare: null, error: '', exportId: r.exportId, market, how, sendId, rowId: r.id })
+    Object.assign(send, { open: true, prepare: null, error: '', exportId: r.exportId || '', market, how, sendId, rowId: r.id, progress: '' })
     prepareSeq++
     loadPrepare()
     // 작업 시작 관문 — 막히면 창을 닫는다(로그인·안내 창은 studioGate가 띄운다. 서버 API도 같은 자격을 다시 확인한다)
-    if (!(await studioGate(`/studio/projects?send=${encodeURIComponent(r.exportId)}`))) { prepareSeq++; send.open = false }
+    const resume = r.exportId ? `send=${encodeURIComponent(r.exportId)}` : `sendProject=${encodeURIComponent(r.id)}`
+    if (!(await studioGate(`/studio/projects?${resume}`))) { prepareSeq++; send.open = false }
   } finally {
     opening.value = ''
   }
@@ -456,14 +461,17 @@ function onSent(r) {
   loadSends()
 }
 
-// 주소 ?send=<결과물 id> — 목록을 읽은 뒤 그 상품의 보내기 창을 한 번 열고 주소에서 뗀다
-watch([() => route.query.send, rows, loading], ([id]) => {
-  if (typeof id !== 'string' || !id || loading.value) return
-  const r = rows.value.find(x => x.exportId === id || (x.export?.exportIds || []).includes(id))
+// 주소 ?send=<결과물 id> · ?sendProject=<작업 id>(상세 이미지를 아직 만든 적 없는 상품 — 편집기 [작업 저장] 뒤) — 목록을 읽은 뒤 그 상품의 보내기 창을 한 번 열고 주소에서 뗀다
+watch([() => route.query.send, () => route.query.sendProject, rows, loading], ([id, pid]) => {
+  if (loading.value) return
+  const byExport = typeof id === 'string' && id
+  const byProject = typeof pid === 'string' && pid
+  if (!byExport && !byProject) return
+  const r = byExport ? rows.value.find(x => x.exportId === id || (x.export?.exportIds || []).includes(id)) : rows.value.find(x => x.id === pid)
   if (!r && !rows.value.length) return
-  const { send: _s, ...rest } = route.query
+  const { send: _s, sendProject: _p, ...rest } = route.query
   router.replace({ query: rest, hash: route.hash })
-  if (!r) { console.warn('[StudioProductList] 주소의 결과물이 목록에 없음 — 창을 열지 않음:', id); return }
+  if (!r) { console.warn('[StudioProductList] 주소의 상품이 목록에 없음 — 창을 열지 않음:', id || pid); return }
   openSendFor(r, {})
 })
 
@@ -474,7 +482,10 @@ async function redownload(r) {
   openMenuId.value = null
   busy[r.id] = { running: true, name: r.name, message: '받는 중…', error: false }
   try {
-    const n = await downloadArchive(r.exportId, (done, total) => { busy[r.id] = { ...busy[r.id], message: `받는 중 ${done}/${total}` } })
+    // 상세 이미지가 최신이 아니면 먼저 만든다 (2026-10-02 — [작업 저장]은 작업 내용만 저장)
+    const made = await ensureProductImages({ projectId: r.id }, { onProgress: p => { busy[r.id] = { ...busy[r.id], message: renderProgressText(p) } } })
+    const n = await downloadArchive(made.exportId, (done, total) => { busy[r.id] = { ...busy[r.id], message: `받는 중 ${done}/${total}` } })
+    if (made.rendered) load() // 새로 만든 미리보기·카드로 목록을 다시 읽는다
     busy[r.id] = { running: false, name: r.name, message: `${n}장을 받았습니다`, error: false }
   } catch (e) {
     console.error('[StudioProductList] 다시 받기 실패:', r.exportId, e.code, e)

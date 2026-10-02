@@ -78,7 +78,7 @@
     </template>
 
     <!-- 보내기 창 — 내 작업에 있던 것과 같은 창·같은 진입(sendToMarketplace) 그대로 -->
-    <StudioSendModal :open="sendOpen" :prepare="sendPrepare" :market="sendMarket" :load-error="sendLoadError" :sent="sentOfOpen" @close="sendOpen = false" @sent="onSent" @retry="loadPrepare(sendExportId)" />
+    <StudioSendModal :open="sendOpen" :prepare="sendPrepare" :market="sendMarket" :load-error="sendLoadError" :sent="sentOfOpen" :progress="sendProgress" @close="sendOpen = false" @sent="onSent" @retry="loadPrepare(sendExportId)" />
   </div>
 </template>
 
@@ -96,6 +96,7 @@ import StudioLoginNeeded from '@/components/studio/StudioLoginNeeded.vue'
 import StudioLinkPending from '@/components/studio/StudioLinkPending.vue'
 import { currentUser, isAdminOrStaff, isAuthLoading } from '@/lib/auth'
 import { studioGate } from '@/lib/studioGate'
+import { renderProgressText } from '@/lib/studioProductImages'
 import { getMarketplaceStatus, listSends, sendToMarketplace, sendsByExport, badgeReason, isNotReady, sendStatusLabel, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
 import { channelRows, sendButtonLabel, MARKETS, PLANNED_LABEL, linkPhase, NOT_CUSTOMER } from '@/lib/studioMarketplaceRules'
 import { linkStates, loadMarketLinks, marketLinksPhase } from '@/lib/studioMarketLinks'
@@ -213,11 +214,14 @@ const messageAdminUrl = ref('') // 카페24 등록 뒤 [카페24 쇼핑몰 관�
 const PREPARE_KEEP_MS = 10 * 60 * 1000
 const prepared = new Map() // 내 상품 id → { at, prepare }
 let prepareSeq = 0
+const sendProgress = ref('') // 상세 이미지를 새로 만들 때 진행 (2026-10-02 — sendToMarketplace가 최신이 아니면 먼저 만든다)
 async function loadPrepare(exportId) {
   const my = ++prepareSeq
   sendLoadError.value = ''
+  sendProgress.value = ''
   try {
-    const r = await sendToMarketplace(exportId)
+    const r = await sendToMarketplace(exportId, { onProgress: p => { if (my === prepareSeq) sendProgress.value = renderProgressText(p) } })
+    if (my === prepareSeq) sendProgress.value = ''
     prepared.set(exportId, { at: Date.now(), prepare: r.prepare })
     if (my === prepareSeq) sendPrepare.value = r.prepare
   } catch (e) {

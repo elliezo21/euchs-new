@@ -73,8 +73,8 @@
       <button type="button" class="st-btn" data-mk-s-load-retry @click="$emit('retry')">다시 시도</button>
     </div>
     <div v-else class="space-y-3" data-mk-s-loading aria-busy="true">
-      <p class="text-[14px] font-bold st-ink">상품 정보 불러오는 중…</p>
-      <p class="st-desc-sm break-keep">상품 이미지 · 배송 설정 · 판매처 연결 상태 확인 중</p>
+      <p class="text-[14px] font-bold st-ink" data-mk-s-progress>{{ progress || '상품 정보 불러오는 중…' }}</p>
+      <p class="st-desc-sm break-keep">{{ progress ? '작업을 바꾼 뒤 처음 보낼 때만 상세 이미지를 새로 만들어요' : '상품 이미지 · 배송 설정 · 판매처 연결 상태 확인 중' }}</p>
       <div class="st-skeleton h-9 rounded-[10px]" />
       <div class="st-skeleton h-24 rounded-[10px]" />
       <div class="st-skeleton h-9 w-2/3 rounded-[10px]" />
@@ -112,7 +112,8 @@ const SECTIONS = { coupang: StudioSendCoupang, smartstore: StudioSendSmartstore,
 // market = 어느 판매처 버튼으로 열었는지([쿠팡으로 보내기]·[카페24로 보내기]) → 그 판매처만 처음 체크. 비면 연결된 곳 모두(다시 보내기는 쿠팡만)
 // prepare = null이면 준비 중(창은 먼저 열린다) · loadError = 준비를 못 받음 → [다시 시도] = 'retry'
 // sent = 이 내 상품의 판매처별 가장 최근 전송(sendsByExport) — "이미 보냄" 표시용. 안 넘기면(다시 보내기 창) 예전 그대로
-const props = defineProps({ open: { type: Boolean, default: false }, prepare: { type: Object, default: null }, market: { type: String, default: '' }, loadError: { type: String, default: '' }, sent: { type: Array, default: () => [] } })
+// progress = 준비 중 진행 문구(상세 이미지를 새로 만들 때 "상세 이미지 만드는 중 3 / 11" — studioProductImages.renderProgressText). 비면 예전 문구
+const props = defineProps({ open: { type: Boolean, default: false }, prepare: { type: Object, default: null }, market: { type: String, default: '' }, loadError: { type: String, default: '' }, sent: { type: Array, default: () => [] }, progress: { type: String, default: '' } })
 const emit = defineEmits(['close', 'sent', 'retry'])
 
 // 같은 화면 안에서 창을 다시 열 때 다시 받지 않는 목록 (지금은 카페24 상품 분류 — StudioSendCafe24가 inject).
