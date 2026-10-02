@@ -288,7 +288,8 @@ const openMenuId = ref(null)
 const picked = ref(new Set())
 let loadSeq = 0
 
-const rows = computed(() => buildProducts({ projects: projects.value, exports: exportsList.value, sends: sends.value }))
+const titlesKo = ref({}) // 작업 id → 1688 제목 한글 (서버 exports_list titlesKo — 이름 순서는 studioProductList.productName)
+const rows = computed(() => buildProducts({ projects: projects.value, exports: exportsList.value, sends: sends.value, titlesKo: titlesKo.value }))
 const folderCountsOf = computed(() => folderCounts(projects.value, folders.value))
 const currentFolder = computed(() => folders.value.find(f => f.id === folder.value) || null)
 // 찾기·폴더를 먼저 거르고(탭 개수는 이 범위) → 탭 → 정렬
@@ -321,6 +322,7 @@ async function load() {
     if (folder.value !== FOLDER_ALL && folder.value !== FOLDER_NONE && !fo.folders.some(f => f.id === folder.value)) folder.value = FOLDER_ALL
     projects.value = list
     exportsList.value = Array.isArray(ex.items) ? ex.items : []
+    titlesKo.value = ex.titlesKo && typeof ex.titlesKo === 'object' ? ex.titlesKo : {}
     const keep = new Set(rows.value.filter(canPick).map(r => r.id))
     picked.value = new Set([...picked.value].filter(id => keep.has(id)))
     loadSends()
@@ -621,6 +623,7 @@ const onStudioAuthChanged = (e) => {
     projects.value = []
     exportsList.value = []
     sends.value = []
+    titlesKo.value = {}
     folders.value = []
     foldersReady.value = false
     thumbs.value = new Map()

@@ -1368,16 +1368,34 @@ async function exportItem(ctx, r) {
     count: r.files.length, planned: r.file_count, previewUrl,
   }
 }
+/**
+ * [내 상품] 목록 이름용 1688 제목 한글 (2026-10-02) — 작업 id → 번역 캐시의 한국어 제목. DB 칸을 새로 만들지 않는다(studio_projects.title_zh → 번역 캐시 조회만, 외부 호출 없음)
+ *   화면 이름 순서 = 작업 이름(title) → 이 값 → 1688 원래 제목(title_zh) (src/lib/studioProductList.js productName)
+ */
+const TITLES_KO_MAX = 500
+async function projectTitlesKo(ctx) {
+  const rows = await sb(ctx.cfg, `studio_projects?select=id,title_zh&user_id=eq.${ctx.userId}&deleted_at=is.null&title_zh=not.is.null&order=updated_at.desc&limit=${TITLES_KO_MAX}`)
+  const list = (Array.isArray(rows) ? rows : []).filter(r => typeof r.title_zh === 'string' && r.title_zh.trim())
+  if (!list.length) return {}
+  const ko = await lookupCachedTranslations(list.map(r => r.title_zh.trim()), CACHE_SOURCE_LANG, CACHE_TARGET_LANG)
+  const out = {}
+  for (const r of list) { const t = ko.get(r.title_zh.trim()); if (typeof t === 'string' && t.trim() && t.trim() !== r.title_zh.trim()) out[r.id] = t.trim() }
+  return out
+}
 async function exportsList(ctx, body, res) {
+  if (body.perProject === true) {
+    const titlesKo = await projectTitlesKo(ctx)
+    if (!(await exportsTableReady(ctx))) return res.status(200).json({ ready: false, items: [], titlesKo })
+    return exportsByProject(ctx, res, titlesKo)
+  }
   if (!(await exportsTableReady(ctx))) return res.status(200).json({ ready: false, items: [] })
-  if (body.perProject === true) return exportsByProject(ctx, res)
   const rows = await sb(ctx.cfg,
     `studio_exports?select=${EXPORT_SELECT}&user_id=eq.${ctx.userId}&order=created_at.desc&limit=${EXPORTS_LIST_MAX}`)
   const list = (Array.isArray(rows) ? rows : []).filter(r => Array.isArray(r.files) && r.files.length > 0)
   const items = await runPool(list, 6, r => exportItem(ctx, r))
   return res.status(200).json({ ready: true, items })
 }
-async function exportsByProject(ctx, res) {
+async function exportsByProject(ctx, res, titlesKo = {}) {
   const read = cols => sb(ctx.cfg, `studio_exports?select=${cols}&user_id=eq.${ctx.userId}&order=created_at.desc&limit=${PRODUCT_EXPORTS_MAX}`)
   let rows
   try { rows = await read(`${EXPORT_SELECT},source`) } catch (e) {
@@ -1389,7 +1407,7 @@ async function exportsByProject(ctx, res) {
   if ((Array.isArray(rows) ? rows.length : 0) >= PRODUCT_EXPORTS_MAX) console.error(`[studio-upload] exports_list(perProject): 결과물이 ${PRODUCT_EXPORTS_MAX}개를 넘음 — 최근 것만 읽음 ${ctx.userId}`)
   const groups = currentExportsByProject(list)
   const items = await runPool(groups, 6, async g => ({ ...(await exportItem(ctx, g.current)), source: g.current.source === 'save' ? 'save' : 'download', exportIds: g.ids }))
-  return res.status(200).json({ ready: true, items })
+  return res.status(200).json({ ready: true, items, titlesKo })
 }
 
 /** POST { action:'export_download', exportId } → { files:[{ name, url, bytes }] } (서명 주소 10분) */

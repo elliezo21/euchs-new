@@ -47,10 +47,12 @@ const rank = key => { const i = MARKETS.findIndex(m => m.key === key); return i 
 
 /**
  * 상품 이름 하나 — 화면마다 같은 이름 (목록·보내기 창 제목)
- * 작업 이름(고객이 붙인 이름 = studio_projects.title) → 결과물을 저장할 때 이름(studio_exports.title) → 1688 원래 제목(title_zh) → '이름 없는 상품'
+ * 작업 이름(고객이 붙인 이름 = studio_projects.title) → 1688 제목 한글(titleKo — 번역 캐시, 서버 exports_list titlesKo) → 1688 원래 제목(title_zh)
+ *   → 결과물을 저장할 때 이름(studio_exports.title — 작업이 없을 때만) → '이름 없는 상품'
+ *   (2026-10-02: 예전에는 결과물 이름이 1688 원래 제목보다 앞이라, 이름을 안 바꾼 1688 상품은 원래 제목이 그대로 보였다)
  */
-export function productName(project, ex = null) {
-  return clean(project?.title) || clean(ex?.title) || clean(project?.title_zh) || '이름 없는 상품'
+export function productName(project, ex = null, titleKo = '') {
+  return clean(project?.title) || clean(titleKo) || clean(project?.title_zh) || clean(ex?.title) || '이름 없는 상품'
 }
 /** 출처 — DB에는 1688 상품(source_type '1688')과 내 사진('upload')만 있다(찜·주문·주소 붙여넣기는 구분이 저장되지 않음) */
 export const sourceLabelOf = project => (project?.source_type === 'upload' ? '내 사진' : '1688 상품')
@@ -84,11 +86,11 @@ export function productStage(ex, byMarket) {
 
 /**
  * 작업·결과물·전송 → 목록 줄
- * @param {{ projects:object[], exports:object[], sends:object[] }} o
+ * @param {{ projects:object[], exports:object[], sends:object[], titlesKo?:object }} o  titlesKo = 작업 id → 1688 제목 한글 (exports_list perProject)
  *   projects = studio_projects 줄(listMyProjects) · exports = exports_list perProject 응답 items(작업마다 하나 + exportIds) · sends = sends_list(visibleSends 뒤)
  * @returns {object[]}  { id, project, export, exportId, name, source, history, byMarket, stage, live, needsCheck, updatedAt }
  */
-export function buildProducts({ projects = [], exports = [], sends = [] } = {}) {
+export function buildProducts({ projects = [], exports = [], sends = [], titlesKo = {} } = {}) {
   const exOf = new Map()
   const projectOfExport = new Map()
   for (const x of Array.isArray(exports) ? exports : []) {
@@ -112,7 +114,7 @@ export function buildProducts({ projects = [], exports = [], sends = [] } = {}) 
     const stage = productStage(ex, byMarket)
     const recs = Object.values(byMarket)
     return {
-      id: p.id, project: p, export: ex, exportId: ex?.id || null, name: productName(p, ex), source: sourceLabelOf(p),
+      id: p.id, project: p, export: ex, exportId: ex?.id || null, name: productName(p, ex, titlesKo?.[p.id]), source: sourceLabelOf(p),
       history, byMarket, stage,
       live: recs.some(s => LIVE_ON_STATUSES.includes(s.status)),
       needsCheck: stage === 'changed' || recs.some(s => CHECK_STATUSES.includes(s.status)),

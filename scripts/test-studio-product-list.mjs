@@ -75,7 +75,19 @@ eq('탭 개수', P.tabCounts(rows), { all: 6, draft: 1, ready: 1, live: 2, check
 eq('탭 목록·순서·확인 필요만 빨간 숫자', [P.PRODUCT_TABS.map(t => t.label), P.PRODUCT_TABS.filter(t => t.alert).map(t => t.key)], [['전체', '작성 중', '보내기 전', '판매처에 올라감', '확인 필요'], ['check']])
 
 // ── 이름 하나 · 출처 ──
-eq('상품 이름 = 작업 이름 → 저장할 때 이름 → 1688 원래 제목 (화면마다 같은 값)', [by.p1.name, by.p2.name, P.productName({ title_zh: '发夹' }, null), P.productName({}, null)], ['도트 헤어핀', '슬리퍼 저장 이름', '发夹', '이름 없는 상품'])
+// 2026-10-02: 이름 순서 = 작업 이름 → 1688 제목 한글(번역 캐시 titlesKo) → 1688 원래 제목 → 저장할 때 이름(작업 이름·제목이 다 없을 때만)
+eq('상품 이름 = 작업 이름 → 1688 제목 한글 → 1688 원래 제목 → 저장할 때 이름 (화면마다 같은 값)', [
+  by.p1.name, by.p2.name, P.buildProducts({ projects, exports: exportsList, sends, titlesKo: { p2: '여성 슬리퍼', p1: '헤어핀' } }).filter(r => r.id === 'p1' || r.id === 'p2').map(r => r.name),
+  P.productName({ title_zh: '发夹' }, null), P.productName({ title_zh: '发夹' }, null, '헤어핀'), P.productName({}, { title: '저장 이름' }), P.productName({}, null),
+], ['도트 헤어핀', '女士拖鞋', ['도트 헤어핀', '여성 슬리퍼'], '发夹', '헤어핀', '저장 이름', '이름 없는 상품'])
+{
+  const fs = await import('node:fs')
+  const up = fs.readFileSync(new URL('../api/studio-upload.js', import.meta.url), 'utf8'), lv = fs.readFileSync(new URL('../src/components/studio/StudioProductList.vue', import.meta.url), 'utf8')
+  eq('배선: 서버 exports_list(perProject)가 titlesKo(번역 캐시만 — title_zh) · 표 준비 전에도 · 목록이 buildProducts에 넘김 · 로그아웃이면 비움', [
+    up.includes('const ko = await lookupCachedTranslations(list.map(r => r.title_zh.trim()), CACHE_SOURCE_LANG, CACHE_TARGET_LANG)'), up.includes("return res.status(200).json({ ready: false, items: [], titlesKo })"), up.includes('return res.status(200).json({ ready: true, items, titlesKo })'),
+    lv.includes('titlesKo: titlesKo.value })'), /sends\.value = \[\]\s+titlesKo\.value = \{\}/.test(lv),
+  ], [true, true, true, true, true])
+}
 eq('출처: 1688 상품 / 내 사진 (DB에 찜·주문 구분 없음)', [by.p1.source, by.p3.source], ['1688 상품', '내 사진'])
 
 // ── 할 일 · 고르기 ──
