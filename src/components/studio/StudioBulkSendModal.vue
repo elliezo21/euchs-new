@@ -198,6 +198,7 @@ import {
   bulkPrice, bulkStock, latestPrevious, applyBulkCommon, categoryFor, readiness, planJobs, runQueue, barText, sendReadyLabel, checkBundleName, bundlesOf,
 } from '@/lib/studioBulkSend'
 import { isAdminOrStaff } from '@/lib/auth'
+import { detailImageOver, detailImageMissing } from '../../../api/_marketDetailLimits.js'
 
 const SECTIONS = { coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, '11st': StudioSendElevenst, zigzag: StudioSendZigzag }
 const props = defineProps({ open: { type: Boolean, default: false }, rows: { type: Array, default: () => [] } }) // rows = [내 상품] 목록 줄(studioProductList.buildProducts)
@@ -346,6 +347,9 @@ const ready = computed(() => Object.fromEntries(items.value.map(it => {
     if (!s) return [m, null]
     const list = [...(s.missing || [])]
     if (it.prepare.existing?.[m]?.mode === 'manual') list.push(manualEditMissing(nameOf(m)))
+    const count = it.prepare.export?.files?.length ?? 0 // 판매처별 상세 이미지 장 수 (보내기 창·서버와 같은 규칙)
+    const over = detailImageOver(m, count)
+    if (over) list.push(detailImageMissing(count, over))
     return [m, list]
   }))
   return [it.id, left.length ? readiness(missingByMarket, left) : { ready: false, reasons: ['보낼 판매처 없음'] }]

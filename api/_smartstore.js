@@ -18,6 +18,7 @@ import bcrypt from 'bcryptjs'
 import { breakerFor, NOT_READY_MESSAGE, RELAY_IP } from './_coupang.js'
 import { DISPLAY_STATUSES, SS_DELIVERY_COMPANIES, ORIGIN_CODES, SS_FEE_TYPES, isCustomsTaxType, pickSmartstoreAddress } from './_smartstoreFields.js'
 import { smartstoreOptionInfo } from './_marketOptions.js'
+import { DETAIL_IMAGE_LIMITS } from './_marketDetailLimits.js'
 
 export const SMARTSTORE_PATHS = { token: '/external/v1/oauth2/token' }
 const RELAY_TIMEOUT_MS = 25000
@@ -133,7 +134,7 @@ export const UPLOAD_FILES_MAX = 10 // 한 번에 올리는 장 수 (문서)
 // 한 요청 본문 상한 — 중계 서버 본문 제한 5MB(그리고 네이버 합계 10MB 미만) 안쪽에 multipart 머리 여유를 둔다
 export const UPLOAD_BODY_MAX = 4500000
 export const UPLOAD_IMAGE_MAX = UPLOAD_BODY_MAX - 2000 // 한 장 상한 — 넘으면 JPG 품질을 낮춘다(_coupangImage.shrinkBytes)
-export const DETAIL_IMAGE_MAX = 30 // 상세 이미지 장 수 (함수 시간 60초 안에서 — 내 상품 파일은 보통 10장 안쪽)
+export const DETAIL_IMAGE_MAX = DETAIL_IMAGE_LIMITS.smartstore // 상세 이미지 장 수 (함수 시간 60초 안에서) — 값은 화면과 같은 파일(api/_marketDetailLimits.js)
 export const SALE_PRICE_MAX = 999999990 // 문서 max
 export const STOCK_MAX = 99999999 // 문서 max
 export const BASE_FEE_MAX = 100000 // 기본 배송비 문서 max

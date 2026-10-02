@@ -65,6 +65,7 @@ import {
 import { readDimensions } from './studio-ingest.js'
 import { extractFacts, factTexts, withKo } from './_studioFacts.js'
 import { resendPlan } from './_coupangFields.js'
+import { detailImageOver, detailImageServerMessage } from './_marketDetailLimits.js'
 import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand, detailImagePlans, formFromBody, DETAIL_MAX_BYTES, cleanOptionLinks } from './_coupangFields.js'
 import { renderDetailPiece, shrinkBytes, renderSquare } from './_coupangImage.js'
 import { publishMarketImages, MarketImagesError } from './_marketImages.js'
@@ -76,7 +77,7 @@ import {
 import { pickElevenstAddress, ELEVENST_SEND_PUBLIC, feeHasBase, SETTLEMENT_ERROR_RE, SETTLEMENT_MESSAGE } from './_elevenstFields.js'
 import {
   smartstoreToken, SmartstoreError, smartstoreApi, SS_PATHS, buildSmartstoreProduct, normalizeSsCategories, normalizeAddressBooks, defaultAddress, uploadedImageUrls, productNosOf,
-  imageMime, planUploads, buildImageMultipart, UPLOAD_IMAGE_MAX, DETAIL_IMAGE_MAX, DISPLAY_STATUSES,
+  imageMime, planUploads, buildImageMultipart, UPLOAD_IMAGE_MAX, DISPLAY_STATUSES,
 } from './_smartstore.js'
 import { lastAddressesOf } from './_smartstoreFields.js'
 import {
@@ -958,7 +959,8 @@ async function smartstoreSend(ctx, body, res) {
   // 입력 검사를 네이버를 부르기 전에 — 이미지 주소 자리는 검사용 값
   const pre = buildSmartstoreProduct({ ...input, repUrl: '-', detailUrls: ['-'] })
   if (!pre.ok) return sendError(res, 400, 'invalid_input', pre.message)
-  if (ex.files.length > DETAIL_IMAGE_MAX) return sendError(res, 400, 'invalid_input', `상세 이미지는 ${DETAIL_IMAGE_MAX}장까지 보낼 수 있습니다.`)
+  const ssOver = detailImageOver(SMARTSTORE, ex.files.length) // 화면 빠짐 목록과 같은 규칙 (api/_marketDetailLimits.js)
+  if (ssOver) return sendError(res, 400, 'invalid_input', detailImageServerMessage(ssOver.max))
   const rep = await squareFromImage(ctx, ex, body.repImageId, body.fit)
   if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)
   if (await sendInProgress(ctx, ex.id, SMARTSTORE)) return sendError(res, 409, 'send_in_progress', SEND_IN_PROGRESS_MESSAGE) // 토큰 받기 전 — 막히면 네이버 호출 없음
@@ -1187,7 +1189,8 @@ async function elevenstSend(ctx, body, res) {
   // 입력 검사를 11번가를 부르기 전에 — 이미지 주소 자리는 검사용 값
   const pre = buildElevenstProduct({ ...input, repUrl: '-', detailUrls: ['-'] })
   if (!pre.ok) return sendError(res, 400, 'invalid_input', pre.message)
-  if (ex.files.length > DETAIL_IMAGE_MAX) return sendError(res, 400, 'invalid_input', `상세 이미지는 ${DETAIL_IMAGE_MAX}장까지 보낼 수 있습니다.`)
+  const esOver = detailImageOver(ELEVENST, ex.files.length) // 화면 빠짐 목록과 같은 규칙 (api/_marketDetailLimits.js)
+  if (esOver) return sendError(res, 400, 'invalid_input', detailImageServerMessage(esOver.max))
   const testStop = body.testStop === true && ctx.isAdmin === true // 등록 직후 판매중지 — 관리자·스태프 테스트용만 (고객이 보내도 무시)
   const rep = await squareFromImage(ctx, ex, body.repImageId, body.fit)
   if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)

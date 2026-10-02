@@ -3711,5 +3711,24 @@ function elevenstRelay(u, method, opts) {
   ], [true, true, true])
 }
 
+// ── 25. 판매처별 상세 이미지 장 수 (2026-10-02 운영: 50장 → 스마트스토어·11번가가 서버에서 거절, 빠짐 목록은 비어 있었음) ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const DL = await import('../api/_marketDetailLimits.js')
+  const SS = await import('../api/_smartstore.js')
+  eq('상한: 스마트스토어·11번가 30 (우리 상한) · 쿠팡·지그재그 없음 · 서버 상수 = 같은 파일', [DL.DETAIL_IMAGE_LIMITS, SS.DETAIL_IMAGE_MAX], [{ smartstore: 30, '11st': 30 }, 30])
+  eq('넘으면 { max, over } · 30장 이하·상한 없는 판매처 = null', [DL.detailImageOver('smartstore', 50), DL.detailImageOver('11st', 31), DL.detailImageOver('11st', 30), DL.detailImageOver('coupang', 50), DL.detailImageOver('zigzag', 500)],
+    [{ max: 30, over: 20 }, { max: 30, over: 1 }, null, null, null])
+  eq('빠짐 문구: 몇 장 초과인지 · 서버 문구는 예전 그대로', [DL.detailImageMissing(50, { max: 30, over: 20 }), DL.detailImageServerMessage(30)], ['상세 이미지 30장까지 보낼 수 있어요 (지금 50장 · 20장 초과)', '상세 이미지는 30장까지 보낼 수 있습니다.'])
+  const api = read('api/marketplace.js'), sm = read('src/components/studio/StudioSendModal.vue'), bm = read('src/components/studio/StudioBulkSendModal.vue')
+  eq('배선: 서버 스마트스토어·11번가 = detailImageOver · 보내기 창 빠짐 목록(판매처 이름 앞에) · 여러 상품 보내기 준비 판정', [
+    api.includes('detailImageOver(SMARTSTORE, ex.files.length)'), api.includes('detailImageOver(ELEVENST, ex.files.length)'), api.includes('DETAIL_IMAGE_MAX'),
+    sm.includes('detailImageOver(key, count)') && sm.includes('out.push(`${nameOf(key)} · ${detailImageMissing(count, over)}`)'), bm.includes('detailImageOver(m, count)') && bm.includes('list.push(detailImageMissing(count, over))'),
+  ], [true, true, false, true, true])
+  const B = await import('../src/lib/studioBulkSend.js')
+  eq('여러 상품 보내기: 상한을 넘은 판매처는 준비 안 됨 · 이유에 판매처 이름', B.readiness({ smartstore: [DL.detailImageMissing(50, DL.detailImageOver('smartstore', 50))], coupang: [] }, ['coupang', 'smartstore']),
+    { ready: false, reasons: ['스마트스토어 · 상세 이미지 30장까지 보낼 수 있어요 (지금 50장 · 20장 초과)'] })
+}
+
 console.log(`\n${pass} 통과 · ${fail} 실패`)
 if (fail) process.exit(1)

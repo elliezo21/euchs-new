@@ -100,6 +100,7 @@ import StudioSendCommon from '@/components/studio/StudioSendCommon.vue'
 import { COMMON_MARKETS, commonMarkets, commonActive, commonFromPrepare } from '@/lib/studioSendCommon'
 import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, bulkSendLabel, sendResultRows, alreadySent, existingNote, manualEditKeys, manualEditMissing, sendStatusLabel, RESULT_WAIT_LABEL, RETRY_FAILED_LABEL, SEND_BADGE_CLASS, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { linkStates } from '@/lib/studioMarketLinks'
+import { detailImageOver, detailImageMissing } from '../../../api/_marketDetailLimits.js'
 import { isAdminOrStaff } from '@/lib/auth'
 
 const SECTIONS = { coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, '11st': StudioSendElevenst, cafe24: StudioSendCafe24, zigzag: StudioSendZigzag } // 2026-09-30 카페24 · 2026-10-01 스마트스토어·11번가 · 2026-10-02 지그재그 섹션 추가 — 쿠팡 섹션은 그대로
@@ -166,6 +167,10 @@ const missing = computed(() => {
   for (const key of picked.value) {
     const list = sections[key]?.missing || []
     for (const m of list) out.push(picked.value.length > 1 ? `${nameOf(key)} · ${m}` : m)
+    // 판매처별 상세 이미지 장 수 (api/_marketDetailLimits.js — 서버와 같은 규칙). 어느 판매처인지 늘 앞에 붙인다
+    const count = props.prepare?.export?.files?.length ?? 0
+    const over = sections[key]?.done ? null : detailImageOver(key, count)
+    if (over) out.push(`${nameOf(key)} · ${detailImageMissing(count, over)}`)
   }
   for (const key of manualKeys.value) out.push(manualEditMissing(nameOf(key)))
   return out
