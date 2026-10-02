@@ -63,6 +63,8 @@
       <StudioElevenstCard />
       <!-- 스마트스토어 — 11번가와 같은 키 연결 (2026-09-30 S3-2, 연결까지만) -->
       <StudioSmartstoreCard />
+      <!-- 지그재그(카카오스타일) — 파트너센터 인증키 연결 (2026-10-02) -->
+      <StudioZigzagCard />
       <!-- 카페24 — 우리 앱 + 카페24 동의 화면 (연결까지만). 2026-10-02 운영 중단 — 판매처 목록(MARKETS off)대로 누구에게도 안 보임 -->
       <StudioCafe24Card v-if="showCafe24" />
     </div>
@@ -150,6 +152,7 @@ import StudioMarketplaceGuide from '@/components/studio/StudioMarketplaceGuide.v
 import { getMarketplaceStatus, connectCoupang, disconnectCoupang, refreshPlaces, expiryState, fmtDate, isNotReady, needsGuide } from '@/lib/studioMarketplace'
 import StudioElevenstCard from '@/components/studio/StudioElevenstCard.vue'
 import StudioSmartstoreCard from '@/components/studio/StudioSmartstoreCard.vue'
+import StudioZigzagCard from '@/components/studio/StudioZigzagCard.vue'
 import StudioCafe24Card from '@/components/studio/StudioCafe24Card.vue'
 import { marketLinks, loadMarketLinks, marketLinksPhase } from '@/lib/studioMarketLinks'
 import { STUDIO_NO_ACCESS_TITLE, STUDIO_NO_ACCESS_BODY, STUDIO_NO_ACCESS_MALL } from '@/lib/studioAccess'

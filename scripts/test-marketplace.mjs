@@ -753,7 +753,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   // 2026-09-30 카페24 보내기: 이미 연결된 카페24는 일반 고객도 connected([카페24로 보내기]) — 쇼핑몰 관리자에서 앱을 열어 연결한 사람
   // 2026-10-01 카페24 앱 심사 반려 → 고객 화면에는 카페24 줄 자체가 없음(연결돼 있어도) · 관리자·스태프는 지금처럼(locked/connected)
   // 2026-10-02 카페24 운영 중단 → MARKETS의 off 한 곳: 관리자·스태프도 줄 없음(연결돼 있어도)
-  const KEYED = ['coupang', 'smartstore', '11st', 'cafe24']
+  const KEYED = ['coupang', 'smartstore', '11st', 'zigzag', 'cafe24'] // 2026-10-02 지그재그 = 키 연결
   const CUST = R.MARKETS.filter(m => !m.off)
   const offStates = CUST.map(m => (KEYED.includes(m.key) ? 'locked' : 'planned'))
   eq('판매처 줄 = MARKETS에서 운영 중단(off) 뺀 8곳·같은 순서 · 연결된 쿠팡만 connected · 키 연결 판매처는 연결 전 locked · 나머지 = planned · 스마트스토어는 연결되면 connected · 카페24는 연결돼 있어도 줄 없음 / 관리자도 같은 8곳 · 카페24 줄 없음', [on.map(r => r.key), on.map(r => r.state), off.map(r => r.state), R.channelRows().map(r => r.state), R.channelRows({ smartstore: { connected: true } })[1].state, R.channelRows({ cafe24: { connected: true } }).some(r => r.key === 'cafe24'), R.channelRows({}, { admin: true }).map(r => r.state), R.channelRows({ cafe24: { connected: true } }, { admin: true }).some(r => r.key === 'cafe24')], [CUST.map(m => m.key), ['connected', ...offStates.slice(1)], offStates, offStates, 'connected', false, offStates, false])
@@ -880,7 +880,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('보내기 창·태그 칩: 규칙은 공용 파일에서', [/from '\.\.\/\.\.\/\.\.\/api\/_coupangFields\.js'/.test(modal), /from '\.\.\/\.\.\/\.\.\/api\/_coupangFields\.js'/.test(read('src/components/studio/StudioTagChips.vue'))], [true, true])
   // 판매처 목록 — 설정·랜딩이 같은 목록·같은 순서, 사정 설명 문구 없음
   const R = await import('../src/lib/studioMarketplaceRules.js')
-  eq('판매처 목록·순서 (보내기 = 쿠팡·스마트스토어·11번가(2026-10-01)·카페24, 나머지는 soon)', [R.MARKETS.map(m => m.name), R.MARKETS.filter(m => !m.soon).map(m => m.key)], [['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '카페24', '메이크샵', '고도몰'], ['coupang', 'smartstore', '11st', 'cafe24']])
+  eq('판매처 목록·순서 (보내기 = 쿠팡·스마트스토어·11번가(2026-10-01)·지그재그(2026-10-02)·카페24, 나머지는 soon)', [R.MARKETS.map(m => m.name), R.MARKETS.filter(m => !m.soon).map(m => m.key)], [['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '카페24', '메이크샵', '고도몰'], ['coupang', 'smartstore', '11st', 'zigzag', 'cafe24']])
   const mkView = read('src/views/studio/StudioMarketplaceView.vue'), landing = read('src/views/studio/StudioLandingView.vue')
   const screenTextOf = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
   eq('연결 탭·랜딩 둘 다 공용 목록을 씀 (따로 적은 목록 없음) · 연결 신청 화면 없음(S3-3)', [/<StudioMarketRequests/.test(mkView), /const PLANNED = MARKETS\.filter\(m => m\.connect === 'planned'\)/.test(mkView), /import \{ PUBLIC_MARKETS as MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(landing), /v-for="m in MARKETS"/.test(landing), /'카페24'|'고도몰'|'메이크샵'/.test(mkView + landing)], [false, true, true, true, false])
@@ -891,11 +891,11 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     const E = await import('../api/_elevenst.js')
     const api = read('api/marketplace.js'), el = read('api/_elevenst.js'), card = read('src/components/studio/StudioElevenstCard.vue')
     const sql = read('docs/sql/2026-09-30-marketplace-11st-requests.sql')
-    eq('연결 방법: 쿠팡·스마트스토어·11번가·카페24 = 키 · 나머지 5곳 = 예정 · 보내기는 쿠팡·스마트스토어·11번가·카페24', [R.MARKETS.filter(m => m.connect === 'key').map(m => m.key), R.PLANNED_MARKETS, R.MARKETS.filter(m => !m.soon).map(m => m.key), R.PLANNED_LABEL, 'REQUEST_MARKETS' in R, 'requestProblems' in R], [['coupang', 'smartstore', '11st', 'cafe24'], ['gmarket', 'ably', 'zigzag', 'makeshop', 'godomall'], ['coupang', 'smartstore', '11st', 'cafe24'], '예정', false, false])
+    eq('연결 방법: 쿠팡·스마트스토어·11번가·지그재그(2026-10-02)·카페24 = 키 · 나머지 4곳 = 예정 · 보내기도 같은 5곳', [R.MARKETS.filter(m => m.connect === 'key').map(m => m.key), R.PLANNED_MARKETS, R.MARKETS.filter(m => !m.soon).map(m => m.key), R.PLANNED_LABEL, 'REQUEST_MARKETS' in R, 'requestProblems' in R], [['coupang', 'smartstore', '11st', 'zigzag', 'cafe24'], ['gmarket', 'ably', 'makeshop', 'godomall'], ['coupang', 'smartstore', '11st', 'zigzag', 'cafe24'], '예정', false, false])
     eq('서버: 연결 신청 action·표 없음 · SQL에 marketplace_requests 만들기 없음', [/connect_request|REQUEST_MARKETS|marketplace_requests/.test(api), /create table public\.marketplace_requests/.test(sql), /marketplace_requests/.test(read('src/lib/studioMarketplace.js') + read('src/lib/studioMarketLinks.js'))], [false, false, false])
-    const on = R.channelRows({ coupang: { connected: true }, '11st': { connected: true }, zigzag: { connected: true }, cafe24: { connected: true } })
-    // 연결된 곳은 연결 방법(planned)보다 먼저 — 지그재그처럼 "예정"인 곳도 값이 오면 linked. 카페24는 2026-10-01부터 고객에게 줄 자체가 없음(연결돼 있어도)
-    eq('보내기 탭 줄(고객): 쿠팡 = 보내기 · 11번가 = 보내기(공개 — ELEVENST_SEND_PUBLIC true) · 카페24 줄 없음(연결돼 있어도) · 예정 판매처는 값이 안 오면 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'connected', gmarket: 'planned', ably: 'planned', zigzag: 'linked', makeshop: 'planned', godomall: 'planned' })
+    const on = R.channelRows({ coupang: { connected: true }, '11st': { connected: true }, ably: { connected: true }, cafe24: { connected: true } })
+    // 연결된 곳은 연결 방법(planned)보다 먼저 — 에이블리처럼 "예정"인 곳도 값이 오면 linked(2026-10-02 지그재그가 연결 판매처가 되어 예시를 에이블리로). 카페24는 2026-10-01부터 고객에게 줄 자체가 없음(연결돼 있어도)
+    eq('보내기 탭 줄(고객): 쿠팡 = 보내기 · 11번가 = 보내기(공개 — ELEVENST_SEND_PUBLIC true) · 카페24 줄 없음(연결돼 있어도) · 예정 판매처는 값이 안 오면 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'connected', gmarket: 'planned', ably: 'linked', zigzag: 'locked', makeshop: 'planned', godomall: 'planned' })
     const onAdmin = R.channelRows({ cafe24: { connected: true } }, { admin: true })
     // 2026-10-02 카페24 운영 중단(MARKETS off): 고객·관리자·스태프 모두 줄·카드 없음(connectFor null). MARKETS의 connect 값은 그대로(코드 보존)
     eq('카페24 숨김: MARKETS off 하나 · 고객 = null · 관리자 = null · MARKETS 자체는 key 그대로 · 관리자 연결돼 있어도 줄 없음 · 고객 줄 없음', [R.MARKETS.find(m => m.key === 'cafe24').connect, R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.connectFor(R.MARKETS.find(m => m.key === '11st')), onAdmin.some(r => r.key === 'cafe24'), R.channelRows({}).some(r => r.key === 'cafe24')], ['key', null, null, 'key', false, false])
@@ -1091,7 +1091,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const rowsOn = R.marketRows({ coupang: { connected: true } }), rowsOff = R.marketRows({ coupang: { connected: false } })
   eq('판매처 줄(고객) = PUBLIC_MARKETS 8곳·같은 순서 (카페24 없음) · 관리자도 같은 8곳 (운영 중단 off)', [rowsOn.map(r => r.name), rowsOn.map(r => r.key), R.marketRows({}, { admin: true }).map(r => r.key)], [R.PUBLIC_MARKETS.map(m => m.name), R.PUBLIC_MARKETS.map(m => m.key), R.MARKETS.filter(m => !m.off).map(m => m.key)])
   // S3-3: 보내기 창도 보내기 탭과 같은 규칙(channelRows) — 키 연결 판매처는 연결 상태, 나머지 5곳 = "예정"(planned). "준비 중"(soon) 없음
-  eq('줄 상태: 연결됨 = connected · 연결 전 = locked · 스마트스토어·11번가 = 연결 전 locked · 카페24 = 고객·관리자 모두 줄 없음(연결돼 있어도 — off) · 나머지 5곳 = planned', [rowsOn[0].state, rowsOff[0].state, R.marketRows()[0].state, Object.fromEntries(rowsOn.slice(1).map(r => [r.key, r.state])), R.marketRows({ cafe24: { connected: true } }).some(r => r.key === 'cafe24'), R.marketRows({ cafe24: { connected: true } }, { admin: true }).some(r => r.key === 'cafe24'), R.marketRows === R.channelRows], ['connected', 'locked', 'locked', { smartstore: 'locked', '11st': 'locked', gmarket: 'planned', ably: 'planned', zigzag: 'planned', makeshop: 'planned', godomall: 'planned' }, false, false, true])
+  eq('줄 상태: 연결됨 = connected · 연결 전 = locked · 스마트스토어·11번가·지그재그 = 연결 전 locked · 카페24 = 고객·관리자 모두 줄 없음(연결돼 있어도 — off) · 나머지 5곳 = planned', [rowsOn[0].state, rowsOff[0].state, R.marketRows()[0].state, Object.fromEntries(rowsOn.slice(1).map(r => [r.key, r.state])), R.marketRows({ cafe24: { connected: true } }).some(r => r.key === 'cafe24'), R.marketRows({ cafe24: { connected: true } }, { admin: true }).some(r => r.key === 'cafe24'), R.marketRows === R.channelRows], ['connected', 'locked', 'locked', { smartstore: 'locked', '11st': 'locked', gmarket: 'planned', ably: 'planned', zigzag: 'locked', makeshop: 'planned', godomall: 'planned' }, false, false, true])
   eq('처음 체크: 연결된 곳만 체크 · 연결 전이면 아무것도 체크 안 됨', [R.checkedMarkets(rowsOn, R.defaultChecked(rowsOn)), R.checkedMarkets(rowsOff, R.defaultChecked(rowsOff))], [['coupang'], []])
   eq('체크할 수 없는 줄은 값이 들어와도 보내지 않음', [R.checkedMarkets(rowsOn, { coupang: true, smartstore: true, cafe24: true }), R.checkedMarkets(rowsOff, { coupang: true })], [['coupang'], []])
   eq('버튼 글자: 1곳 = 이름 · 0곳·여러 곳 = "선택한 판매처로 보내기"', [R.sendButtonLabel(['coupang']), R.sendButtonLabel([]), R.sendButtonLabel(['coupang', 'smartstore']), R.sendButtonLabel(['11st']), R.sendButtonLabel(['smartstore'])], ['쿠팡으로 보내기', '선택한 판매처로 보내기', '선택한 판매처로 보내기', '11번가로 보내기', '스마트스토어로 보내기'])
@@ -1115,7 +1115,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     ], [true, false, true, true, true, true, true, true])
     eq('서버: 재고가 비면 본문을 만들지 않음 (임의 숫자로 채우지 않음) · 0과 37은 그대로', [C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: null }] }).ok, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: '' }] }).ok, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 0 }] }).body.items[0].maximumBuyCount, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 37 }] }).body.items[0].maximumBuyCount], [false, false, 0, 37])
   }
-  eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임 · 카페24 섹션 추가(2026-09-30) · 스마트스토어·11번가 섹션 추가(2026-10-01)', [/const SECTIONS = \{ coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, '11st': StudioSendElevenst, cafe24: StudioSendCafe24 \}/.test(shell), /v-show="picked\.includes\(key\)"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit(, sendError)? \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
+  eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임 · 카페24 섹션 추가(2026-09-30) · 스마트스토어·11번가 섹션 추가(2026-10-01)', [/const SECTIONS = \{ coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, '11st': StudioSendElevenst, cafe24: StudioSendCafe24, zigzag: StudioSendZigzag \}/.test(shell), /v-show="picked\.includes\(key\)"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit(, sendError)? \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
   {
     // 체크를 풀었다 다시 켜도 값이 남는다 — 섹션은 체크와 상관없이 만들어 두고(v-show로 가리기만), 빠짐·보내기는 체크된 것만
     const on = R.marketRows({ coupang: { connected: true } })
@@ -1475,7 +1475,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   ], [true, true, true, true, true, true, true, true, true, true, true, true, false])
   eq('서버: 응답·기록에 토큰 없음 (access_token은 헤더로만) · 상태 확인 = 판매처 공통 checkMarket(2026-10-02 — 쿠팡 전용 sync 대신) · 목록 = 관리자 쿠팡+카페24+스마트스토어+11번가 / 고객 쿠팡+스마트스토어+11번가 (2026-10-01)', [
     /access_token|refresh_token|oauth_enc/.test(c24send), /Bearer \$\{c\.accessToken\}/.test(read('api/_cafe24.js')), /market=eq\.\$\{market\}&seller_product_id=not\.is\.null&status=in\.\(\$\{CHECK_STATUSES\.join\(','\)\}\)/.test(api),
-    api.includes('const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE},${ELEVENST}` : `${MARKET},${SMARTSTORE},${ELEVENST}`') && /market=in\.\(\$\{markets\}\)&order=created_at\.desc/.test(api), /market: MARKET, status: 'sending', request_json: \{\} \}/.test(api),
+    api.includes('const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE},${ELEVENST},${ZIGZAG}` : `${MARKET},${SMARTSTORE},${ELEVENST},${ZIGZAG}`') && /market=in\.\(\$\{markets\}\)&order=created_at\.desc/.test(api), /market: MARKET, status: 'sending', request_json: \{\} \}/.test(api),
   ], [false, true, true, true, true])
   eq('SQL: marketplace_sends market에 cafe24 · status에 registered · 새 표·GRANT 없음 · 미실행 표시', [/check \(market in \('coupang', 'cafe24'\)\)/.test(sql), /'registered'\)\)/.test(sql), /create table|grant /.test(sql), /상태: 미실행/.test(sql)], [true, true, false, true])
 }
@@ -2861,7 +2861,7 @@ function elevenstRelay(u, method, opts) {
   eq('칩 (d) 판매처 필터 선택지 = 판매처 목록(marketsFor) 순서에서 "예정"(planned) 뺀 것 · 운영 중단(off) 카페24는 관리자에게도 없음 · 목록에 판매처를 더하면 필터·칩에 그대로 나옴', [
     optsBefore.map(m => m.key), optsBefore.map(m => m.name), optsAdmin.map(m => m.key).includes('cafe24'), optsBefore.some(m => planned.includes(m.key)),
     optsBefore.map(m => m.key).join() === R.marketsFor({ admin: false }).filter(m => m.connect !== 'planned').map(m => m.key).join(), optsAdded.at(-1), addedChip, /<option v-for="m in marketOptions"/.test(tpl), /'(coupang|smartstore|11st)'\s*[,\]]/.test(slib),
-  ], [['coupang', 'smartstore', '11st'], ['쿠팡', '스마트스토어', '11번가'], false, false, true, 'kakaostyle', '카카오스타일 등록 완료', true, false])
+  ], [['coupang', 'smartstore', '11st', 'zigzag'], ['쿠팡', '스마트스토어', '11번가', '지그재그'], false, false, true, 'kakaostyle', '카카오스타일 등록 완료', true, false])
   eq('화면: 필터·검색·정렬·페이지는 화면 안에서만(localStorage 없음) · 새로고침 = 기존 syncSends만 · 수정 후 재전송 = 기존 창(sendToMarketplace·resendToMarketplace) · [판매처에서 보기] 없음(카페24 전용이었음 — 2026-10-02) · 폰 44px', [
     /localStorage|sessionStorage/.test(sl + slib), /await syncSends\(since\)/.test(sl), /callStudioApi|fetch\(/.test(sl + slib), /fixHow\.value === 'resend' \? await resendToMarketplace\(id\) : await sendToMarketplace\(fixExportId\.value\)/.test(sl),
     /<StudioSendModal [^>]*:market="fixMarket" :sent="fixSent"/.test(tpl), !/s\.adminUrl|판매처에서 보기/.test(tpl), /@media \(max-width: 767\.98px\) \{\s+\.sl-tap \{ height: 44px; min-height: 44px; \}/.test(sl),
@@ -2878,7 +2878,7 @@ function elevenstRelay(u, method, opts) {
   const SL = await import('../src/lib/studioSentList.js')
   const R = await import('../src/lib/studioMarketplaceRules.js')
   // 순수 규칙
-  eq('상태 확인 판매처 = 공식 문서로 조회 API를 확인한 곳(쿠팡·스마트스토어·11번가 2026-10-02) · 카페24 없음 · 대상 상태 · 삭제·판매 종료 값', [MS.STATUS_CHECK_MARKETS, MS.CHECK_STATUSES, MS.DELETED, MS.ENDED, MS.CHECK_BATCH, MS.AUTO_CHECK_MS], [['coupang', 'smartstore', '11st'], ['registered', 'approved', 'approval_pending', 'sending', 'rejected'], 'deleted', 'ended', { coupang: 500, smartstore: 500, '11st': 30 }, 600000])
+  eq('상태 확인 판매처 = 공식 문서로 조회 API를 확인한 곳(쿠팡·스마트스토어·11번가 2026-10-02) · 카페24 없음 · 대상 상태 · 삭제·판매 종료 값', [MS.STATUS_CHECK_MARKETS, MS.CHECK_STATUSES, MS.DELETED, MS.ENDED, MS.CHECK_BATCH, MS.AUTO_CHECK_MS], [['coupang', 'smartstore', '11st', 'zigzag'], ['registered', 'approved', 'approval_pending', 'sending', 'rejected'], 'deleted', 'ended', { coupang: 500, smartstore: 500, '11st': 30, zigzag: 100 }, 600000])
   eq('쿠팡 호출 줄이기: 하나씩 = 승인 대기·전송 중·반려만(30까지) · 승인 완료 = 삭제 목록(100개씩·20쪽까지) · 목록 쿼리 · 응답 읽기 · 계정 판정', [
     MS.COUPANG_SINGLE_MAX, MS.SINGLE_CHECK_STATUSES, MS.COUPANG_PAGE_SIZE, MS.COUPANG_DELETED_PAGES_MAX, MS.coupangDeletedQuery('A00012345'), MS.coupangDeletedQuery('A00012345', 'tok'),
     (p => [[...p.ids], p.next])(MS.coupangListPage({ code: 'SUCCESS', nextToken: '', data: [{ sellerProductId: 11 }, { sellerProductId: 'x' }, { sellerProductId: 12 }] })), MS.coupangListPage({ nextToken: 5, data: [] }).next,
@@ -3401,6 +3401,210 @@ function elevenstRelay(u, method, opts) {
   }
   void st11Before
 
+  // ── 지그재그(카카오스타일) (2026-10-02) — 가짜 GraphQL 서버 · 서명·x-solution·주소 · 연결 오류 문구 · 생성 → 갱신 → 재고만 → 바뀐 것 없음 · 상태 확인 ──
+  {
+    const Z = await import('../api/_zigzag.js')
+    const ZF = await import('../api/_zigzagFields.js')
+    const schema = read('docs/vendor/zigzag-openapi.graphql')
+    // 스키마 input 칸: { 이름: { type, required, deprecated } } — 필수 = "!"로 끝나는 타입(FAQ)
+    const inputFields = name => {
+      const m = new RegExp(`\\ninput ${name} \\{([\\s\\S]*?)\\n\\}`).exec(schema)
+      if (!m) throw new Error(`스키마에 input ${name} 없음`)
+      const out = {}
+      for (const line of m[1].split('\n')) {
+        const f = /^\s{2}(\w+)(?:\([^)]*\))?:\s*([^@\s][^@]*?)\s*(@deprecated.*)?$/.exec(line)
+        if (f) out[f[1]] = { type: f[2].trim(), required: f[2].trim().endsWith('!'), deprecated: !!f[3] }
+      }
+      return out
+    }
+    const reqOf = name => Object.entries(inputFields(name)).filter(([, v]) => v.required && !v.deprecated).map(([k]) => k).sort()
+    // 보낸 입력의 모든 칸이 스키마에 있는지(지어낸 칸 없음) + 필수 칸이 다 있는지 — 중첩 input까지
+    const NESTED = { CreateProductInput: { essentials: 'ProductEssentialInput', option_list: 'ProductOptionInput', item_list: 'ItemInput', image_list: 'ProductImageInput', category: 'ProductCategoryInput', site_list: 'ProductSiteInput', address: 'CatalogProductAddressInput', trait_list: 'ProductTraitInput' },
+      UpdateProductInput: { essentials: 'ProductEssentialInput', option_list: 'ProductOptionInput', item_list: 'ItemInput', image_list: 'ProductImageInput', category: 'ProductCategoryInput', site_list: 'ProductSiteInput', address: 'CatalogProductAddressInput', trait_list: 'ProductTraitInput' },
+      ProductOptionInput: { value_list: 'ProductOptionValueInput' }, ItemInput: { attribute_list: 'ItemAttributeInput', inventory: 'ItemInventoryInput', site_list: 'ItemSiteInput' },
+      ProductSiteInput: { shipping_fee: 'CatalogProductShippingFeeInput' }, CatalogProductShippingFeeInput: { area_fee: 'CatalogProductShippingAreaFeeInput', return_fee: 'CatalogProductShippingReturnFeeInput' } }
+    const schemaProblems = (obj, type, path = type) => {
+      const fields = inputFields(type), out = []
+      for (const k of Object.keys(obj)) if (!fields[k]) out.push(`${path}.${k} 스키마에 없음`); else if (fields[k].deprecated) out.push(`${path}.${k} deprecated`)
+      for (const k of reqOf(type)) if (obj[k] == null) out.push(`${path}.${k} 필수 없음`)
+      for (const [k, sub] of Object.entries(NESTED[type] || {})) {
+        if (obj[k] == null) continue
+        for (const [i, v] of (Array.isArray(obj[k]) ? obj[k] : [obj[k]]).entries()) out.push(...schemaProblems(v, sub, `${path}.${k}[${i}]`))
+      }
+      return out
+    }
+    eq('스키마: CreateProductInput 필수(!) 칸 = 상품명·설명·고시 코드·판매/노출 상태·옵션·품목·이미지·카테고리·사이트 (FAQ: ! 가 필수)', reqOf('CreateProductInput'),
+      ['category', 'description', 'display_status', 'essential_code', 'image_list', 'item_list', 'name', 'option_list', 'sales_status', 'site_list'].sort())
+
+    // 서명 — 문서 예제와 같은 계산(HMAC-SHA1(secret, signedDate + '.' + 공백 정리한 query) hex) · 헤더 모양
+    const q = 'query GetShop {\n  shop {   shop_id\n shop_name } }'
+    const want = crypto.createHmac('sha1', 'secret-key').update(`1700000000000.${q.replace(/\s+/g, ' ')}`).digest('hex')
+    eq('서명: 문서 예제 계산과 같음 · 헤더 = "CEA algorithm=HmacSHA256, access-key=…, signed-date=…, signature=…" · 공백만 다른 query는 같은 서명',
+      [Z.zigzagAuthorization('access-key', 'secret-key', q, 1700000000000), Z.zigzagAuthorization('access-key', 'secret-key', 'query GetShop { shop { shop_id shop_name } }', 1700000000000) === Z.zigzagAuthorization('access-key', 'secret-key', q, 1700000000000)],
+      [`CEA algorithm=HmacSHA256, access-key=access-key, signed-date=1700000000000, signature=${want}`, true])
+    eq('설정: x-solution 없으면 null(부르지 않음) · 주소 기본 = 운영 · KAKAOSTYLE_API_URL이 있으면 그 주소(테스트 서버)', [
+      Z.zigzagConfig({}), Z.zigzagConfig({ KAKAOSTYLE_X_SOLUTION: 'euchs' }), Z.zigzagConfig({ KAKAOSTYLE_X_SOLUTION: 'euchs', KAKAOSTYLE_API_URL: 'https://openapi.alpha.zigzag.kr/1/graphql' }).url,
+    ], [null, { url: 'https://openapi.zigzag.kr/1/graphql', solution: 'euchs' }, 'https://openapi.alpha.zigzag.kr/1/graphql'])
+    eq('연결 오류 문구(판매처 errors.message 기준): 권한 → 상품조회·상품갱신 안내 · 키·서명 → 키 확인 · 입점 → 입점 안내 · 모르는 문구 → 판매처 원문 그대로 · 본문 없는 401 → 키·권한',
+      [['GET-PRODUCT permission denied'], ['Invalid signature'], ['access-key not found'], ['shop is not approved'], ['입점 심사중인 스토어입니다'], ['알 수 없는 오류 A1']].map(m => Z.classifyZigzagError(200, m).code).concat([Z.classifyZigzagError(200, ['알 수 없는 오류 A1']).message, Z.classifyZigzagError(401, []).code]),
+      ['no_permission', 'bad_key', 'bad_key', 'shop_not_ready', 'shop_not_ready', 'market_rejected', '판매처 응답: 알 수 없는 오류 A1', 'bad_key'])
+
+    // 가짜 지그재그 서버 — 문서 응답 모양(카테고리 asset_list · 고시 템플릿 values.values)
+    const zz = { calls: [], mode: 'ok', products: {}, nextId: 100129206, nextSub: 900 }
+    const CAT = { id: '1527', name: 'root_category', asset_list: [], children: [{ id: '4195', name: '패션의류', asset_list: [{ key: 'essential_codes', values: { values: ['FASHION', 'ETC'] } }], children: [{ id: '4705', name: '여성 패션의류', asset_list: [], children: [
+      { id: '4366', name: '롱코트', asset_list: [{ key: 'applicable_types', values: { values: [{ entry_type: 'CRAWLING_API', fulfillment_type: 'MERCHANT' }, { entry_type: 'DIRECT', fulfillment_type: 'MERCHANT' }] } }], children: [] },
+      { id: '4367', name: '직진전용', asset_list: [{ key: 'applicable_types', values: { values: [{ entry_type: 'DIRECT', fulfillment_type: 'ZIGZIN' }] } }], children: [] }] }] }] }
+    const TPL = [{ id: '1', code: 'FASHION', name: '패션', values: { values: [{ key: 'material', name: '제품소재', type: 'text' }, { key: 'date_of_production', name: '제조년월', type: 'date' }, { key: 'country_of_manufacturer', name: '제조국', type: 'text', value: '한국' }, { key: 'phone_number', name: '전화번호', type: 'text', enable_shop_info: true }] } }]
+    const realFetchZ = globalThis.fetch
+    globalThis.fetch = async (url, o = {}) => {
+      const u = new URL(url)
+      if (!/zigzag\.kr$/.test(u.host)) return realFetchZ(url, o)
+      const b = JSON.parse(o.body)
+      zz.calls.push({ url: String(url), headers: o.headers, body: b })
+      const err = m => json({ errors: [{ message: m }], data: null })
+      if (zz.mode === 'bad_key') return err('Invalid signature')
+      if (zz.mode === 'no_perm') return err('UPDATE-PRODUCT permission denied')
+      if (zz.mode === 'not_entered') return err('입점이 완료되지 않은 스토어입니다')
+      if (zz.mode === 'odd') return err('INTERNAL_X something')
+      const qy = b.query
+      if (/GetShop/.test(qy)) return json({ data: { shop: { shop_id: '777', shop_name: '이유씨 스토어', allowed_brand_list: [{ brand_id: '322', brand_name: '이유씨' }], site_country_list: [{ site: 'ZIGZAG', site_name: '지그재그', country_code: 'KR', country_name: '한국' }], attribute_list: [] } } })
+      if (/GetCategory/.test(qy)) return json({ data: { category: CAT } })
+      if (/GetAllEssentialTemplate/.test(qy)) return json({ data: { getAllEssentialTemplate: TPL } })
+      if (/shop_shipping_address_list/.test(qy)) return json({ data: { shop_shipping_address_list: { total_count: 2, item_list: [{ id: '12528', shop_id: '777', name: '반품센터', postcode: '1', address: '광주', address_detail: '2층', shipping_company: 'CJ', is_default: false }, { id: '12529', shop_id: '777', name: '본사', postcode: '1', address: '서울', shipping_company: 'CJ', is_default: true }] } } })
+      if (/GetProductSummaryList/.test(qy)) return json({ data: { product_summary_list: { item_list: b.variables.input.product_id_list.filter(id => zz.products[id]?.summary).map(id => ({ id, ...zz.products[id].summary })) } } })
+      if (/GetProduct\(/.test(qy)) return json({ data: { product: zz.products[b.variables.id]?.full ?? null } })
+      const sub = () => String(zz.nextSub++)
+      if (/createProduct/.test(qy)) {
+        const id = String(zz.nextId++), inp = b.variables.input
+        zz.products[id] = { summary: { sales_status: 'ON_SALE', display_status: inp.display_status }, full: {
+          id, sales_status: 'ON_SALE', display_status: inp.display_status, category: { id: sub(), category_id: inp.category.category_id },
+          option_list: inp.option_list.map(op => ({ id: sub(), name: op.name, value_list: op.value_list.map(v => ({ id: sub(), value: v.value })) })),
+          item_list: inp.item_list.map(it => ({ id: sub(), deleted: false, attribute_list: it.attribute_list, inventory: { quantity: it.inventory.quantity } })), image_list: [{ id: sub(), image_type: 'MAIN', origin_url: inp.image_list[0].origin_url }] } }
+        return json({ data: { createProduct: id } })
+      }
+      if (/updateProduct/.test(qy)) return json({ data: { updateProduct: true } })
+      if (/updateItemAvailableStockQuantity/.test(qy)) {
+        for (const c of b.variables.input) { const it = zz.products[c.product_id]?.full.item_list.find(x => x.id === c.item_id); if (it) it.inventory.quantity = c.quantity }
+        return json({ data: { updateItemAvailableStockQuantity: true } })
+      }
+      return err('no route')
+    }
+    const zzRows = () => db.marketplace_sends.filter(r => r.export_id === UEID && r.market === 'zigzag')
+    const zzOps = () => zz.calls.map(c => (/mutation/.test(c.body.query) ? /createProduct|updateProduct|updateItemAvailableStockQuantity/.exec(c.body.query)[0] : /query (\w+)/.exec(c.body.query)?.[1]))
+
+    // 연결
+    const keepSol = process.env.KAKAOSTYLE_X_SOLUTION, keepUrl = process.env.KAKAOSTYLE_API_URL
+    delete process.env.KAKAOSTYLE_X_SOLUTION
+    delete process.env.KAKAOSTYLE_API_URL
+    const zc0 = await post('connect_zigzag', { access_key: 'zz-access-ABCD', secret_key: 'zz-secret-0000' })
+    eq('x-solution 환경변수 없음 → 503 "잠시 후 다시" · 지그재그 호출 없음 · 저장 없음', [zc0.statusCode, zc0.body.code, zz.calls.length, db.marketplace_accounts.some(a => a.market === 'zigzag')], [503, 'zigzag_not_ready', 0, false])
+    process.env.KAKAOSTYLE_X_SOLUTION = 'euchs'
+    const errs = []
+    for (const mode of ['bad_key', 'no_perm', 'not_entered', 'odd']) { zz.mode = mode; const r = await post('connect_zigzag', { access_key: 'zz-access-ABCD', secret_key: 'zz-secret-0000' }); errs.push([r.statusCode, r.body.code, r.body.message]) }
+    zz.mode = 'ok'
+    eq('연결 실패 문구: 키 오류 · 권한 부족(상품조회·상품갱신) · 입점 미완료 · 모르는 응답 = 판매처 원문 · 저장 없음', [errs, db.marketplace_accounts.some(a => a.market === 'zigzag')],
+      [[[502, 'bad_key', Z.ZIGZAG_ERRORS.bad_key], [502, 'no_permission', Z.ZIGZAG_ERRORS.no_permission], [502, 'shop_not_ready', Z.ZIGZAG_ERRORS.shop_not_ready], [502, 'market_rejected', '판매처 응답: INTERNAL_X something']], false])
+    zz.calls = []
+    const zc = await post('connect_zigzag', { access_key: 'zz-access-ABCD', secret_key: 'zz-secret-0000' })
+    const acc = db.marketplace_accounts.find(a => a.user_id === UID && a.market === 'zigzag')
+    const h = zz.calls[0]?.headers || {}
+    const sd = /signed-date=(\d+)/.exec(h.Authorization || '')?.[1]
+    eq('연결 성공: 스토어 정보 조회 1번 · 주소 = 운영 기본 · 헤더 x-solution=euchs · 서명 = 문서 계산 · 저장(스토어 ID = 계정 식별값 · 이름 · 끝 4자리 · 키는 암호문) · 화면 값에 키 없음', [
+      zc.statusCode, zz.calls.length, zz.calls[0].url, h['x-solution'], h.Authorization === `CEA algorithm=HmacSHA256, access-key=zz-access-ABCD, signed-date=${sd}, signature=${crypto.createHmac('sha1', 'zz-secret-0000').update(`${sd}.${zz.calls[0].body.query}`).digest('hex')}`,
+      acc.market_account, acc.seller_login_id, acc.key_last4, /^v1:/.test(acc.access_key_enc) && /^v1:/.test(acc.secret_key_enc), zc.body.zigzag, /zz-secret|zz-access/.test(JSON.stringify(zc.body)), 'solution' in (zz.calls[0].body.variables || {}),
+    ], [200, 1, 'https://openapi.zigzag.kr/1/graphql', 'euchs', true, '777', '이유씨 스토어', 'ABCD', true, { connected: true, account: { shop_name: '이유씨 스토어', key_last4: 'ABCD', status: 'connected', last_checked_at: acc.last_checked_at, last_error: null } }, false, false])
+    process.env.KAKAOSTYLE_API_URL = 'https://openapi.alpha.zigzag.kr/1/graphql'
+    zz.calls = []
+    const meta = await post('zigzag_meta')
+    process.env.KAKAOSTYLE_API_URL = ''
+    eq('보내기 창 재료: 테스트 주소(KAKAOSTYLE_API_URL)로 호출 · 카테고리 최하위 중 등록형 스토어배송(DIRECT·MERCHANT)만 · 고시 코드 물려받음 · 고시 템플릿 · 반송지 · 판매 채널', [
+      [...new Set(zz.calls.map(c => c.url))], meta.body.categories, meta.body.templates[0].fields.map(f => [f.key, f.type, f.preset, f.shopInfo]), meta.body.addresses.map(a => a.id), meta.body.shop.zigzagKr, meta.body.shop.brands,
+    ], [['https://openapi.alpha.zigzag.kr/1/graphql'], [{ id: '4366', name: '롱코트', wholeName: '패션의류>여성 패션의류>롱코트', essentialCodes: ['FASHION', 'ETC'] }],
+      [['material', 'text', null, false], ['date_of_production', 'date', null, false], ['country_of_manufacturer', 'text', '한국', false], ['phone_number', 'text', null, true]], ['12528', '12529'], true, [{ id: '322', name: '이유씨' }]])
+    eq('고시 처음 값: 제조국 중국 · 날짜 = 오늘(한국) · 나머지 "상품 상세페이지 참조" (템플릿 기본값 "한국"은 쓰지 않음)', ZF.essentialDefaults(meta.body.templates[0].fields, new Date('2026-10-02T03:00:00Z')),
+      { material: '상품 상세페이지 참조', date_of_production: '2026-10-02', country_of_manufacturer: '중국', phone_number: '상품 상세페이지 참조' })
+
+    // 보내기 — 새로 등록
+    const FIELDS = meta.body.templates[0].fields.map(f => ({ key: f.key, name: f.name }))
+    const ZZU = {
+      exportId: UEID, productName: '롱코트 이유씨', price: 59000, listPrice: null, stock: null, categoryId: '4366', categoryName: '패션의류>여성 패션의류>롱코트',
+      options: { groupNames: ['색상', '사이즈'], rows: [{ values: ['블랙', 'S'], addPrice: 0, stock: 3 }, { values: ['블랙', 'M'], addPrice: 1000, stock: 0 }] },
+      essentialCode: 'FASHION', essentialFields: FIELDS, essentials: { material: '폴리', date_of_production: '2026-10-02', country_of_manufacturer: '중국', phone_number: '010-1234-5678' },
+      display: 'HIDDEN', repImageId: UIMG, fit: 'contain',
+      delivery: { feeType: 'FREE', baseFee: 0, freeOver: null, jejuFee: 3000, isolatedFee: 5000, returnFee: 3000, exchangeFee: 6000, shippingDays: 3, bundle: 'CONSOLIDATED', returnId: '12528' },
+      taxType: 'TAX', parallel: 'NOT_PARALLEL_IMPORTED', overseas: false, brandId: null,
+    }
+    zz.calls = []
+    const z1 = await post('zigzag_send', ZZU)
+    const cin = zz.calls.find(c => /createProduct/.test(c.body.query))?.body.variables.input
+    eq('지그재그 새 등록: 200 registered · 상품 ID · 호출 순서(상품 기록 없음 → createProduct) · 기록 1개(상품번호·계정 = 스토어 ID)', [z1.statusCode, z1.body.status, z1.body.productId, zzOps(), zzRows().length, zzRows()[0].seller_product_id, zzRows()[0].market_account],
+      [200, 'registered', '100129206', ['createProduct'], 1, '100129206', '777'])
+    eq('생성 입력 = 스키마 칸만(지어낸 칸·deprecated 칸 없음) · 필수(!) 칸 모두 있음 (중첩 input까지)', schemaProblems(cin, 'CreateProductInput'), [])
+    eq('생성 입력 값: 옵션 2종 · 품목 = 조합(가격 = 판매가 + 추가금액 · 재고 0 = 품절) · 대표 이미지 MAIN = 공개 창고 주소 · 상세 = 공개 주소 <img> · 무료배송 base_fee 0·partial 없음 · 스토어배송·일반배송 · 반송지 · 관리코드 = 내 상품 id · solution 칸 없음', [
+      cin.option_list, cin.item_list.map(it => [it.attribute_list.map(a => a.value).join('/'), it.site_list[0].original_price, it.inventory.quantity, it.sales_status]), /\/market-images\/[0-9a-f]{32}\/rep\.jpg$/.test(cin.image_list[0].origin_url),
+      (cin.description.match(/<img src="[^"]*\/market-images\/[0-9a-f]{32}\/\d+\.jpg"/g) || []).length, cin.site_list[0].shipping_fee, [cin.fulfillment_type, cin.shipping_type, cin.shipping_days, cin.address, cin.bundle_type], cin.external_code, 'solution' in cin, cin.site_list[0].original_price,
+    ], [[{ name: '색상', value_list: [{ value: '블랙' }] }, { name: '사이즈', value_list: [{ value: 'S' }, { value: 'M' }] }], [['블랙/S', 59000, 3, 'ON_SALE'], ['블랙/M', 60000, 0, 'SOLD_OUT']], true, db.studio_exports.find(e => e.id === UEID).files.length,
+      { fee_type: 'FREE', base_fee: 0, area_fee: { jeju: 3000, isolated: 5000 }, return_fee: { total: 3000 }, exchange_fee: 6000 }, ['MERCHANT', 'GENERAL', 3, { return_id: '12528' }, 'CONSOLIDATED'], UEID, false, 59000])
+    eq('auditor: 셀러 로그인 아이디(이메일)를 넘기면 입력에 들어감 · 비면 칸 없음', [ZF.buildZigzagProduct({ ...ZZU, repUrl: 'u', detailUrls: ['u'], auditor: 'seller@test.local' }).input.auditor, 'auditor' in ZF.buildZigzagProduct({ ...ZZU, repUrl: 'u', detailUrls: ['u'], auditor: '' }).input], ['seller@test.local', false])
+
+    // 다시 보내기 — 판매처에 있는 상품 갱신 (id 짝짓기)
+    const pre3 = await post('send_prepare', { exportId: UEID })
+    eq('보내기 창 재료: existing.zigzag = modify(상품번호) · 안내 "판매처에 있는 상품을 수정합니다" · 버튼 "변경사항 전송"', [pre3.body.existing.zigzag?.mode, pre3.body.existing.zigzag?.sellerProductId, R.existingNote('zigzag', pre3.body.existing).lines, R.bulkSendLabel(['zigzag'], [], false, pre3.body.existing)],
+      ['modify', '100129206', ['판매처에 있는 상품을 수정합니다'], '변경사항 전송'])
+    const full = zz.products['100129206'].full
+    zz.calls = []
+    const z2 = await post('zigzag_send', { ...ZZU, productName: '롱코트 새 이름', options: { groupNames: ['색상', '사이즈'], rows: [{ values: ['블랙', 'S'], addPrice: 0, stock: 3 }, { values: ['블랙', 'L'], addPrice: 0, stock: 2 }] } })
+    const uin = zz.calls.find(c => /updateProduct/.test(c.body.query))?.body.variables.input
+    eq('갱신: 상품 조회 → updateProduct · 생성 없음 · 새 기록 없음 · 회차 1', [z2.statusCode, z2.body.updated, z2.body.way, zzOps(), zzRows().length, zzRows()[0].request_json.revisions.length], [200, true, 'modify', ['GetProduct', 'updateProduct'], 1, 1])
+    eq('갱신 입력 = 스키마 칸만 · 필수 칸 모두 · 관리코드(external_code) 없음(갱신 입력에 칸 없음)', [schemaProblems(uin, 'UpdateProductInput'), 'external_code' in uin], [[], false])
+    eq('갱신 id 짝짓기: 상품 id · 옵션(이름)·옵션 값(값) id · 품목(속성 조합) id — 새 조합(블랙/L)은 id 없음 · 빠진 조합(블랙/M)은 보내지 않음 · 대표 이미지·카테고리 id', [
+      uin.id, uin.option_list.map(o => [o.id ?? null, o.name, o.value_list.map(v => [v.id ?? null, v.value])]), uin.item_list.map(it => [it.id ?? null, it.attribute_list.map(a => a.value).join('/')]), uin.image_list[0].id, uin.category,
+    ], ['100129206', [[full.option_list[0].id, '색상', [[full.option_list[0].value_list[0].id, '블랙']]], [full.option_list[1].id, '사이즈', [[full.option_list[1].value_list[0].id, 'S'], [null, 'L']]]],
+      [[full.item_list[0].id, '블랙/S'], [null, '블랙/L']], full.image_list[0].id, { id: full.category.id, category_id: '4366' }])
+    // 판매처 쪽 상품을 우리 갱신 결과로 맞춘다(가짜 서버) — 다음 보내기가 재고만 바뀐 경우를 본다
+    full.item_list = [{ id: full.item_list[0].id, deleted: false, attribute_list: [{ name: '색상', value: '블랙' }, { name: '사이즈', value: 'S' }], inventory: { quantity: 3 } }, { id: '999', deleted: false, attribute_list: [{ name: '색상', value: '블랙' }, { name: '사이즈', value: 'L' }], inventory: { quantity: 2 } }]
+    zz.calls = []
+    const z3 = await post('zigzag_send', { ...ZZU, productName: '롱코트 새 이름', options: { groupNames: ['색상', '사이즈'], rows: [{ values: ['블랙', 'S'], addPrice: 0, stock: 7 }, { values: ['블랙', 'L'], addPrice: 0, stock: 2 }] } })
+    eq('재고만 바뀜 → updateItemAvailableStockQuantity(바뀐 품목만) · 상품 갱신·이미지 올리기 없음 · 회차 2(way stock)', [z3.body.way, zzOps(), zz.calls.at(-1).body.variables.input, zzRows()[0].request_json.revisions.at(-1).way],
+      ['stock', ['GetProduct', 'updateItemAvailableStockQuantity'], [{ product_id: '100129206', item_id: full.item_list[0].id, quantity: 7 }], 'stock'])
+    zz.calls = []
+    const z4 = await post('zigzag_send', { ...ZZU, productName: '롱코트 새 이름', options: { groupNames: ['색상', '사이즈'], rows: [{ values: ['블랙', 'S'], addPrice: 0, stock: 7 }, { values: ['블랙', 'L'], addPrice: 0, stock: 2 }] } })
+    eq('바뀐 것 없음 → 조회만 · 수정 호출 없음 · 회차 그대로', [z4.body.way, zzOps(), zzRows()[0].request_json.revisions.length], ['none', ['GetProduct'], 2])
+    zz.calls = []
+    await post('zigzag_send', { ...ZZU, productName: '롱코트 새 이름', options: { groupNames: ['색상', '사이즈'], rows: [{ values: ['블랙', 'S'], addPrice: 0, stock: 0 }, { values: ['블랙', 'L'], addPrice: 0, stock: 2 }] } })
+    eq('재고가 0이 되면(품절로 바뀜) 재고 API가 아니라 상품 갱신(품목 판매 상태 함께)', zzOps(), ['GetProduct', 'updateProduct'])
+    // 판매처에서 지운 상품(조회 null) → 새로 등록
+    zz.products['100129206'].full = null
+    zz.calls = []
+    const z5 = await post('zigzag_send', ZZU)
+    eq('판매처에 없는 상품(조회 null) → 새로 등록 · 예전 기록 상태 그대로(삭제 판정은 상태 확인이)', [!!z5.body.updated, zzOps(), zzRows().length, zzRows()[0].status], [false, ['GetProduct', 'createProduct'], 2, 'registered'])
+
+    // 상태 확인
+    const keepRows = db.marketplace_sends
+    const zrow = (id, pid, account) => ({ id, user_id: UID, export_id: UEID, market: 'zigzag', status: 'registered', seller_product_id: pid, market_status: null, market_account: account, reason: null, last_synced_at: null, created_at: new Date().toISOString(), request_json: {} })
+    db.marketplace_sends = [zrow('z1', '201', '777'), zrow('z2', '202', '777'), zrow('z3', '203', '777'), zrow('z4', '204', null), zrow('z5', '205', '888')]
+    zz.products = { 201: { summary: { sales_status: 'ON_SALE', display_status: 'VISIBLE' } }, 202: { summary: { sales_status: 'CLOSED', display_status: 'HIDDEN' } }, 204: { summary: { sales_status: 'SOLD_OUT', display_status: 'HIDDEN' } } }
+    zz.calls = []
+    const zs = await post('sync', {})
+    const zb = Object.fromEntries(db.marketplace_sends.map(r => [r.id, r]))
+    eq('sync 지그재그: 판매중·노출 = 등록 완료 + 원문 · CLOSED = 삭제됨 · 목록에 없음 + 같은 계정 → 상품 조회 null = 삭제됨 · 계정 기록 없음 + 목록에 있음 → 계정 채우고 판정 · 다른 계정 = 조회 안 함',
+      [zs.statusCode, zs.body.errors, ['z1', 'z2', 'z3', 'z4', 'z5'].map(id => [zb[id].status, zb[id].market_status, zb[id].market_account]), zz.calls.map(c => [/query (\w+)/.exec(c.body.query)[1], c.body.variables?.input?.product_id_list || c.body.variables?.id])],
+      [200, [], [['registered', '판매중 · 노출', '777'], ['deleted', '삭제', '777'], ['deleted', '삭제', '777'], ['registered', '품절 · 숨김', '777'], ['registered', null, '888']], [['GetProductSummaryList', ['201', '202', '203', '204']], ['GetProduct', '203']]])
+    eq('상태 매핑 표: 준비중·판매중·품절·판매중단 = 등록 완료 · CLOSED = 삭제됨 · 모르는 값 null', ['PREPARING', 'ON_SALE', 'SOLD_OUT', 'SUSPENDED', 'CLOSED', 'X'].map(s => ZF.zigzagStatusOf(s, 'VISIBLE')),
+      [{ status: 'registered', raw: '준비중 · 노출' }, { status: 'registered', raw: '판매중 · 노출' }, { status: 'registered', raw: '품절 · 노출' }, { status: 'registered', raw: '판매중단 · 노출' }, { status: 'deleted', raw: '삭제' }, null])
+    db.marketplace_sends = keepRows
+    globalThis.fetch = realFetchZ
+    if (keepSol == null) delete process.env.KAKAOSTYLE_X_SOLUTION; else process.env.KAKAOSTYLE_X_SOLUTION = keepSol
+    if (keepUrl == null) delete process.env.KAKAOSTYLE_API_URL; else process.env.KAKAOSTYLE_API_URL = keepUrl
+    // 화면 — 판매처 목록 한 곳으로 연결 카드·보내기 섹션·안내문
+    const card = read('src/components/studio/StudioZigzagCard.vue'), G = await import('../src/lib/studioMarketGuides.js')
+    eq('연결 안내문 = 해성이 준 글 그대로 · 카드가 안내 상수를 그림 · 버튼 [연결] · 보내기 섹션 등록 · 연결 탭에 카드', [
+      G.ZIGZAG_GUIDE_TITLE, G.ZIGZAG_GUIDE_PREP, G.ZIGZAG_GUIDE.length, G.ZIGZAG_GUIDE[3], G.ZIGZAG_GUIDE_NOTES,
+      /\{\{ ZIGZAG_GUIDE_TITLE \}\}/.test(card) && /v-for="\(s, i\) in ZIGZAG_GUIDE"/.test(card), /busy === 'connect' \? '확인 중…' : '연결'/.test(card), /zigzag: StudioSendZigzag/.test(read('src/components/studio/StudioSendModal.vue')), /<StudioZigzagCard \/>/.test(read('src/views/studio/StudioMarketplaceView.vue')),
+    ], ['지그재그 연결 방법', '준비: 지그재그(카카오스타일)에 입점이 끝난 스토어여야 연결할 수 있습니다.', 5, '발급 창에 나온 Access Key와 Secret Key를 복사해 아래 칸에 붙여 넣습니다. Secret Key는 발급 창을 닫으면 다시 볼 수 없습니다. 반드시 따로 보관해 주세요.',
+      ['인증키는 스토어마다 따로 발급됩니다.', '인증키를 다시 발급했다면 이 화면에서 새 키로 다시 연결해 주세요.'], true, true, true, true])
+    eq('시크릿: 지그재그 코드에 키 값·주소 하드코딩 없음(주소는 환경변수 기본값 한 곳) · 로그에 키 없음', [/x-solution['"]?\s*:\s*['"]euchs/.test(read('api/_zigzag.js')), (read('api/_zigzag.js').match(/= 'https:\/\/openapi\./g) || []).length, /console\.\w+\([^)]*(accessKey|secretKey|secret_key|access_key)/.test(read('api/marketplace.js'))], [false, 1, false])
+  }
   // 3) 화면 배선
   const cpv = read('src/components/studio/StudioSendCoupang.vue'), ssv = read('src/components/studio/StudioSendSmartstore.vue'), api = read('api/marketplace.js')
   eq('화면: 쿠팡 결과 문구(수정·가격·재고만·바뀐 것 없음·옵션별 변경 실패) · 스마트스토어 "판매처에 있는 상품을 수정했습니다." · 합니다체', [

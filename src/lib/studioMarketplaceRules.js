@@ -40,7 +40,7 @@ export const MARKETS = [
   { key: '11st', name: '11번가', connect: 'key' }, // 2026-10-01 보내기 = 서버 elevenst_send
   { key: 'gmarket', name: 'G마켓·옥션', soon: true, connect: 'planned' },
   { key: 'ably', name: '에이블리', soon: true, connect: 'planned' }, // 판매자 API 토큰은 있지만 공개 API 문서가 없어 주소·인증을 확인할 수 없음 (S3-3 조사)
-  { key: 'zigzag', name: '지그재그', soon: true, connect: 'planned' },
+  { key: 'zigzag', name: '지그재그', connect: 'key' }, // 2026-10-02 — 파트너센터에서 발급한 Access Key·Secret Key. 보내기 = 서버 zigzag_send (api/_zigzag.js)
   // 2026-09-30 — 우리 앱 "EUCHS 스튜디오" + 쇼핑몰 ID + 카페24 동의 화면. 보내기 = 서버 cafe24_send
   // 2026-10-02 운영 중단 → off: 관리자·스태프 포함 누구에게도 안 보임 (코드·DB 기록은 그대로 — 다시 켜려면 off만 뺀다)
   { key: 'cafe24', name: '카페24', connect: 'key', off: true },

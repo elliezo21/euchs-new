@@ -93,6 +93,11 @@ import {
   LIVE_SEND_STATUSES, UPDATE_MODES, updatePlan, coupangOwnerOf, smartstoreOwnerOf, isCoupangApproved, coupangContentKey, coupangPriceStockChanges, coupangPriceProblem,
   coupangChangeOrder, coupangUpdateWay, mergeSmartstoreUpdate, SS_UPDATABLE_STATUS, elevenstOwnerOf,
 } from './_marketUpdate.js'
+import { ZigzagError, ZIGZAG_ERRORS, zigzagConfig, zigzagCall, Q as ZQ, ADDRESS_PAGE as Z_ADDRESS_PAGE, ADDRESS_PAGES_MAX as Z_ADDRESS_PAGES_MAX, normalizeShop, normalizeZigzagAddresses } from './_zigzag.js'
+import {
+  ZIGZAG, zigzagKeyProblems, normalizeZigzagCategories, normalizeEssentialTemplates, buildZigzagProduct, mergeZigzagUpdate, zigzagContentKey, zigzagStockChanges,
+  zigzagStatusOf, SUMMARY_MAX as Z_SUMMARY_MAX, ZIGZAG_SINGLE_MAX,
+} from './_zigzagFields.js'
 import crypto from 'crypto'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
 
@@ -259,6 +264,7 @@ const CAFE24_ACTIONS = ['cafe24_begin', 'cafe24_launch', 'cafe24_finish', 'disco
 async function marketStatus(ctx, body, res) {
   const a = await oneAccount(ctx, ELEVENST, ELEVENST_PUBLIC)
   const s = await oneAccount(ctx, SMARTSTORE, ELEVENST_PUBLIC)
+  const z = await oneAccount(ctx, ZIGZAG, ELEVENST_PUBLIC)
   // 고객이면 카페24 계정을 읽지 않는다(연결 안 됨으로 — 토큰 갱신도 안 부름)
   let c = cafe24Allowed(ctx) ? await oneAccount(ctx, CAFE24, CAFE24_PUBLIC) : null
   if (c && c.status === 'connected' && needsRefresh(c.expires_at)) c = (await keepCafe24Alive(ctx)) || c // 연결 유지 — 2주 refresh 만료 전에 갱신
@@ -266,6 +272,8 @@ async function marketStatus(ctx, body, res) {
     elevenst: a ? { connected: true, account: { seller_login_id: a.seller_login_id, key_last4: a.key_last4, status: a.status, last_checked_at: a.last_checked_at, last_error: a.last_error } } : { connected: false, account: null },
     // 스마트스토어 — 칸을 하나씩 고른다(암호문 칸 없음). key_last4 = 애플리케이션 ID 끝 4자리 · 시크릿은 어떤 형태로도 안 내려감
     smartstore: s ? { connected: true, account: { key_last4: s.key_last4, status: s.status, last_checked_at: s.last_checked_at, last_error: s.last_error } } : { connected: false, account: null },
+    // 지그재그 (2026-10-02) — 스토어 이름(seller_login_id에 저장)·Access Key 끝 4자리만. Secret Key는 어떤 형태로도 안 내려감
+    zigzag: z ? { connected: true, account: { shop_name: z.seller_login_id, key_last4: z.key_last4, status: z.status, last_checked_at: z.last_checked_at, last_error: z.last_error } } : { connected: false, account: null },
     // 카페24 — 쇼핑몰 ID·상태·연결 유지 기한만. 앱 값·토큰은 안 내려감
     cafe24: cafe24Public(c),
     relayIp: RELAY_IP,
@@ -1235,6 +1243,262 @@ async function elevenstSend(ctx, body, res) {
   return res.status(200).json({ sendId, productNo: cm.productNo, sellerProductId: cm.productNo, status: 'registered', stopped, stopError })
 }
 
+// ── 지그재그(카카오스타일) 연결·보내기 (2026-10-02) — 규칙·근거 api/_zigzag.js · api/_zigzagFields.js 머리 주석 ──
+// 같은 표·같은 암호화: Access Key = access_key_enc · Secret Key = secret_key_enc · 스토어 이름 = seller_login_id(화면 표시) · 스토어 ID = market_account(계정 식별값)
+// 호출은 중계 없이 바로(지그재그 문서에 IP 제한 없음) · 헤더 x-solution = KAKAOSTYLE_X_SOLUTION · 주소 = KAKAOSTYLE_API_URL(기본 운영)
+// SQL docs/sql/2026-10-02-marketplace-zigzag.sql 실행 전이면 계정 저장·전송 기록에서 503 marketplace_sql_missing (원인 로그 — 지그재그에는 아무것도 보내기 전)
+const ZIGZAG_SQL = 'docs/sql/2026-10-02-marketplace-zigzag.sql'
+function zigzagFail(res, e, where) {
+  if (!(e instanceof ZigzagError)) throw e
+  if (e.code === 'zigzag_not_ready') console.error(`[marketplace] 지그재그 ${where}: KAKAOSTYLE_X_SOLUTION 환경변수 없음`)
+  else console.warn(`[marketplace] 지그재그 ${where} 실패 ${e.code} (HTTP ${e.status}): ${e.raw}`)
+  return sendError(res, e.code === 'zigzag_not_ready' ? 503 : e.status === 429 ? 429 : 502, e.code, e.message)
+}
+function zigzagConfigOr(res, where) {
+  const c = zigzagConfig()
+  if (!c) {
+    console.error(`[marketplace] 지그재그 ${where}: KAKAOSTYLE_X_SOLUTION 환경변수 없음 — 다른 값이면 상품이 전송되지 않으므로 부르지 않음`)
+    sendError(res, 503, 'zigzag_not_ready', NOT_READY_MESSAGE)
+  }
+  return c
+}
+async function connectZigzag(ctx, body, res) {
+  const encKey = encKeyOr(res)
+  if (!encKey) return
+  const ak = String(body.access_key ?? '').trim(), sk = String(body.secret_key ?? '').trim()
+  const bad = zigzagKeyProblems({ accessKey: ak, secretKey: sk })
+  if (bad.length) return sendError(res, 400, 'invalid_input', `${bad.join('·')}를 넣어 주세요.`)
+  const cfg = zigzagConfigOr(res, 'connect')
+  if (!cfg) return
+  // 연결 확인 = 스토어 정보 조회(문서 필요 권한 GET-PRODUCT). 상품갱신(UPDATE-PRODUCT) 권한은 조회로 확인할 수 없다 — 첫 보내기에서 판매처 응답으로 안내
+  let shop
+  try { shop = normalizeShop((await zigzagCall({ ...cfg, accessKey: ak, secretKey: sk, breakerKey: ctx.userId }, { query: ZQ.shop })).shop) } catch (e) { return zigzagFail(res, e, 'connect') }
+  if (!shop) {
+    console.warn('[marketplace] 지그재그 connect: 스토어 정보가 비어 있음', ctx.userId)
+    return sendError(res, 502, 'shop_not_ready', ZIGZAG_ERRORS.shop_not_ready)
+  }
+  const row = {
+    user_id: ctx.userId, market: ZIGZAG, seller_login_id: (shop.shopName || shop.shopId).slice(0, 100), vendor_id: null,
+    access_key_enc: encryptSecret(ak, encKey), secret_key_enc: encryptSecret(sk, encKey), key_last4: ak.slice(-4).replace(/[^A-Za-z0-9-]/g, '-'),
+    expires_at: null, status: 'connected', last_checked_at: new Date().toISOString(), last_error: null, market_account: shop.shopId.slice(0, 100),
+  }
+  try {
+    await sb(ctx.cfg, 'marketplace_accounts?on_conflict=user_id,market', { method: 'POST', body: row, prefer: 'resolution=merge-duplicates,return=minimal' })
+  } catch (e) {
+    if (isSchemaGap(e)) {
+      console.error(`[marketplace] 지그재그 계정 저장 실패 — marketplace_accounts market 체크에 zigzag 없음(${ZIGZAG_SQL} 실행 필요):`, e.message)
+      return sendError(res, 503, 'marketplace_sql_missing', NOT_READY_MESSAGE)
+    }
+    throw e
+  }
+  console.info(`[marketplace] 지그재그 연결 ${ctx.userId} shop=${shop.shopId} 판매채널 ZIGZAG·KR=${shop.zigzagKr}`)
+  return marketStatus(ctx, body, res)
+}
+async function disconnectZigzag(ctx, body, res) {
+  await sb(ctx.cfg, `marketplace_accounts?user_id=eq.${ctx.userId}&market=eq.${ZIGZAG}`, { method: 'DELETE', prefer: 'return=minimal' })
+  return marketStatus(ctx, body, res)
+}
+/** 호출 재료 { url, solution, accessKey, secretKey, breakerKey, shopId } — 연결 전·설정 없음·복호화 실패면 응답을 보내고 null */
+async function zigzagCredentials(ctx, res) {
+  const encKey = encKeyOr(res)
+  if (!encKey) return null
+  const row = await oneAccount(ctx, ZIGZAG, `${ELEVENST_PUBLIC},access_key_enc,secret_key_enc,market_account`)
+  if (!row?.access_key_enc || !row?.secret_key_enc) { sendError(res, 409, 'not_connected', '먼저 지그재그를 연결하세요.'); return null }
+  const cfg = zigzagConfigOr(res, 'credentials')
+  if (!cfg) return null
+  let accessKey, secretKey
+  try { accessKey = decryptSecret(row.access_key_enc, encKey); secretKey = decryptSecret(row.secret_key_enc, encKey) } catch (e) {
+    console.error('[marketplace] 지그재그 키 복호화 실패:', e.message)
+    sendError(res, 500, 'decrypt_failed', '저장된 연결 정보를 읽지 못했습니다. 연결을 해제하고 다시 연결하세요.')
+    return null
+  }
+  return { ...cfg, accessKey, secretKey, breakerKey: ctx.userId, shopId: row.market_account || null }
+}
+/** 마지막으로 등록에 성공한 지그재그 보내기의 반송지 (기록 request_json.summary.returnId) — 못 읽으면 null (원인 로그) */
+async function lastZigzagReturnId(ctx) {
+  try {
+    const rows = await sb(ctx.cfg, `marketplace_sends?select=summary:request_json->summary&user_id=eq.${ctx.userId}&market=eq.${ZIGZAG}&seller_product_id=not.is.null&order=created_at.desc&limit=1`)
+    const id = rows?.[0]?.summary?.returnId
+    return /^\d{1,20}$/.test(String(id ?? '')) ? String(id) : null
+  } catch (e) {
+    console.error('[marketplace] 지그재그 마지막 반송지 조회 실패 — 기본 주소로:', ctx.userId, e.message)
+    return null
+  }
+}
+/** 보내기 창 재료 — 스토어(브랜드·판매 채널)·카테고리·고시 템플릿·배송주소록 (모두 GET-PRODUCT 조회) */
+async function zigzagMeta(ctx, body, res) {
+  const cred = await zigzagCredentials(ctx, res)
+  if (!cred) return
+  try {
+    const shop = normalizeShop((await zigzagCall(cred, { query: ZQ.shop })).shop)
+    const categories = normalizeZigzagCategories((await zigzagCall(cred, { query: ZQ.category })).category)
+    const templates = normalizeEssentialTemplates((await zigzagCall(cred, { query: ZQ.essentials })).getAllEssentialTemplate)
+    const addresses = []
+    for (let page = 0; page < Z_ADDRESS_PAGES_MAX; page++) {
+      const d = (await zigzagCall(cred, { query: ZQ.addresses, variables: { limit_count: Z_ADDRESS_PAGE, skip_count: page * Z_ADDRESS_PAGE } })).shop_shipping_address_list
+      addresses.push(...normalizeZigzagAddresses(d?.item_list))
+      if (addresses.length >= Number(d?.total_count || 0) || !(d?.item_list || []).length) break
+      if (page === Z_ADDRESS_PAGES_MAX - 1) console.error(`[marketplace] 지그재그 배송주소록이 ${Z_ADDRESS_PAGE * Z_ADDRESS_PAGES_MAX}개를 넘음 — 앞부분만 ${ctx.userId}`)
+    }
+    if (!categories.length) console.error(`[marketplace] 지그재그 카테고리 응답에 최하위가 없음 ${ctx.userId}`)
+    if (!templates.length) console.error(`[marketplace] 지그재그 고시 템플릿 응답이 비어 있음(모양 다름?) ${ctx.userId}`)
+    return res.status(200).json({ shop, categories, templates, addresses, lastReturnId: await lastZigzagReturnId(ctx) })
+  } catch (e) { return zigzagFail(res, e, 'meta') }
+}
+/** 화면 값 → 상품 입력 재료 (이미지 주소는 올린 뒤에 채운다) */
+function zigzagInput(body) {
+  const num = v => (v === '' || v == null ? NaN : Number(v))
+  const d = body.delivery && typeof body.delivery === 'object' ? body.delivery : {}
+  const ess = body.essentials && typeof body.essentials === 'object' && !Array.isArray(body.essentials) ? body.essentials : {}
+  return {
+    productName: body.productName, price: num(body.price), listPrice: body.listPrice === '' || body.listPrice == null ? null : num(body.listPrice), stock: num(body.stock),
+    options: marketOptionsInput(body.options), categoryId: body.categoryId, essentialCode: body.essentialCode,
+    // 고시 칸 이름(key·name)은 고른 템플릿 그대로 화면이 보낸다(getAllEssentialTemplate) — 글자만 받는다
+    essentialFields: (Array.isArray(body.essentialFields) ? body.essentialFields : []).slice(0, 60).filter(f => typeof f?.key === 'string' && typeof f?.name === 'string').map(f => ({ key: f.key.slice(0, 100), name: f.name.slice(0, 200) })),
+    essentials: Object.fromEntries(Object.entries(ess).slice(0, 60).filter(([, v]) => typeof v === 'string').map(([k, v]) => [k.slice(0, 100), v.slice(0, 1000)])),
+    display: body.display,
+    delivery: { feeType: d.feeType, baseFee: num(d.baseFee), freeOver: num(d.freeOver), jejuFee: num(d.jejuFee), isolatedFee: num(d.isolatedFee), returnFee: num(d.returnFee), exchangeFee: num(d.exchangeFee), shippingDays: num(d.shippingDays), bundle: d.bundle, returnId: d.returnId },
+    taxType: body.taxType, parallel: body.parallel, overseas: body.overseas === true, brandId: body.brandId,
+  }
+}
+/** 지그재그 상품 조회로 주인 확인 — 이 스토어 키로 조회되면 이 스토어 상품(문서: 상품이 없으면 null). 조회 결과(current)는 갱신 입력의 id 재료 */
+async function zigzagOwner(cred, s) {
+  try {
+    const p = (await zigzagCall(cred, { query: ZQ.product, variables: { id: String(s.seller_product_id) } })).product
+    if (!p) return { who: 'none' }
+    if (p.sales_status === 'CLOSED') return { who: 'none' } // 문서: CLOSED = 삭제
+    return { who: 'mine', current: p }
+  } catch (e) {
+    if (!(e instanceof ZigzagError)) throw e
+    return { who: 'unknown', status: e.status === 429 ? 429 : 502, code: e.code, message: e.message, raw: e.raw }
+  }
+}
+/** 대표 이미지(정사각형 JPG) + 내 상품 파일 → 판매용 공개 창고(영구 주소). 하나라도 실패하면 멈춘다 */
+async function zigzagImages(ctx, { ex, rep, repName }) {
+  const repPath = `${ex.folder}/marketplace/${repName}`
+  try { await storageUpload(ctx.cfg, BUCKET, repPath, rep.buf, 'image/jpeg') } catch (e) {
+    console.error('[marketplace] 지그재그 대표 이미지 저장 실패:', repPath, e.message)
+    return { ok: false, status: 500, code: 'storage_error', message: '대표 이미지를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.' }
+  }
+  const all = [{ key: 'rep', path: repPath }, ...ex.files.map(f => ({ key: f.key, path: f.path }))]
+  try {
+    const published = await publishMarketImages(ctx.cfg, { sourceBucket: BUCKET, files: all })
+    return { ok: true, urls: published.urls, files: Object.fromEntries(all.map(f => [f.key, f.path])), publicImages: { bucket: published.bucket, folder: published.folder, paths: published.paths } }
+  } catch (e) {
+    if (!(e instanceof MarketImagesError)) throw e
+    console.error('[marketplace] 지그재그 이미지 공개 창고 복사 실패:', e.message, e.cause?.message ?? '', e.leftover.length ? `남은 경로 ${e.leftover.join(',')}` : '')
+    return { ok: false, status: 500, code: 'market_images_failed', message: `이미지를 올리지 못해 보내기를 멈췄습니다. (${e.message}) 잠시 후 다시 시도해 주세요.`, extra: { result_json: { step: 'images', message: e.message, leftover: e.leftover } } }
+  }
+}
+/** auditor = 셀러의 솔루션사 로그인 아이디(카카오스타일 Open API FAQ) — 우리 서비스 로그인 아이디 = 로그인 이메일(토큰 email). 없으면 넣지 않는다(원인 로그) */
+function zigzagAuditor(ctx) {
+  if (typeof ctx.email === 'string' && ctx.email) return ctx.email
+  console.warn('[marketplace] 지그재그 auditor: 로그인 이메일이 없어 수정자 칸을 비움', ctx.userId)
+  return ''
+}
+const zigzagSources = (ex, rep) => ({ rep: sha16(rep.buf), files: ex.files.map(f => f.path) })
+/**
+ * 지그재그 다시 보내기 = 상품 갱신 (문서 상품 갱신 — 생성과 같은 입력 + id). 새 기록·새 상품을 만들지 않는다. 같은 기록에 회차 이력
+ *   내용이 지난번과 같고 재고만 바뀌면 아이템 재고 갱신(updateItemAvailableStockQuantity)만 · 바뀐 것이 없으면 호출 없음
+ *   실패하면 기록은 그대로(기록은 판매처 성공 뒤에만 바꾼다 — 이미지는 공개 창고 영구 주소라 기록이 미리 바뀔 필요가 없다)
+ */
+async function zigzagUpdate(ctx, res, { cred, input, ex, rep, body, found }) {
+  const t = found.target
+  const id = String(t.seller_product_id)
+  const before = t.request_json || {}
+  const revisions = revisionsOf(t)
+  const n = revisions.length + 1
+  const sources = zigzagSources(ex, rep)
+  const cmp = buildZigzagProduct({ ...input, repUrl: '-', detailUrls: ex.files.map(() => '-'), exportId: ex.id })
+  if (!cmp.ok) return sendError(res, 400, 'invalid_input', cmp.message)
+  const contentKey = zigzagContentKey(cmp.input, sources)
+  const changes = zigzagStockChanges({ sameContent: before.contentKey === contentKey, productId: id, merged: mergeZigzagUpdate(found.current, cmp.input).input, cur: found.current })
+  const save = async (patch, rev) => sb(ctx.cfg, `marketplace_sends?id=eq.${t.id}&user_id=eq.${ctx.userId}`, { method: 'PATCH', prefer: 'return=minimal', body: { request_json: { ...before, ...patch, revisions: [...revisions, rev] }, result_json: { ...(t.result_json || {}), productId: id, step: 'update', way: rev.way } } })
+  if (changes && !changes.length) {
+    console.info(`[marketplace] 지그재그 바뀐 것 없음 — 호출 안 함 ${ctx.userId} send=${t.id} product=${id}`)
+    return res.status(200).json({ sendId: t.id, productId: id, sellerProductId: id, status: t.status, updated: true, way: 'none', extra: found.extra })
+  }
+  if (changes) {
+    try { await zigzagCall(cred, { query: ZQ.stock, variables: { input: changes } }) } catch (e) { return zigzagFail(res, e, 'update/stock') }
+    const items = (before.input?.item_list || []).map((it, i) => ({ ...it, inventory: cmp.input.item_list[i]?.inventory ?? it.inventory, sales_status: cmp.input.item_list[i]?.sales_status ?? it.sales_status }))
+    await save({ input: { ...(before.input || {}), item_list: items }, summary: { ...(before.summary || {}), stock: cmp.summary.stock } }, { n, at: new Date().toISOString(), via: 'modify', way: 'stock', previousStatus: t.market_status || null, changed: changes.length })
+    console.info(`[marketplace] 지그재그 재고만 변경 ${ctx.userId} send=${t.id} product=${id} 품목 ${changes.length}개 회차=${n}`)
+    return res.status(200).json({ sendId: t.id, productId: id, sellerProductId: id, status: t.status, updated: true, way: 'stock', revision: n, extra: found.extra })
+  }
+  const img = await zigzagImages(ctx, { ex, rep, repName: `${t.id}_rep_r${n}.jpg` })
+  if (!img.ok) return sendError(res, img.status, img.code, img.message)
+  const built = buildZigzagProduct({ ...input, repUrl: img.urls.rep, detailUrls: ex.files.map(f => img.urls[f.key]), exportId: ex.id, auditor: zigzagAuditor(ctx) })
+  if (!built.ok) return sendError(res, 400, 'invalid_input', built.message)
+  const merged = mergeZigzagUpdate(found.current, built.input)
+  let data
+  try { data = await zigzagCall(cred, { query: ZQ.update, variables: { input: merged.input } }) } catch (e) { return zigzagFail(res, e, 'update/product') }
+  if (data?.updateProduct !== true) {
+    console.warn(`[marketplace] 지그재그 상품 갱신 응답이 true가 아님 send=${t.id} product=${id}:`, JSON.stringify(data).slice(0, 200))
+    return sendError(res, 502, 'market_rejected', '판매처가 수정 결과를 주지 않았습니다. 파트너센터에서 상품을 확인하세요.')
+  }
+  const categoryName = typeof body.categoryName === 'string' ? body.categoryName.slice(0, 300) : (before.categoryName ?? null)
+  await save({ input: built.input, summary: built.summary, files: img.files, publicImages: img.publicImages, categoryName, contentKey },
+    { n, at: new Date().toISOString(), via: 'modify', way: 'modify', previousStatus: t.market_status || null, itemIds: merged.itemIds.map(x => x.id) })
+  console.info(`[marketplace] 지그재그 상품 갱신 ${ctx.userId} send=${t.id} product=${id} 회차=${n} 품목 ${merged.itemIds.length}개(기존 id ${merged.itemIds.filter(x => x.id).length}) 더 있는 상품=${found.extra}`)
+  return res.status(200).json({ sendId: t.id, productId: id, sellerProductId: id, status: t.status, updated: true, way: 'modify', revision: n, extra: found.extra, display: built.input.display_status })
+}
+async function zigzagSend(ctx, body, res) {
+  const ex = await loadOwnedExport(ctx, body, res)
+  if (!ex) return
+  const input = zigzagInput(body)
+  const pre = buildZigzagProduct({ ...input, repUrl: '-', detailUrls: ['-'] }) // 입력 검사를 지그재그를 부르기 전에
+  if (!pre.ok) return sendError(res, 400, 'invalid_input', pre.message)
+  const rep = await squareFromImage(ctx, ex, body.repImageId, body.fit)
+  if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)
+  if (await sendInProgress(ctx, ex.id, ZIGZAG)) return sendError(res, 409, 'send_in_progress', SEND_IN_PROGRESS_MESSAGE)
+  const cred = await zigzagCredentials(ctx, res)
+  if (!cred) return
+  // 다시 보내기 — 이 스토어에 살아 있는 같은 상품이 있으면 새로 등록하지 않고 갱신한다 (계정 식별값 = 스토어 ID)
+  const found = await findUpdateTarget(ctx, res, { market: ZIGZAG, exportId: ex.id, account: cred.shopId, owner: s => zigzagOwner(cred, s) })
+  if (!found) return
+  if (found.mode === 'modify') return await zigzagUpdate(ctx, res, { cred, input, ex, rep, body, found })
+
+  let created
+  try {
+    created = await sb(ctx.cfg, 'marketplace_sends?select=id', { method: 'POST', body: { user_id: ctx.userId, export_id: ex.id, market: ZIGZAG, status: 'sending', request_json: {} }, prefer: 'return=representation' })
+  } catch (e) {
+    if (isSchemaGap(e)) {
+      console.error(`[marketplace] 지그재그 전송 기록 실패 — marketplace_sends market 규칙에 zigzag 없음(${ZIGZAG_SQL} 실행 필요):`, e.message)
+      return sendError(res, 503, 'marketplace_sql_missing', NOT_READY_MESSAGE)
+    }
+    throw e
+  }
+  const sendId = created?.[0]?.id
+  if (!sendId) throw new Error('marketplace_sends insert: id 없음')
+  const fail = async (status, code, message, extra = {}) => {
+    await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { status: 'failed', reason: message.slice(0, 2000), ...extra }, prefer: 'return=minimal' }).catch(e => console.error('[marketplace] 실패 기록도 못 남김:', sendId, e.message))
+    return sendError(res, status, code, message)
+  }
+  const img = await zigzagImages(ctx, { ex, rep, repName: `${sendId}_rep.jpg` })
+  if (!img.ok) return fail(img.status, img.code, img.message, img.extra)
+  const built = buildZigzagProduct({ ...input, repUrl: img.urls.rep, detailUrls: ex.files.map(f => img.urls[f.key]), exportId: ex.id, auditor: zigzagAuditor(ctx) })
+  if (!built.ok) return fail(400, 'invalid_input', built.message)
+  const cmp = buildZigzagProduct({ ...input, repUrl: '-', detailUrls: ex.files.map(() => '-'), exportId: ex.id })
+  const categoryName = typeof body.categoryName === 'string' ? body.categoryName.slice(0, 300) : null
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', prefer: 'return=minimal', body: { request_json: { input: built.input, summary: built.summary, files: img.files, publicImages: img.publicImages, categoryName, contentKey: zigzagContentKey(cmp.input, zigzagSources(ex, rep)) } } })
+  let data
+  try { data = await zigzagCall(cred, { query: ZQ.create, variables: { input: built.input } }) } catch (e) {
+    if (!(e instanceof ZigzagError)) throw e
+    if (e.code === 'zigzag_not_ready') console.error('[marketplace] 지그재그 등록: KAKAOSTYLE_X_SOLUTION 환경변수 없음')
+    else console.warn(`[marketplace] 지그재그 등록 실패 ${e.code} (HTTP ${e.status}) send=${sendId}: ${e.raw}`)
+    return fail(e.status === 429 ? 429 : 502, e.code, e.message, { result_json: { code: e.code, status: e.status, step: 'product', raw: e.raw } })
+  }
+  const productId = data?.createProduct != null ? String(data.createProduct) : ''
+  if (!/^\d{1,20}$/.test(productId)) {
+    console.error('[marketplace] 지그재그 등록 응답의 상품 ID가 숫자가 아님(seller_product_id 규칙 밖):', sendId, productId.slice(0, 60))
+    return fail(502, 'market_bad_json', '판매처가 상품 번호를 주지 않았습니다. 파트너센터에서 상품이 등록되었는지 확인하세요.', { result_json: { code: 'market_bad_json', step: 'product', productId: productId.slice(0, 60) } })
+  }
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { seller_product_id: productId, status: 'registered', result_json: { productId, display: built.input.display_status } }, prefer: 'return=minimal' })
+  await recordSendAccount(ctx, sendId, cred.shopId)
+  console.info(`[marketplace] 지그재그 상품 등록 ${ctx.userId} send=${sendId} product=${productId} 품목 ${built.input.item_list.length}개 images=${ex.files.length + 1}`)
+  return res.status(200).json({ sendId, productId, sellerProductId: productId, status: 'registered', display: built.input.display_status })
+}
+
 async function disconnectElevenst(ctx, body, res) {
   await sb(ctx.cfg, `marketplace_accounts?user_id=eq.${ctx.userId}&market=eq.${ELEVENST}`, { method: 'DELETE', prefer: 'return=minimal' })
   return marketStatus(ctx, body, res)
@@ -1736,12 +2000,12 @@ async function updateCoupang(ctx, res, { cred, prev, sendId, requestJson, plan, 
 const LIST_SELECT = [
   'id', 'export_id', 'market', 'seller_product_id', 'status', 'market_status', 'market_account', 'reason', 'approval_requested_at', 'last_synced_at', 'created_at', 'updated_at',
   'nm_coupang:request_json->body->>sellerProductName', 'nm_cafe24:request_json->body->request->>product_name',
-  'nm_smartstore:request_json->body->originProduct->>name', 'nm_11st:request_json->summary->>prdNm',
+  'nm_smartstore:request_json->body->originProduct->>name', 'nm_11st:request_json->summary->>prdNm', 'nm_zigzag:request_json->input->>name',
   'category_name:request_json->>categoryName', 'revisions:request_json->revisions', 'mall_id:request_json->>mallId',
   'c24_display:request_json->body->request->>display', 'ss_display:request_json->body->smartstoreChannelProduct->>channelProductDisplayStatusType',
   'channel_product_no:result_json->>channelProductNo',
 ].join(',')
-const NAME_COL = { [MARKET]: 'nm_coupang', [CAFE24]: 'nm_cafe24', [SMARTSTORE]: 'nm_smartstore', [ELEVENST]: 'nm_11st' }
+const NAME_COL = { [MARKET]: 'nm_coupang', [CAFE24]: 'nm_cafe24', [SMARTSTORE]: 'nm_smartstore', [ELEVENST]: 'nm_11st', [ZIGZAG]: 'nm_zigzag' }
 /** @param {object} s 목록 줄 · @param {object} accounts 판매처 → 지금 연결된 계정 식별값 (accountJudge 'other'면 accountMismatch) */
 function publicSend(s, accounts = {}) {
   const market = s.market || MARKET
@@ -1765,7 +2029,7 @@ function publicSend(s, accounts = {}) {
 // 화면이 상품별로 묶고 상태 카드 숫자·거르기·검색을 하므로 기록 전부가 필요하다. 쪽 경계에서 같은 줄이 두 번 오면 하나만
 async function loadSends(ctx) {
   // 카페24 기록은 관리자·스태프에게만 (2026-10-01 카페24 고객에게 숨김 — 기록은 DB에 그대로)
-  const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE},${ELEVENST}` : `${MARKET},${SMARTSTORE},${ELEVENST}`
+  const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE},${ELEVENST},${ZIGZAG}` : `${MARKET},${SMARTSTORE},${ELEVENST},${ZIGZAG}`
   const accounts = await currentAccounts(ctx)
   const byId = new Map()
   for (let page = 0; page < LIST_PAGES_MAX; page++) {
@@ -2071,7 +2335,63 @@ async function checkElevenst(ctx, rows, errors) {
   await touchSynced(ctx, quiet)
   return codes.length > ELEVENST_LOOKUP_MAX ? 'partial' : 'done'
 }
-const CHECKERS = { [MARKET]: checkCoupang, [SMARTSTORE]: checkSmartstore, [ELEVENST]: checkElevenst }
+/**
+ * 지그재그 (2026-10-02) — 간략화된 상품 기본정보 목록(product_summary_list — 문서: DIRECT 샵 전용, 한 번에 최대 100개) 1번
+ *   목록에 없는 상품은 같은 계정(스토어 ID)일 때만 상품 조회(product — 없으면 null)를 하나씩(ZIGZAG_SINGLE_MAX까지) → null = 삭제됨
+ *   상태: CLOSED(문서 "삭제") = 삭제됨 · 그 밖 = 등록 완료 + 원문 "판매중 · 노출" 등 (api/_zigzagFields.js zigzagStatusOf)
+ *   계정 기록이 없는 예전 기록은 목록(이 스토어 키)에 나오면 이 스토어 상품 → 계정 채우고 판정 · 안 나오면 판정 안 함
+ * @returns {'done'|'partial'|'stopped'}
+ */
+async function checkZigzag(ctx, rows, errors) {
+  const sink = errorSink()
+  const cred = await zigzagCredentials(ctx, sink)
+  if (!cred) { errors.push({ market: ZIGZAG, ...sink.error }); return 'stopped' }
+  const account = cred.shopId
+  const judge = s => accountJudge(s.market_account, account)
+  const quiet = rows.filter(s => judge(s) === 'other').map(s => s.id)
+  const mine = rows.filter(s => judge(s) !== 'other').slice(0, Z_SUMMARY_MAX)
+  if (!mine.length) { await touchSynced(ctx, quiet); return 'done' }
+  let found
+  try {
+    const d = await zigzagCall(cred, { query: ZQ.summary, variables: { input: { product_id_list: mine.map(s => String(s.seller_product_id)) } } })
+    found = new Map((d?.product_summary_list?.item_list || []).filter(p => p?.id != null).map(p => [String(p.id), p]))
+  } catch (e) {
+    if (!(e instanceof ZigzagError)) throw e
+    console.warn('[marketplace] 지그재그 상품 목록 조회 실패:', e.code, e.status, e.raw)
+    errors.push({ market: ZIGZAG, code: e.code, message: e.message })
+    await touchSynced(ctx, quiet)
+    return 'stopped'
+  }
+  let singles = 0, partial = rows.filter(s => judge(s) !== 'other').length > Z_SUMMARY_MAX
+  for (const s of mine) {
+    let p = found.get(String(s.seller_product_id)) || null
+    if (p && account && judge(s) === 'unknown') { await recordSendAccount(ctx, s.id, account); s.market_account = account }
+    const same = judge(s) === 'same'
+    if (!p) {
+      if (!same) { quiet.push(s.id); continue } // 계정 기록이 없으면 "없음"으로 삭제를 판정하지 않는다
+      if (singles >= ZIGZAG_SINGLE_MAX) { partial = true; continue }
+      singles++
+      try {
+        p = (await zigzagCall(cred, { query: ZQ.product, variables: { id: String(s.seller_product_id) } })).product || { sales_status: 'CLOSED' } // 문서: 상품이 없으면 null
+      } catch (e) {
+        if (!(e instanceof ZigzagError)) throw e
+        console.warn('[marketplace] 지그재그 상품 조회 실패:', s.seller_product_id, e.code, e.status, e.raw)
+        errors.push({ market: ZIGZAG, id: s.id, code: e.code, message: e.message })
+        if (STOP_CODES.includes(e.code)) { await touchSynced(ctx, quiet); return 'stopped' }
+        quiet.push(s.id)
+        continue
+      }
+    }
+    const next = zigzagStatusOf(p.sales_status, p.display_status)
+    if (!next) { console.warn('[marketplace] 지그재그 상태 값을 모름 (기록 그대로):', s.seller_product_id, p.sales_status); quiet.push(s.id); continue }
+    if (next.status === DELETED && !same) { quiet.push(s.id); continue }
+    if (next.status === s.status && next.raw === s.market_status) quiet.push(s.id)
+    else await patchSend(ctx, s.id, { status: next.status, market_status: next.raw, last_synced_at: new Date().toISOString() })
+  }
+  await touchSynced(ctx, quiet)
+  return partial ? 'partial' : 'done'
+}
+const CHECKERS = { [MARKET]: checkCoupang, [SMARTSTORE]: checkSmartstore, [ELEVENST]: checkElevenst, [ZIGZAG]: checkZigzag }
 async function checkMarket(ctx, market, since, errors) {
   const batch = CHECK_BATCH[market]
   const or = encodeURIComponent(`(last_synced_at.is.null,last_synced_at.lt."${since}")`)
@@ -2190,7 +2510,11 @@ export default async function handler(req, res) {
     if (body.action === 'elevenst_categories') return await elevenstCategories(ctx, body, res)
     if (body.action === 'elevenst_addresses') return await elevenstAddresses(ctx, body, res)
     if (body.action === 'elevenst_send') return await elevenstSend(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'status'·'connect'·'disconnect'·'refresh_places'·'templates_list'·'template_save'·'template_delete'·'send_prepare'·'category_predict'·'brand_search'·'category_meta'·'send'·'sends_list'·'sync'·'market_status'·'connect_11st'·'disconnect_11st'·'connect_smartstore'·'disconnect_smartstore'·'cafe24_begin'·'cafe24_launch'·'cafe24_finish'·'disconnect_cafe24'·'cafe24_categories'·'cafe24_send'·'smartstore_categories'·'smartstore_addresses'·'smartstore_send'·'elevenst_categories'·'elevenst_addresses'·'elevenst_send' 중 하나여야 합니다.")
+    if (body.action === 'connect_zigzag') return await connectZigzag(ctx, body, res)
+    if (body.action === 'disconnect_zigzag') return await disconnectZigzag(ctx, body, res)
+    if (body.action === 'zigzag_meta') return await zigzagMeta(ctx, body, res)
+    if (body.action === 'zigzag_send') return await zigzagSend(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'status'·'connect'·'disconnect'·'refresh_places'·'templates_list'·'template_save'·'template_delete'·'send_prepare'·'category_predict'·'brand_search'·'category_meta'·'send'·'sends_list'·'sync'·'market_status'·'connect_11st'·'disconnect_11st'·'connect_smartstore'·'disconnect_smartstore'·'cafe24_begin'·'cafe24_launch'·'cafe24_finish'·'disconnect_cafe24'·'cafe24_categories'·'cafe24_send'·'smartstore_categories'·'smartstore_addresses'·'smartstore_send'·'elevenst_categories'·'elevenst_addresses'·'elevenst_send'·'connect_zigzag'·'disconnect_zigzag'·'zigzag_meta'·'zigzag_send' 중 하나여야 합니다.")
   } catch (e) {
     if (e?.status === 404 || e?.status === 401 || e?.status === 403) {
       console.error(`[marketplace] ${body.action} 표를 쓸 수 없음(GRANT·표 — docs/sql/2026-09-28-marketplace-coupang.sql):`, e.message)

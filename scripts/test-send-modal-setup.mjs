@@ -39,6 +39,7 @@ const stubPlugin = {
       export const listCafe24Categories = never, sendCafe24Product = never, isNotReady = () => false
       export const listSmartstoreCategories = never, listSmartstoreAddresses = never, sendSmartstoreProduct = never
       export const listElevenstCategories = never, listElevenstAddresses = never, sendElevenstProduct = never
+      export const getZigzagMeta = never, sendZigzagProduct = never
       export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료', rejected: '반려', failed: '실패' }`
     return null
   },

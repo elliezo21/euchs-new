@@ -1,0 +1,15 @@
+# 출처: https://zigzag.kr/_openapi/docs/api-shop (2026-10-02 내려받아 HTML 태그만 뺀 본문 — 근거 보관용)
+
+
+
+
+
+스토어 | 카카오스타일 오픈 API
+
+
+
+
+본문으로 건너뛰기문서API기본API상수주문/배송요청 처리(취소/반품/교환)정산카테고리스토어상품상품 문의주문 문의리뷰API스토어이 페이지에서스토어스토어 정보 조회​스토어 정보​shop_id: 스토어 고유 IDshop_name: 스토어 이름allowed_brand_list: 허용된 브랜드 목록brand_id: 브랜드 고유 IDbrand_name: 브랜드 이름site_country_list: 스토어 판매 가능 채널 목록site: 판매채널 (ex. ZIGZAG, POSTY 등...)site_name: 판매채널 이름country_code: 판매국가 (ex. JP, KR, US, CA)attribute_list: 스토어 속성 목록site: 판매채널 (ex. ZIGZAG, POSTY 등...)country_code: 판매국가 (ex. JP, KR, US, CA)key: 속성 키, value: 속성 값복합과세자 key: COMPLEX_TAX_BUSINESS, value: NORMAL해외구매대행 key: OVERSEAS_PURCHASING_AGENCY, value: TRUE스토어가 특정 속성을 갖는지 확인하려면, attribute_list 에 해당하는 key & value 조합을 갖는 데이터가 있는지 확인하여 판별 가능합니다.스토어 속성은 판매 채널 및 국가 코드별로 존재합니다.필요 권한: GET-PRODUCTQuery.shop 스토어의 정보를 조회합니다.질의문 예제​query GetShop {  shop {    shop_id    shop_name    allowed_brand_list {      brand_id      brand_name    }    site_country_list {      site      site_name      country_code      country_name    }    attribute_list {      site      country_code      key      value    }  }}스토어 배송주소록 조회​필요 권한: GET-PRODUCTQuery.shop_shipping_address_list 는 출고지 와 반품지로 사용되는 배송지 정보를 조회합니다.total_count: 스토어 배송지 총 갯수id: 스토어 배송지 고유 IDshop_id: 스토어 고유 IDname: 배송템플릿 이름postcode: 우편번호address: 주소address_detail: 상세주소shipping_company: 택배사is_goodsflow: 굿스플로 연동 유무is_default: 기본 배송지is_product_sync: 연동형 상품에 사용되는 배송지인자 설명​조회할 배송지 갯수를 다음 인자로 설정할 수 있습니다.limit_count: 한번에 조회할 배송지 갯수. (최대값 50, 기본값 10)skip_count: 주어진 수 만큼의 데이터를 건너뛰고 반환합니다.질의문 예제​query shop_shipping_address_list($limit_count: Int, $skip_count: Int) {  shop_shipping_address_list(limit_count: $limit_count, skip_count: $skip_count) {    total_count    item_list {      id      shop_id      name      postcode      address      address_detail      shipping_company      is_goodsflow      is_default      is_product_sync    }  }}허용된 브랜드 목록 조회 (deprecated, 스토어 정보 조회를 사용해주세요.)​필요 권한: GET-PRODUCTQuery.allowed_brand_list는 허용된 브랜드 목록을 조회합니다.질의문 예제​query GetAllowedBrandList {  allowed_brand_list {    brand_id    brand_name  }}스토어 판매 가능 채널 목록 조회 (deprecated, 스토어 정보 조회를 사용해주세요.)​필요 권한: GET-PRODUCTQuery.site_country_list 스토어 판매 가능 채널 목록을 조회합니다.질의문 예제​query GetSiteCountryList {  site_country_list {    site    site_name    country_code    country_name  }}이전카테고리다음상품스토어 정보 조회스토어 정보질의문 예제스토어 배송주소록 조회인자 설명질의문 예제허용된 브랜드 목록 조회 (deprecated, 스토어 정보 조회를 사용해주세요.)질의문 예제스토어 판매 가능 채널 목록 조회 (deprecated, 스토어 정보 조회를 사용해주세요.)질의문 예제Copyright © 2033 Kakaostyle Corp.
+
+
+

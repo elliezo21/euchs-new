@@ -116,7 +116,7 @@ if (built?.SendList) {
   eq('예전 목록 아래 오류 줄 없음', !!a.el.querySelector('[data-sl-check-error]'), false)
   // 카페24 (운영 중단 off) — 관리자로 붙였는데도 없음
   const optionTexts = [...a.el.querySelectorAll('[data-sl-filter-market] option')].map(o => o.textContent.trim())
-  eq('카페24: 관리자·스태프에게도 판매처 필터·칩·화면 글자에 없음 · [판매처에서 보기] 없음', [optionTexts, a.el.querySelectorAll('[data-sl-chip="cafe24"]').length, /카페24/.test(text(a.el)), !!a.el.querySelector('[data-mk-send-admin]'), /판매처에서 보기/.test(text(a.el))], [['전체', '쿠팡', '스마트스토어', '11번가'], 0, false, false, false])
+  eq('카페24: 관리자·스태프에게도 판매처 필터·칩·화면 글자에 없음 · [판매처에서 보기] 없음', [optionTexts, a.el.querySelectorAll('[data-sl-chip="cafe24"]').length, /카페24/.test(text(a.el)), !!a.el.querySelector('[data-mk-send-admin]'), /판매처에서 보기/.test(text(a.el))], [['전체', '쿠팡', '스마트스토어', '11번가', '지그재그'], 0, false, false, false])
   const cardNum = key => text(a.el.querySelector(`[data-sl-status-card="${key}"] .sl-card-num`))
   eq('카페24: 상태 카드 숫자에서 빠짐 (전체 2 · 완료 2) · 상품 수 2개', [cardNum('all'), cardNum('done'), text(a.el.querySelector('[data-sl-count]'))], ['2', '2', '상품 2개'])
   const checkedAtText = text(a.el.querySelector('[data-sl-checked-at]'))

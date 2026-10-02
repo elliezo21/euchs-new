@@ -1,0 +1,5 @@
+# 출처: https://zigzag.kr/_openapi/docs/request (2026-10-02 내려받아 HTML 태그만 뺀 본문 — 근거 보관용)
+
+API 호출하기 | 카카오스타일 오픈 API
+본문으로 건너뛰기문서API기본기본 정보HistoryAPI 호출하기API 인증하기OPEN API FAQAPI기본API 호출하기이 페이지에서API 호출하기카카오스타일 Open API는 GraphQL을 사용하며 HTTP 프로토콜로 통신합니다.요청​HTTP 메소드: POSTURL: https://openapi.zigzag.kr/1/graphqlDev URL: https://openapi.alpha.zigzag.kr/1/graphqlHeaderContent-Type: application/jsonbody: query, variables를 포함한 JSON 객체다음은 호출 예입니다.curl -H "Content-Type: application/json" -X POST -d " \ { \   \"query\": \"query { hello { message }}\" ,\   \"variables\": \"{}\" \ } \" https://openapi.zigzag.kr/1/graphql응답​성공시에는 data 속성에 결과가 담겨 반환됩니다.{  "data": {    "hello": {      "message": "welcome to zigzag open api"    }  }}에러가 발생한 경우 errors 속성(배열)에 에러가 담겨 반한됩니다.{  "errors": [    {      "message": "error_message_string"    }  ],  "data": null}노트​모든 시각은 CrTimestamp 스칼라 타입을 사용합니다.
+이 타입은 밀리초 단위의 UTC 시각을 값으로 가집니다.이전History다음API 인증하기요청응답노트Copyright © 2033 Kakaostyle Corp.

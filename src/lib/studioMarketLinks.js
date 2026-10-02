@@ -1,5 +1,5 @@
 /**
- * 11번가·스마트스토어·카페24 연결 상태 (2026-09-30) — 판매처 > 연결 탭과 > 보내기 탭·보내기 창이 같이 본다 (서버 action market_status 한 번)
+ * 11번가·스마트스토어·카페24·지그재그(2026-10-02) 연결 상태 (2026-09-30) — 판매처 > 연결 탭과 > 보내기 탭·보내기 창이 같이 본다 (서버 action market_status 한 번)
  * 로그인 전에는 부르지 않는다. 로그아웃(euchs-auth-changed)이면 비우고, 로그인이면 다시 읽는다 (CLAUDE.md 2-9)
  */
 import { reactive, computed, watch, effectScope } from 'vue'
@@ -8,7 +8,7 @@ import { getMarketLinks, isNotReady } from '@/lib/studioMarketplace'
 import { linkPhase, NOT_CUSTOMER } from '@/lib/studioMarketplaceRules'
 
 const OFF = () => ({ connected: false, account: null })
-const blank = () => ({ loaded: false, loading: false, error: '', code: '', soft: false, elevenst: OFF(), smartstore: OFF(), cafe24: OFF() })
+const blank = () => ({ loaded: false, loading: false, error: '', code: '', soft: false, elevenst: OFF(), smartstore: OFF(), cafe24: OFF(), zigzag: OFF() })
 // loaded: 한 번이라도 읽음 · error: 못 읽은 이유(고객 문구) · code: 못 읽은 서버 코드(not_customer = 주문 자격 없음) · soft: 우리 쪽 준비 문제(회색)
 export const marketLinks = reactive(blank())
 /** 카드·보내기 줄 표시 단계 (studioMarketplaceRules.linkPhase) — 'ready'가 아니면 "연결 전"·[연결하기]를 그리지 않는다 */
@@ -40,6 +40,7 @@ export function applyMarketLinks(d) {
   marketLinks.elevenst = d.elevenst || OFF()
   marketLinks.smartstore = d.smartstore || OFF()
   marketLinks.cafe24 = d.cafe24 || OFF()
+  marketLinks.zigzag = d.zigzag || OFF()
   marketLinks.loaded = true
   marketLinks.error = ''
   marketLinks.code = ''
@@ -85,5 +86,6 @@ export function linkStates(coupangConnected) {
     '11st': { connected: marketLinks.elevenst?.connected === true },
     smartstore: { connected: marketLinks.smartstore?.connected === true },
     cafe24: { connected: marketLinks.cafe24?.connected === true },
+    zigzag: { connected: marketLinks.zigzag?.connected === true },
   }
 }

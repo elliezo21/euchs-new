@@ -1,0 +1,4131 @@
+type Query {
+  """카카오스타일 open api."""
+  hello: Hello!
+
+  """주문 목록을 반환한다."""
+  order_item_list(
+    """[from] 주문생성일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_ymd_from: Int
+
+    """[to] 주문생성일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_ymd_to: Int
+
+    """[from] 주문생성일 기준의 날짜 검색 옵션"""
+    date_from: CrTimestamp
+
+    """[to] 주문생성일 기준의 날짜 검색 옵션"""
+    date_to: CrTimestamp
+
+    """[from] 결제일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_paid_ymd_from: Int
+
+    """[to] 결제일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_paid_ymd_to: Int
+
+    """[from] 배송준비중 처리일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_marked_awaiting_shipment_ymd_from: Int
+
+    """[to] 배송준비중 처리일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_marked_awaiting_shipment_ymd_to: Int
+
+    """[from] 배송중 처리일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_marked_in_transit_ymd_from: Int
+
+    """[to] 배송중 처리일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_marked_in_transit_ymd_to: Int
+
+    """[from] 배송완료 처리일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_shipped_ymd_from: Int
+
+    """[to] 배송완료 처리일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_shipped_ymd_to: Int
+
+    """[from] 구매확정 처리일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_confirmed_ymd_from: Int
+
+    """[to] 구매확정 처리일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_confirmed_ymd_to: Int
+
+    """[from] 환불완료일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_refunded_ymd_from: Int
+
+    """[to] 환불완료일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_refunded_ymd_to: Int
+
+    """[from] 발송지시일 기준의 날짜 검색 옵션"""
+    date_shipment_process_requested_from: CrTimestamp
+
+    """[to] 발송지시일 기준의 날짜 검색 옵션"""
+    date_shipment_process_requested_to: CrTimestamp
+
+    """주문 아이템 번호 목록"""
+    order_item_number_list: [String!]
+
+    """주문번호"""
+    order_number: String
+
+    """주문 아이템 상태"""
+    status: OrderItemStatus
+
+    """취소 철회 목록 검색 옵션"""
+    is_withdrawn_cancel_list: Boolean
+
+    """목록 개수 제한"""
+    limit_count: Int
+
+    """주어진 수의 레코드를 건너띄고 반환한다"""
+    skip_count: Int
+
+    """상품의 배송 타입"""
+    fulfillment_type: OrderFulfillmentSearchType
+
+    """사이트 필터"""
+    site: Site
+  ): OrderItemList!
+
+  """주문 목록을 반환한다."""
+  zigzin_order_item_list(
+    """[from] 주문생성일 기준의 날짜 검색 옵션"""
+    date_from: CrTimestamp
+
+    """[to] 주문생성일 기준의 날짜 검색 옵션"""
+    date_to: CrTimestamp
+
+    """주문 아이템 번호 목록"""
+    order_item_number_list: [String!]
+
+    """주문번호"""
+    order_number: String
+
+    """주문 아이템 상태"""
+    status: OrderItemStatus
+
+    """목록 개수 제한"""
+    limit_count: Int!
+
+    """주어진 수의 레코드를 건너띄고 반환한다"""
+    skip_count: Int!
+  ): ZigzinOrderItemList!
+
+  """취소,반품 요청이 있는 주문 목록을 반환한다."""
+  requested_order_item_list(
+    """[from] 취소/반품 요청일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_requested_ymd_from: Int
+
+    """[to] 취소/반품 요청일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_requested_ymd_to: Int
+
+    """[from] 취소/반품 요청일 기준의 날짜 검색 옵션"""
+    date_requested_from: CrTimestamp
+
+    """[to] 취소/반품 요청일 기준의 날짜 검색 옵션"""
+    date_requested_to: CrTimestamp
+
+    """[from] 반품수거중 처리일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_marked_return_collecting_ymd_from: Int
+
+    """[to] 반품수거중 처리일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_marked_return_collecting_ymd_to: Int
+
+    """[from] 반품수거완료일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_marked_return_collected_ymd_from: Int
+
+    """[to] 반품수거완료일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_marked_return_collected_ymd_to: Int
+
+    """[from] 취소/반품 완료일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_request_completed_ymd_from: Int
+
+    """[to] 취소/반품 완료일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_request_completed_ymd_to: Int
+
+    """아이템에 대한 요청의 종류"""
+    request_type: OrderItemRequestType
+
+    """아이템에 대한 요청의 상태"""
+    request_status: OrderItemRequestStatus
+
+    """목록 개수 제한"""
+    limit_count: Int
+
+    """주어진 수의 레코드를 건너띄고 반환한다"""
+    skip_count: Int
+
+    """상품의 배송 타입"""
+    fulfillment_type: OrderFulfillmentSearchType
+
+    """
+    반품/교환비용 지불방식을 "바로결제" 로 선택 후 유저의 결제를 대기중인 경우, 해당 바로결제 대기 상태의 상품주문을 조회할지 여부
+    - true: 해당 바로결제 대기 상태의 상품주문만을 조회
+    - false: 해당 바로결제 대기 상태의 상품주문을 제외한 상품주문을 조회
+      - 해당 인자 선언 없을 시, 기본 값 false
+    """
+    is_awaiting_additional_payment: Boolean
+
+    """보류 여부"""
+    is_deferred: Boolean
+  ): OrderItemList!
+
+  """교환 주문 목록을 반환한다."""
+  exchange_new_order_item_list(
+    """[from] 주문생성일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_ymd_from: Int
+
+    """[to] 주문생성일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_ymd_to: Int
+
+    """[from] 교환 요청일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_requested_ymd_from: Int
+
+    """[to] 교환 요청일 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_requested_ymd_to: Int
+
+    """교환 주문 아이템 번호 목록"""
+    order_item_number_list: [String!]
+
+    """주문번호"""
+    order_number: String
+
+    """교환 주문 아이템 상태"""
+    status: ExchangeOrderItemStatus
+
+    """목록 개수 제한"""
+    limit_count: Int
+
+    """주어진 수의 레코드를 건너띄고 반환한다"""
+    skip_count: Int
+  ): ExchangeOrderItemList!
+  zigzin_return_order_qc_item_list(
+    """[from] 반품검수 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_marked_return_qc_ymd_goe: Int!
+
+    """[to] 반품검수 기준의 날짜 검색 옵션 (yyyymmdd 기준으로 검색)"""
+    date_marked_return_qc_ymd_lt: Int!
+
+    """목록 개수 제한"""
+    limit_count: Int!
+
+    """주어진 수의 레코드를 건너띄고 반환한다"""
+    skip_count: Int!
+  ): ZigzinReturnOrderQcItemList
+
+  """카테고리 정보를 반환한다."""
+  category: Category!
+
+  """상품 필수정보제공고시 템플릿을 조회한다."""
+  getAllEssentialTemplate: [CategoryEssentialTemplate!]!
+
+  """id에 해당하는 주문 상품 문의 정보를 받는다."""
+  order_item_inquiry(
+    """상품 문의 ID"""
+    id: ID!
+  ): OrderItemInquiry!
+
+  """
+  주어진 조건 모두에 일치하는 주문 상품 문의 목록을 받는다.
+  조건이 주어지지 않으면 모든 주문 상품 문의 목록을 반환한다. (default limit count: 100)
+  """
+  order_item_inquiry_list(
+    """날짜 검색 옵션 - from (date_created를 기준으로 검색한다)"""
+    date_from: CrTimestamp
+
+    """날짜 검색 옵션 - to (date_created를 기준으로 검색한다)"""
+    date_to: CrTimestamp
+
+    """최대 개수 (default: 100)"""
+    limit_count: Int
+
+    """건너뛰는 개수"""
+    skip_count: Int
+
+    """주문 상품 문의 타입"""
+    type: OrderItemInquiryType
+
+    """삭제된 문의를 포함한다"""
+    include_deleted: Boolean
+  ): OrderItemInquiryList!
+  product_question(id: ID!): ProductQuestion
+  product_question_list(limit_count: Int, skip_count: Int, date_created_gte: CrTimestamp, date_created_lte: CrTimestamp): ProductQuestionList!
+
+  """상품 목록을 반환한다"""
+  product_list: ProductList!
+
+  """상품 정보를 반환한다. 상품이 없으면 null을 반환한다."""
+  product(id: ID!): Product
+
+  """조건에 해당하는 상품 ID를 반환한다."""
+  getProductId(
+    """호스팅사(cafe24, makeshop등)  product_no"""
+    external_product_id: String!
+  ): ID
+
+  """외부 상품과의 리뷰 매핑 정보를 조회한다."""
+  product_review_relation_list(input: OpenApiProductReviewRelationListInput, paginationInput: OpenApiPaginationInput!): OpenApiProductReviewRelationList!
+
+  """사이즈 카테고리를 조회한다."""
+  size_category_list: [SizeCategory!]!
+
+  """간략화된 상품 기본정보 목록을 반환한다. DIRECT 샵 전용이며, 아이템(item) 정보는 포함하지 않는다."""
+  product_summary_list(input: ProductSummaryListInput!): ProductSummaryList!
+
+  """승인된 브랜드 목록을 조회한다."""
+  allowed_brand_list: [ShopAllowedBrandForOpenApi!]! @deprecated(reason: "shop 을 사용해주세요")
+
+  """판매 가능한 채널 목록을 조회한다."""
+  site_country_list: [ShopSiteCountryForOpenApi!]! @deprecated(reason: "shop 을 사용해주세요")
+
+  """access key 를 통한 스토어 정보 조회"""
+  shop: ShopForOpenApi
+
+  """배송지 조회"""
+  shop_shipping_address_list(
+    """
+    반환할 최대 갯수
+    - Default: 10
+    - Max: 50
+    """
+    limit_count: Int
+
+    """건너뛸 갯수"""
+    skip_count: Int
+  ): ShopShippingAddressList!
+  product_review_list(input: ProductReviewListInput!, pagination: ProductReviewCursorPaginationInput!, order: ProductReviewListOrderType): ProductReviewList!
+
+  """
+  주어진 조건 모두에 일치하는 주문 정산 아이템 목록을 반환한다.
+  조건이 주어지지 않으면 모든 주문 정산 아이템을 반환한다.
+  """
+  order_settlement_item_list(
+    """날짜 검색 옵션"""
+    date_query_options: OrderSettlementItemListDateQueryOptions
+
+    """목록 개수 제한"""
+    limit_count: Int
+
+    """주어진 수의 레코드를 건너띄고 반환한다"""
+    skip_count: Int
+  ): OrderSettlementItemList!
+
+  """주어진 조건에 해당하는 스토어 정산 정보를 반환한다."""
+  order_settlement_shop_list(
+    """쇼핑몰 아이디"""
+    shop_id: ID
+
+    """날짜 검색 옵션"""
+    date_query_options: OrderSettlementShopDateQueryOptions
+
+    """limit_count"""
+    limit_count: Int
+
+    """skip_count"""
+    skip_count: Int
+  ): OrderSettlementShopList!
+}
+
+type Mutation {
+  """
+  해당 주문 아이템 목록의 상태를 '배송 대기중'으로 변경한다.
+  [error_code]
+  - order_item_not_found: 해당하는 조건의 주문 아이템을 찾을 수 없는 경우
+  - order_item_invalid_status: 주문완료/배송중 상태가 아닌 주문 아이템이 포함된 경우
+  - order_item_already_requested: 이미 활성화된 요청(e.g 취소/반품 요청)이 있는 주문 아이템이 포함된 경우
+  - invalid_parameter: 주문 아이템 목록이 500개를 초과하는 경우
+  """
+  markOrderItemListAsAwaitingShipment(input: MarkOrderItemListAsAwaitingShipmentInput!): Boolean!
+
+  """
+  해당 주문 아이템 목록의 운송장 정보를 등록한다.
+  [error_code]
+  - order_item_not_found: 해당 조건의 주문 아이템이 없는 경우
+  - order_item_invalid_status: 주문완료/배송 대기중 외 상태의 주문 아이템이 포함된 경우
+  - order_item_already_requested: 요청(e.g 취소)중인 주문 아이템이 포함된 경우
+  """
+  updateInvoiceOfOrderItemList(input: UpdateInvoiceOfOrderItemListInput!): Boolean!
+
+  """
+  해당 주문 아이템 목록의 상태를 '반품 수거중'으로 변경한다.
+  [error_code]
+  - order_item_not_found: 해당하는 조건의 주문 아이템을 찾을 수 없는 경우
+  - order_item_invalid_status: 배송중/배송완료 상태가 아닌 주문 아이템이 포함된 경우
+  - order_item_not_requested: 반품 요청이 되지 않은 주문 아이템이 포함된 경우
+  """
+  markOrderItemListAsReturnCollecting(input: MarkOrderItemListAsReturnCollectingInput!): Boolean!
+
+  """
+  해당 상품주문 목록의 상태를 '반품 수거 완료'로 변경한다.
+  [error_code]
+  - order_item_not_found: 해당하는 조건의 상품주문을 찾을 수 없는 경우
+  - order_item_invalid_status: 반품 수거중 상태가 아닌 상품주문이 포함된 경우
+  - order_item_not_requested: 반품 요청이 되지 않은 상품주문이 포함된 경우
+  """
+  markOrderItemListAsReturnCollected(input: MarkOrderItemListAsReturnCollectedInput!): Boolean!
+
+  """
+  해당 상품주문목록을 반품 완료 시키고 결제를 환불한다
+  [error_code]
+  - order_not_found: 해당하는 조건의 주문을 찾을 수 없는 경우
+  - order_item_not_found: 해당하는 조건의 상품주문을 찾을 수 없는 경우
+  - order_invalid_refund_amount: 환불할 금액이 없는 경우
+  - order_item_invalid_status: 상품주문의 상태가 요청 할 수 없는 상태인 경우
+  - user_payment_cancel_failed: 환불에 실패하였습니다. 지그재그에 문의해주세요.
+  - invalid_order_item_request_category: 요청 사유가 유효하지 않습니다. 동일한 귀책의 요청 사유인지 확인해주세요.
+  - invalid_shipping_fee_additional_charge_method: 반품비용 지불방법이 유효하지 않습니다.
+  """
+  returnAndRefundOrderItemList(input: ReturnAndRefundOrderItemListInput!): Boolean!
+
+  """
+  해당 상품주문 목록의 반품을 요청한다.
+  [error_code]
+   - order_not_found: 해당하는 조건의 주문을 찾을 수 없는 경우
+   - order_item_not_found: 해당하는 조건의 상품주문을 찾을 수 없는 경우
+   - order_item_invalid_status: 상품주문의 상태가 요청 할 수 없는 상태인 경우
+   - order_item_already_requested: 이미 다른 타입의 요청이 진행중인 상품주문이 존재하는 경우
+  """
+  requestReturnOrderItemList(input: RequestReturnOrderItemListInput!): Boolean!
+
+  """
+  아래 케이스에 해당하는 상품주문요청의 상태 진행을 보류한다.
+  1. 취소요청 -> 취소완료
+  2. 반품요청 -> 반품수거중
+  3. 반품수거완료 -> 반품완료
+  [error_code]
+  - order_not_found: 해당하는 조건의 주문을 찾을 수 없는 경우
+  - order_item_not_found: 해당 상품주문이 없는 경우
+  - invalid_order_item_request_number: 유효하지 않은 클레임요청번호 인 경우
+  """
+  deferClaimList(input: DeferClaimListInput!): Boolean!
+
+  """
+  상품주문요청 보류를 철회한다.
+  [error_code]
+  - order_not_found: 해당하는 조건의 주문을 찾을 수 없는 경우
+  - order_item_not_found: 해당 상품주문이 없는 경우
+  - order_item_request_not_deferred: 해당하는 조건의 상품주문이 보류요청이 되지 않은 경우
+  - invalid_order_item_request_number: 유효하지 않은 클레임요청번호 인 경우
+  """
+  withdrawClaimListDefer(input: WithdrawClaimListDeferInput!): Boolean!
+
+  """
+  해당 주문 아이템 목록을 취소 처리한다. (품절 취소만 가능)
+  [error_code]
+  - order_item_not_found: 해당하는 조건의 주문 아이템을 찾을 수 없는 경우
+  - order_item_invalid_status: 배송중/배송완료 상태가 아닌 주문 아이템이 포함된 경우
+  - order_item_already_requested: 요청(e.g 취소)중인 주문 아이템이 포함된 경우
+  - requested_reason_not_allowed: 품절 취소 이외의 사유가 포함된 경우
+  """
+  processOrderCancellation(input: ProcessOrderCancellationInput!): Boolean!
+
+  """
+  해당 주문 아이템 목록의 취소 요청을 승인한다.
+  [error_code]
+  - order_item_not_found: 해당하는 조건의 주문 아이템을 찾을 수 없는 경우
+  - multiple_order_not_support: 여러개의 오더를 취소 할수 없음
+  - order_item_invalid_status: 주문완료/배송중 상태가 아닌 주문 아이템이 포함된 경우
+  """
+  approveOrderCancellation(input: ApproveOrderCancellationInput!): Boolean!
+
+  """
+  해당 주문 아이템 목록의 취소 요청을 거절한다.
+  [error_code]
+  - order_item_not_found: 해당하는 조건의 주문 아이템을 찾을 수 없는 경우
+  - multiple_order_not_support: 여러개의 오더를 취소 할수 없음
+  - order_item_invalid_status: 주문완료/배송중 상태가 아닌 주문 아이템이 포함된 경우
+  """
+  rejectOrderCancellation(input: RejectOrderCancellationInput!): Boolean!
+
+  """
+  Deprecated. 반품 접수는 markOrderItemListAsReturnCollecting, 반품 완료는 returnAndRefundOrderItemList 를 사용해야 하며,
+  이 mutation은 항상 deprecated_mutation 에러를 반환한다.
+  [error_code]
+  - deprecated_mutation: deprecated된 mutation으로 더이상 지원하지 않음
+  """
+  approveOrderReturn(input: ApproveOrderReturnInput!): Boolean! @deprecated(reason: "반품 접수는 markOrderItemListAsReturnCollecting, 반품 완료는 returnAndRefundOrderItemList 로 대체. 추후 제거 예정")
+
+  """
+  해당 주문 아이템 목록의 반품 요청을 거절한다.
+  [error_code]
+  - order_item_not_found: 해당하는 조건의 주문 아이템을 찾을 수 없는 경우
+  - multiple_order_not_support: 여러개의 오더를 반품 할수 없음
+  - order_item_invalid_status: 주문완료/배송중 상태가 아닌 주문 아이템이 포함된 경우
+  """
+  rejectOrderReturn(input: RejectOrderReturnInput!): Boolean!
+
+  """
+  해당 주문 아이템 목록의 상태를 '교환 수거중'으로 변경한다.
+  [error_code]
+  - order_item_not_found: 해당하는 조건의 주문 아이템을 찾을 수 없는 경우
+  - order_item_invalid_status: 교환 요청 상태가 아닌 주문 아이템이 포함된 경우
+  - order_item_not_requested: 교환 요청이 되지 않은 주문 아이템이 포함된 경우s
+  """
+  markOrderItemListAsExchangeCollecting(input: MarkOrderItemListAsExchangeCollectingInput!): Boolean!
+
+  """
+  해당 주문 아이템 목록의 상태를 '교환 수거 완료'로 변경한다.
+  [error_code]
+  - order_item_not_found: 해당하는 조건의 주문 아이템을 찾을 수 없는 경우
+  - order_item_invalid_status: 교환 수거중 상태가 아닌 주문 아이템이 포함된 경우
+  - order_item_not_requested: 교환 요청이 되지 않은 주문 아이템이 포함된 경우
+  """
+  markOrderItemListAsExchangeCollected(input: MarkOrderItemListAsExchangeCollectedInput!): Boolean!
+
+  """
+  해당 주문 아이템 목록의 상태를 '교환 완료'로 변경한다.
+  [error_code]
+  - order_item_not_found: 해당하는 조건의 주문 아이템을 찾을 수 없는 경우
+  - order_item_invalid_status: 교환 수거 완료 상태가 아닌 주문 아이템이 포함된 경우
+  - order_item_not_requested: 교환 요청이 되지 않은 주문 아이템이 포함된 경우
+  """
+  markOrderItemListAsExchanged(input: MarkOrderItemListAsExchangedInput!): Boolean!
+
+  """
+  해당 교환 주문 아이템 목록의 운송장 정보를 등록한다.
+  [error_code]
+  - order_item_not_found: 해당 조건의 교환 주문 아이템이 없는 경우
+  - order_item_invalid_status: 교환 배송 대기중 외 상태의 주문 아이템이 포함된 경우
+  """
+  updateInvoiceOfExchangeOrderItemList(input: UpdateInvoiceOfExchangeOrderItemListInput!): Boolean!
+
+  """
+  해당 주문 아이템 목록의 교환 요청을 거절한다.
+  [error_code]
+  - order_item_not_found: 해당하는 조건의 주문 아이템을 찾을 수 없는 경우
+  - multiple_order_not_support: 여러개의 오더를 반품 할수 없음
+  - order_item_invalid_status: 주문완료/배송중 상태가 아닌 주문 아이템이 포함된 경우
+  """
+  rejectOrderExchange(input: RejectOrderExchangeInput!): Boolean!
+
+  """답변(댓글)을 생성한다."""
+  createOrderItemInquiryReply(input: CreateOrderItemInquiryReplyInput!): OrderItemInquiryReply!
+
+  """답변(댓글)을 수정한다."""
+  updateOrderItemInquiryReplyContent(input: UpdateOrderItemInquiryReplyContentInput!): OrderItemInquiryReply!
+  createProductAnswer(input: CreateProductAnswerInput!): ID!
+  updateProductAnswer(input: UpdateProductAnswerInput!): ID!
+
+  """상품을 등록한다."""
+  createProduct(input: CreateProductInput!): ID!
+
+  """상품을 갱신한다."""
+  updateProduct(input: UpdateProductInput!): Boolean!
+
+  """상품 품목들의 가용 재고를 수정 한다."""
+  updateItemAvailableStockQuantity(input: [ItemAvailableStockQuantityInput!]!): Boolean!
+
+  """item의 판매 상태를 업데이트한다."""
+  updateItemSalesStatus(input: [UpdateItemSalesStatusInput!]!): Boolean!
+
+  """
+  배송 주소록을 등록한다.
+  - 배송지를 대량으로 운영하는 일부 스토어(배송 주소록 등록 수 쿼터 상향 스토어)에 한해 제공된다.
+  에러 응답 (extensions.code)
+  - shop_shipping_address_name_duplicated: 동일한 이름의 배송 주소록이 이미 존재하는 경우
+  - shop_shipping_address_default_address_is_required: 기본 배송지(is_default)가 한 개는 필요한 경우
+  - too_many_limit_count: 등록 가능한 배송 주소록 수(쿼터)를 초과한 경우
+  - unauthorized_request: 배송 주소록 등록/수정이 허용되지 않은 스토어인 경우
+  - invalid_parameter: 입력값이 유효하지 않은 경우
+  - unknown_error: 일시적인 오류로 등록에 실패한 경우
+  """
+  createShopShippingAddressBook(input: CreateShopShippingAddressBookInput!): CreateShopShippingAddressBookResult
+
+  """
+  배송 주소록을 수정한다.
+  - 배송지를 대량으로 운영하는 일부 스토어(배송 주소록 등록 수 쿼터 상향 스토어)에 한해 제공된다.
+  에러 응답 (extensions.code)
+  - shop_shipping_address_not_found: 수정하려는 배송 주소록이 존재하지 않는 경우
+  - shop_shipping_address_name_duplicated: 동일한 이름의 배송 주소록이 이미 존재하는 경우
+  - shop_shipping_address_default_address_is_required: 기본 배송지(is_default)가 한 개는 필요한 경우
+  - unauthorized_request: 배송 주소록 등록/수정이 허용되지 않은 스토어인 경우
+  - unknown_error: 일시적인 오류로 수정에 실패한 경우
+  """
+  updateShopShippingAddressBook(input: UpdateShopShippingAddressBookInput!): Boolean!
+}
+
+"""API 시작"""
+type Hello {
+  """내 정보"""
+  message: String!
+}
+
+"""Serve Date object as timestamp"""
+scalar CrTimestamp
+
+"""주문 아이템의 상태"""
+enum OrderItemStatus {
+  AWAITING_SHIPMENT
+  BEFORE_TRANSFER
+  CANCELLED
+  CANCELLED_AFTER_CONFIRMED
+  CANCEL_AFTER_CONFIRMED_RETURN_COLLECTED
+  CANCEL_AFTER_CONFIRMED_RETURN_COLLECTING
+  CANCELLED_BEFORE_TRANSFER
+  CANCELLING
+  CANCEL_DEFERRED
+  CONFIRMED
+  EXCHANGED
+  EXCHANGE_COLLECTED
+  EXCHANGE_COLLECTING
+  IN_TRANSIT
+  NEW_ORDER
+  RETURNED
+  RETURN_COLLECTED
+  RETURN_COLLECTING
+  RETURN_DEFERRED
+  SHIPPED
+  SHIPPING_DEFERRED
+  SHIPMENT_PROCESS_REQUESTED
+}
+
+enum OrderFulfillmentSearchType {
+  MERCHANT
+  VENDOR_FLEX
+}
+
+"""주문 품목 아이템 목록 및 요약 데이터"""
+type OrderItemList {
+  """주문 품목 아이템 목록"""
+  item_list: [OrderItem!]!
+
+  """총 개수"""
+  total_count: Int!
+}
+
+"""주문 품목 아이템 목록 및 요약 데이터"""
+type ZigzinOrderItemList {
+  """주문 품목 아이템 목록"""
+  item_list: [ZigzinOrderItem!]!
+
+  """총 개수"""
+  total_count: Int!
+}
+
+"""주문 아이템 요청 타입"""
+enum OrderItemRequestType {
+  CANCEL
+  CANCEL_AFTER_CONFIRM
+  EXCHANGE
+  RETURN
+}
+
+"""주문 아이템의 요청 상태"""
+enum OrderItemRequestStatus {
+  CANCELLED
+  CANCELLED_AFTER_CONFIRMED
+  CANCELLING
+  CANCELLING_AFTER_CONFIRMED
+  CANCEL_AFTER_CONFIRMED_REQUESTED
+  CANCEL_AFTER_CONFIRMED_RETURN_COLLECTED
+  CANCEL_AFTER_CONFIRMED_RETURN_COLLECTING
+  CANCEL_REQUESTED
+  EXCHANGED
+  EXCHANGE_COLLECTED
+  EXCHANGE_COLLECTING
+  EXCHANGE_REQUESTED
+  RETURNED
+  RETURN_COLLECTED
+  RETURN_COLLECTING
+  RETURN_REQUESTED
+}
+
+enum ExchangeOrderItemStatus {
+  AWAITING_SHIPMENT
+  IN_TRANSIT
+  SHIPPED
+  CONFIRMED
+  CANCELLED_AFTER_CONFIRMED
+}
+
+"""교환 주문 품목 아이템 목록 및 요약 데이터"""
+type ExchangeOrderItemList {
+  """교환 주문 품목 아이템 목록"""
+  item_list: [ExchangeOrderItem!]!
+
+  """총 개수"""
+  total_count: Int!
+}
+
+enum Site {
+  ZIGZAG
+  POSTY
+  FBK
+  ZIGZAG_MATE
+  MYSTORE
+  KITTO
+  KAKAOTALK_SHOPPING
+  PIYONNA
+}
+
+type ZigzinReturnOrderQcItemList {
+  """아이템 목록"""
+  item_list: [ZigzinReturnOrderQcItem!]!
+
+  """총 개수"""
+  total_count: Int!
+}
+
+"""카테고리"""
+type Category {
+  """id"""
+  id: ID!
+
+  """이름"""
+  name: String!
+
+  """key"""
+  key: String!
+
+  """asset 목록"""
+  asset_list: [CategoryAsset!]!
+
+  """하위 카테고리 목록"""
+  children: [Category!]!
+}
+
+"""필수정보제공고시 템플릿"""
+type CategoryEssentialTemplate {
+  """id"""
+  id: ID!
+
+  """code"""
+  code: String!
+
+  """이름"""
+  name: String!
+
+  """values"""
+  values: CrJson!
+}
+
+"""샵 인증 권한"""
+enum ShopAuthScope {
+  GET_ORDER
+  UPDATE_ORDER
+  CREATE_ORDER
+  GET_PRODUCT
+  UPDATE_PRODUCT
+  GET_WHOLESALE_PRODUCT
+  UPDATE_WHOLESALE_PRODUCT
+  GET_WHOLESALE_ORDER
+  UPDATE_WHOLESALE_ORDER
+  GET_REVIEW
+}
+
+"""주문 상품 문의"""
+type OrderItemInquiry {
+  """기본 키"""
+  id: ID!
+
+  """사이트 ID"""
+  site_id: ID!
+
+  """주문 아이템 번호"""
+  order_item_number: String!
+
+  """작성자 이름"""
+  user_name: String!
+
+  """문의 타입"""
+  type: OrderItemInquiryType!
+
+  """문의 내용"""
+  content: String!
+
+  """생성 날짜"""
+  date_created: CrTimestamp!
+
+  """수정 날짜"""
+  date_updated: CrTimestamp!
+
+  """삭제 날짜"""
+  date_deleted: CrTimestamp
+
+  """답변 날짜"""
+  date_replied: CrTimestamp
+
+  """답변 날짜 기한"""
+  due_date_reply: CrTimestamp
+
+  """댓글 목록"""
+  reply_list: [OrderItemInquiryReply!]!
+
+  """첨부파일 목록"""
+  attachment_list: [OrderItemInquiryAttachment!]!
+  user_account: UserAccount!
+
+  """주문 번호"""
+  order_number: String!
+}
+
+"""주문 상품 문의 분류 (상품/배송/취소/환불/기타/교환)"""
+enum OrderItemInquiryType {
+  PRODUCT
+  SHIPMENT
+  CANCEL
+  RETURN
+  ETC
+  EXCHANGE
+  PAYMENT
+  PROMOTION
+}
+
+"""조회된 상품 문의 목록 데이터"""
+type OrderItemInquiryList {
+  """조회된 상품 문의 목록수"""
+  total_count: Int!
+
+  """조회된 상품 문의 목록"""
+  item_list: [OrderItemInquiry!]!
+}
+
+type ProductQuestion {
+  id: ID!
+  date_created: CrTimestamp!
+  date_updated: CrTimestamp!
+  product_id: ID!
+  contents: String!
+  answered_date_at: CrTimestamp
+  question_type: ProductQuestionType!
+  question_status: ProductQuestionStatus!
+  deleted: Boolean!
+  answer: ProductAnswer
+  answer_list: [ProductAnswer!]!
+  date_deleted: CrTimestamp
+  user_account: UserAccount!
+}
+
+type ProductQuestionList {
+  total_count: Int!
+  item_list: [ProductQuestion!]!
+}
+
+type ProductList {
+  item_list: [Product!]!
+}
+
+type Product {
+  id: ID!
+
+  """상품명"""
+  name: String!
+
+  """상품 설명"""
+  description: String
+
+  """상품 타입"""
+  type: ProductType @deprecated(reason: "fulfillment_type으로 대체 ZIGZIN -> ZIGZIN, GENERAL -> MERCHANT")
+
+  """배송 타입"""
+  fulfillment_type: ProductFulfillmentType
+
+  """상품정보제공 고시"""
+  essentials: [ProductEssential!]!
+
+  """배송비 타입"""
+  shipping_fee_type: ProductShippingFeeType @deprecated(reason: "site_list -> shipping_fee로 더 자세한 정보 넘기게 변경 ")
+
+  """상품 판매 상태"""
+  sales_status: ProductSalesStatus!
+
+  """상품 노출 상태"""
+  display_status: ProductDisplayStatus!
+
+  """등록형/연동형 타입"""
+  entry_type: ProductEntryType!
+
+  """상품 품목 부가 속성 리스트"""
+  option_list: [ProductOption!]!
+
+  """상품 부가 속성 리스트"""
+  attribute_list: [ProductAttribute!]!
+
+  """상품의 품목 리스트"""
+  item_list: [Item!]!
+
+  """상품의 이미지 리스트"""
+  image_list: [ProductImage!]!
+
+  """사용자 입력 옵션 리스트"""
+  custom_input_option_list: [ProductCustomInputOption!]!
+
+  """카테고리"""
+  category: ProductCategory!
+
+  """카테고리 목록"""
+  category_list: [ProductCategory!]! @deprecated(reason: "제거 예정입니다. category를 사용해주세요.")
+
+  """상품의 가격 정보"""
+  price: ProductPrice! @deprecated(reason: "제거 예정입니다. site_list를 사용해주세요")
+
+  """사이트별 가격"""
+  site_list: [ProductSite!]!
+
+  """필수정보제공고시 code"""
+  essential_code: String
+
+  """브랜드 ID"""
+  brand_id: ID
+
+  """국제배송 정보"""
+  international_delivery: ProductInternationalDelivery
+
+  """병행수입 여부"""
+  parallel_imported: ProductParallelImported!
+
+  """솔루션사의 관리코드 - pk 값"""
+  external_code: String
+
+  """자사몰 상품 관리코드"""
+  product_code: String
+
+  """최소구매수량"""
+  minimum_order_quantity: Int! @deprecated(reason: "order -> quantity -> minimum_per_order 로 대체")
+
+  """최대구매수량"""
+  maximum_order_quantity: Int @deprecated(reason: "order -> quantity -> maximum_per_customer 로 대체")
+
+  """주문 관련 정보"""
+  order: ProductOrder!
+
+  """발송소요일"""
+  shipping_days: Int
+
+  """배송유형"""
+  shipping_type: CatalogProductShippingType
+
+  """배송주소"""
+  address: CatalogProductShippingAddress
+
+  """묶음배송 여부"""
+  bundle_type: CatalogProductShippingBundleType!
+
+  """상품 특성"""
+  trait_list: [ProductTrait!]
+
+  """과세 타입"""
+  tax_type: CatalogTaxType
+
+  """취소수수료"""
+  cancellation_fee_specification_list: [CancellationFeeSpecification!]!
+
+  """검색어 리스트"""
+  search_keyword_list: [ProductSearchKeyword!]
+
+  """상품 사이즈 정보"""
+  size_detail_list: [ProductSizeDetail!]
+
+  """상품 용량 정보"""
+  package_unit: PackageUnit
+}
+
+input OpenApiProductReviewRelationListInput {
+  """매핑 일시 조회 범위 - 시작일"""
+  start_related_at: CrTimestamp
+
+  """매핑 일시 조회 범위 - 종료일"""
+  end_related_at: CrTimestamp
+}
+
+input OpenApiPaginationInput {
+  """최대 50개"""
+  limit_count: Int!
+  next_cursor: String
+}
+
+type OpenApiProductReviewRelationList {
+  next_cursor: String
+  item_list: [OpenApiProductReviewRelation!]!
+}
+
+type SizeCategory {
+  id: ID!
+  key: String!
+
+  """부모 id"""
+  parent_id: ID
+
+  """카테고리 이름 (ex: 하의)"""
+  name: String!
+
+  """카테고리 이미지"""
+  size_image: SizeCategoryImage!
+
+  """카테고리 템플릿 정보"""
+  template_value: [SizeCategoryTemplateValue!]!
+
+  """자식 카테고리 목록"""
+  children: [SizeCategory!]
+}
+
+input ProductSummaryListInput {
+  """조회할 상품 ID 목록. 최대 100개"""
+  product_id_list: [ID!]!
+
+  """판매 상태 필터. 미입력 시 전체 상태 조회"""
+  sales_status_list: [ProductSalesStatus!]
+}
+
+type ProductSummaryList {
+  item_list: [ProductSummary!]!
+}
+
+type ShopAllowedBrandForOpenApi {
+  """브랜드 레코드 ID"""
+  brand_id: ID!
+
+  """브랜드명"""
+  brand_name: String!
+}
+
+type ShopSiteCountryForOpenApi {
+  site: SiteForOpenApi!
+  site_name: String!
+  country_code: String!
+  country_name: String!
+}
+
+type ShopForOpenApi {
+  """스토어 ID"""
+  shop_id: ID!
+
+  """스토어 이름"""
+  shop_name: String!
+
+  """승인된 브랜드 목록"""
+  allowed_brand_list: [ShopAllowedBrandForOpenApi!]!
+
+  """판매 가능한 채널 목록"""
+  site_country_list: [ShopSiteCountryForOpenApi!]!
+
+  """스토어 속성 목록"""
+  attribute_list: [ShopAttributeForOpenApi!]!
+}
+
+type ShopShippingAddressList {
+  total_count: Int!
+  item_list: [ShopShippingAddress!]!
+}
+
+input ProductReviewListInput {
+  """상품 레코드 ID의 배열"""
+  product_code_list: [String!]
+
+  """평점의 배열"""
+  rating_list: [Int!]
+
+  """노출 여부"""
+  display: Boolean
+
+  """첨부파일 존재 여부(true 입력시 첨부파일 존재하는 리뷰만, false 입력시 첨부파일 없는 리뷰만 목록에 반환)"""
+  has_attachment: Boolean
+
+  """날짜 검색 옵션: 생성일-gte"""
+  date_created_gte: CrTimestamp
+
+  """날짜 검색 옵션: 생성일-lt"""
+  date_created_lt: CrTimestamp
+
+  """날짜 검색 옵션: 수정일-gte"""
+  date_updated_gte: CrTimestamp
+
+  """날짜 검색 옵션: 수정일-lt"""
+  date_updated_lt: CrTimestamp
+
+  """리뷰 타입"""
+  type_list: [ProductReviewType!]
+}
+
+"""리뷰 페이징 Input"""
+input ProductReviewCursorPaginationInput {
+  """개수 제한"""
+  limit_count: Int
+
+  """주어진 키의 레코드를 건너띄고 반환한다"""
+  after_key: ID
+}
+
+"""상품리뷰 목록 정렬"""
+enum ProductReviewListOrderType {
+  DATE_CREATED_ASC
+  DATE_CREATED_DESC
+}
+
+type ProductReviewList {
+  after_key: ID
+  item_list: [ProductReview!]!
+}
+
+"""주문 정산 아이템 목록 날짜 검색 옵션"""
+input OrderSettlementItemListDateQueryOptions {
+  """날짜 검색 타입"""
+  type: OrderSettlementItemListDateQueryType!
+
+  """검색일 (from)"""
+  date_ymd_from: Int
+
+  """검색일 (to)"""
+  date_ymd_to: Int
+}
+
+type OrderSettlementItemList {
+  """주문 정산 아이템 목록"""
+  item_list: [OrderSettlementItem!]!
+
+  """총 개수"""
+  total_count: Long!
+}
+
+input OrderSettlementShopDateQueryOptions {
+  """날짜 검색 타입"""
+  type: SearchStoreDateType!
+
+  """검색일 (from)"""
+  date_ymd_from: Int
+
+  """검색일 (to)"""
+  date_ymd_to: Int
+}
+
+type OrderSettlementShopList {
+  """모든 스토어 정산 아이템 목록"""
+  item_list: [OrderSettlementShop!]!
+
+  """총 개수"""
+  total_count: Long!
+}
+
+"""교환 주문 품목 아이템"""
+type ExchangeOrderItem {
+  """교환 요청 새 상품주문"""
+  exchange_new_order_item: ExchangeNewOrderItem
+}
+
+"""교환 요청 새 주문 품목"""
+type ExchangeNewOrderItem {
+  """ORDER ITEM ID"""
+  id: ID!
+
+  """교환 주문 품목 상태"""
+  status: ExchangeOrderItemStatus
+
+  """주문서 생성일자"""
+  date_created: CrTimestamp!
+
+  """주문 품목 번호"""
+  order_item_number: String!
+
+  """택배사"""
+  shipping_company: OrderShippingCompany
+
+  """운송장 번호"""
+  invoice_number: String
+
+  """주문한 상품 정보"""
+  order_item_product: OrderItemProduct!
+
+  """수령 정보"""
+  order_item_receiver: OrderItemReceiver!
+
+  """직전 교환 요청 상품주문"""
+  exchange_previous_order_item: OrderItem
+
+  """교환 주문"""
+  order: ExchangeOrder
+}
+
+"""택배사"""
+enum OrderShippingCompany {
+  ACEEXP
+  ACIEXPRESS
+  AIRBOY
+  BGF
+  CHUNIL
+  CJ
+  CRLX
+  CVSNET
+  CWAY
+  DAESIN
+  DHL
+  DHLGLOBALMAIL
+  ESTHER
+  ETC
+  EUNHA
+  FEDEX
+  GPSLOGIX
+  GSIEXPRESS
+  GSMNTON
+  HANDEX
+  HANJIN
+  HDEXP
+  HOMEPICK
+  HONAM
+  HPL
+  INTRAS
+  KDEXP
+  KGLNET
+  KOREXG
+  KUNYOUNG
+  LINEEXPRESS
+  LOGEN
+  LOGIS
+  LOTTE
+  LOTTEGLOBAL
+  NHLOGIS
+  POSTAL
+  SLX
+  SMARTLOGIS
+  SWGEXP
+  TNT
+  TPMLOGIS
+  TWOFASTEXP
+  USPS
+  WARPEX
+  ZENIELSYSTEM
+  TODAYPICKUP
+  DAERIM
+  LOGISPARTNER
+  KSE
+  DRABBIT
+  DOOBALHERO
+  VROONG
+  ETOMARS
+  KOREAYOGURT
+  PINGPONG
+  TODAY
+  LOTTECHILSUNG
+  DNDN
+  BRIDGE
+  JCLS
+  YONGMA
+  SEBANG
+  WONDERS
+  HILOGIS
+  EMS
+  UPS
+  IPARCEL
+  PANTOS
+  DAEWOON
+  ECMSEXPRESS
+  EFS
+  HOMEINNOV
+  GNETWORK
+  WEVILL
+  FOREVERPS
+  QXPRESS
+  UFREIGHT
+  LSERVICE
+  ANYTRACK
+  JLOGIST
+  QRUN
+  FRESHSOLUTIONS
+  HIVECITY
+  HANSSEM
+  GOODSTOLUCK
+  GENIEGO
+  NOGOK
+  SPASYS1
+  LTL
+  LOGISPOT
+  FRESHMATES
+  DODOFLEX
+  VENDORPIA
+  COSHIP
+  GDAKOREA
+  BABABA
+  TEAMFRESH
+  ALLTAKOREA
+  YUNDA
+  VALEX
+  XINPATEK
+  HEREWEGO
+  WOONGJI
+  SBGLS
+  YDH
+  HOME1004
+  NAEUN
+  ACCCARGO
+  NTLPS
+  SINOEX
+  HOMEPICKTODAY
+  GOBOX
+  FASTBOX
+  PANSTAR
+  ACTCORE
+  THEBAO
+  RUSH
+  KT
+  IBP
+  LOGISVALLEY
+  ONEDAYLOGIS
+  HKHOLDINGS
+  CUBEFLOW
+  SHFLY
+  BANPOOM
+  GLOVIS
+  ARGO
+  MTINTER
+  GDSP
+  WINION
+  YJSGLOBAL
+  DUXGLOBAL
+  INTERLOGIS
+  WOOJIN
+  GHSPEED
+  HOWSER
+  WIDETECH
+  ECOHAI
+  TONAMI
+  DAIICHI
+  JMNP
+  FUKUYAMA
+  KURLYNEXTMILE
+  ARAMEX
+  BISNZ
+  INNOS
+  SEORIM
+  WEMOVE
+  POOLATHOME
+  SPARKLE
+  ICS
+  HANMI
+  ESTLA
+  IK
+  PULMUONEWATER
+  TSG
+  OCS
+  MDLOGIS
+  GCS
+  FTF
+  WOORIHB
+  JWTNL
+  LETUS
+  GKGLOBAL
+  GONELO
+  CASA
+  BRCH
+  MORNINGGLOBAL
+  RETURNALL
+  ONTRAC
+  HERMES
+  EMART24
+  SEVENELEVEN
+  ONDAY
+  WINIONAC
+  MYALLTV
+  CONTROLLOGIS
+  HANSSEMSOFA
+  WINIONBI
+}
+
+"""주문한 상품 정보"""
+type OrderItemProduct {
+  """상품 레코드 ID"""
+  product_id: ID!
+
+  """상품 조합 레코드 ID"""
+  product_item_id: ID
+
+  """상품 이름(한국어)"""
+  kr_name(abbreviate_limit_length: Int): String!
+
+  """
+  선택된 옵션값 / 로 구분(한국어)
+  - 세트상품 상품주문의 경우, 선택된 구성상품의 옵션값들이 저장된다.
+  - 세트상품 예시) [{name: '구성상품1 이름', value: '블랙/프리'}, {name: '구성상품2 이름', value: '블랙/S'}] => '블랙/프리/블랙/S'
+  """
+  kr_options: String!
+
+  """상품 이름(글로벌)"""
+  name(abbreviate_limit_length: Int): String!
+
+  """
+  선택된 옵션 상세 정보 목록
+  - 세트상품 상품주문의 경우, 구성상품명과 선택된 구성상품의 옵션들이 저장된다.
+  - 세트상품 예시) [{name: '구성상품1 이름', value: '블랙/프리'}, {name: '구성상품2 이름', value: '블랙/S'}]
+  """
+  option_detail_list: [ProductOptionDetail!]
+
+  """
+  선택된 옵션값 / 로 구분(글로벌)
+  - 세트상품 상품주문의 경우, 선택된 구성상품의 옵션값들이 저장된다.
+  - 세트상품 예시) [{name: '구성상품1 이름', value: '블랙/프리'}, {name: '구성상품2 이름', value: '블랙/S'}] => '블랙/프리/블랙/S'
+  """
+  options: String!
+
+  """상품 옵션 타입"""
+  option_type: OrderItemProductOptionType
+
+  """상품 이미지 주소"""
+  image_url: String!
+
+  """상품 주소"""
+  url: String!
+
+  """상품 번호(cafe24등에서 관리하는 상품ID)"""
+  product_no: String
+
+  """솔루션이 부여한 품목 코드"""
+  product_item_code: String
+
+  """솔루션이 부여한 상품 코드"""
+  product_code: String
+
+  """판매자가 부여한 상품 코드"""
+  custom_product_code: String
+
+  """판매자가 부여한 품목 코드"""
+  custom_product_item_code: String
+
+  """상품 아이템 상세 정보"""
+  product_detail_info: ProductDetailInfo
+
+  """예약발송일"""
+  date_reserved_shipping: CrTimestamp
+
+  """상품의 특성관련 정보"""
+  trait_list: [String!]!
+
+  """선택된 옵션값 / 로 구분(추가상품)"""
+  additional_options: String!
+}
+
+"""상품주문_수령정보"""
+type OrderItemReceiver {
+  """개인통관고유부관호"""
+  personal_clearance_code: String
+
+  """휴대폰 번호"""
+  contract_number: String!
+
+  """우편번호"""
+  postcode: String!
+
+  """주소"""
+  address: String!
+
+  """상세 주소"""
+  detail_address: String
+
+  """이름"""
+  name: String!
+}
+
+"""주문 품목 아이템"""
+type OrderItem {
+  """ORDER ITEM ID"""
+  id: ID!
+
+  """상품 레코드 ID"""
+  product_id: ID! @deprecated(reason: "order_item_product.product_id 로 대체")
+
+  """상품 조합 레코드 ID"""
+  product_item_id: ID @deprecated(reason: "order_item_product.product_item_id 로 대체")
+
+  """주문서"""
+  order: Order!
+
+  """수량"""
+  quantity: Int!
+
+  """총 금액"""
+  total_amount: Int!
+
+  """단가"""
+  unit_price: Int!
+
+  """주문 품목 번호"""
+  order_item_number: String!
+
+  """주문할 상품 정보(deprecated - order_item_product로 대체)"""
+  product_info: OrderedProductInfo!
+
+  """상태"""
+  status: OrderItemStatus!
+
+  """현재의 취소/반품 요청(deprecated - active_request_list 로 대체)"""
+  active_request: OrderItemRequest @deprecated(reason: "active_request_list 로 대체")
+
+  """택배사"""
+  shipping_company: OrderShippingCompany
+
+  """운송장 번호"""
+  invoice_number: String
+
+  """배송비 결제 시점"""
+  shipping_fee_type: ShippingFeeType!
+
+  """SITE id"""
+  site_id: ID!
+
+  """국가 정보 code"""
+  country: CountryType!
+
+  """주문한 상품 정보"""
+  order_item_product: OrderItemProduct!
+
+  """
+  직진 배송 여부
+  is_zigzin 을 사용하는걸 권장합니다.
+  """
+  is_zonly: Boolean!
+
+  """배송 그룹"""
+  shipping_group: ShippingGroup!
+
+  """해당 상품주문에 대한 모든 취소/반품/교환 요청 목록 (철회/거부 된 것 포함)"""
+  request_list: [OrderItemRequest!]
+
+  """수령 정보"""
+  order_item_receiver: OrderItemReceiver!
+
+  """상품 프로모션 적용 정보"""
+  order_promotion_item: OrderPromotionItem
+
+  """상품의 배송 타입"""
+  fulfillment_type: OrderFulfillmentType!
+
+  """해당 상품주문에 대해 진행/완료 상태인 취소/반품/교환 목록"""
+  active_request_list: [OrderItemRequest!]!
+
+  """환불 후 남은 수량"""
+  remaining_quantity: Int!
+
+  """환불 후 남은 금액"""
+  remaining_amount: Int!
+
+  """클레임 진행 중인 수량"""
+  claim_holding_quantity: Int!
+
+  """상품주문 단위의 수단별 결제 금액(최초 결제 정보)"""
+  payment_amount: OrderItemPaymentAmount
+
+  """사이트 이름"""
+  site: Site!
+
+  """직진배송 여부"""
+  is_zigzin: Boolean!
+
+  """쿠폰 주문 사용 정보"""
+  coupon_used_info: CouponOrderItem @deprecated(reason: "coupon_used_info_list")
+
+  """쿠폰 사용 정보 목록"""
+  coupon_used_info_list: [CouponOrderItem!]
+
+  """주문서"""
+  order_shop: OrderShop! @deprecated(reason: "Use shipping_group")
+
+  """발송예정일"""
+  date_expected_in_transit: CrTimestamp
+}
+
+"""교환 주문서"""
+type ExchangeOrder {
+  """주문 번호"""
+  order_number: String!
+
+  """주문서 생성일자"""
+  date_created: CrTimestamp!
+
+  """주문 결제일자"""
+  date_paid: CrTimestamp
+
+  """결제 수단"""
+  payment_method: PaymentMethod!
+
+  """결제 상태"""
+  payment_status: PaymentStatus!
+
+  """주문자 정보"""
+  orderer: Orderer!
+
+  """배송 메모"""
+  shipping_memo: String
+
+  """SITE id"""
+  site_id: ID!
+
+  """국가 정보 code"""
+  country: CountryType!
+
+  """사용 포인트"""
+  points_used: Int!
+
+  """사용 마일리지"""
+  total_mileage_amount: Int!
+
+  """소멸된 포인트 금액"""
+  expired_point_amount: Int!
+
+  """소멸된 마일리지 금액"""
+  expired_mileage_amount: Int!
+
+  """실결제 금액"""
+  total_payment_amount: Int!
+}
+
+"""결제 수단"""
+enum PaymentMethod {
+  BANK
+  CARD
+  GLOBAL_CARD
+  KAKAOPAY
+  PHONE
+  POINT
+  SIMPLE_BANK
+  SIMPLE_CARD
+  CONVENIENCE_STORE_JP
+  VBANK
+  CONVENIENCE_STORE
+  TOSSPAY
+  BENEPIA_POINT
+}
+
+"""결제 상태"""
+enum PaymentStatus {
+  CANCELLED
+  COMPLETED
+  WAITING_PAY
+}
+
+"""주문자 정보"""
+type Orderer {
+  """이름"""
+  name: String!
+
+  """이메일 주소"""
+  email: String!
+
+  """휴대폰 번호"""
+  mobile_tel: String!
+}
+
+enum CountryType {
+  JP
+  KR
+  US
+  CA
+}
+
+"""markOrderItemListAsAwaitingShipment의 입력"""
+input MarkOrderItemListAsAwaitingShipmentInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+}
+
+"""updateInvoiceOfOrderItemList의 입력"""
+input UpdateInvoiceOfOrderItemListInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+
+  """택배사"""
+  shipping_company: OrderShippingCompany!
+
+  """운송장 번호"""
+  invoice_number: String!
+}
+
+"""markOrderItemListAsReturnCollecting의 입력"""
+input MarkOrderItemListAsReturnCollectingInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+
+  """주문 번호"""
+  order_number: String!
+
+  """택배사"""
+  shipping_company: OrderShippingCompany
+
+  """운송장 번호"""
+  invoice_number: String
+}
+
+"""markOrderItemListAsReturnCollected 의 입력"""
+input MarkOrderItemListAsReturnCollectedInput {
+  """상태를 변경할 상품주문의 번호 목록"""
+  order_item_number_list: [String!]!
+}
+
+"""returnAndRefundOrderItemListInput 의 입력"""
+input ReturnAndRefundOrderItemListInput {
+  """반품 완료 처리할 주문 번호"""
+  order_number: String!
+
+  """반품 완료 처리할 상품주문의 번호 목록"""
+  order_item_number_list: [String!]!
+}
+
+"""requestReturnOrderItemList의 입력"""
+input RequestReturnOrderItemListInput {
+  """요청 목록"""
+  order_item_number_list: [String!]!
+
+  """주문 번호"""
+  order_number: String!
+
+  """요청 사유"""
+  requested_reason: String
+
+  """요청 사유 카테고리"""
+  requested_reason_category: RequestedReasonCategory!
+}
+
+input DeferClaimListInput {
+  """주문 번호"""
+  order_number: String!
+
+  """상품 주문 번호 목록"""
+  order_item_number_list: [String!]!
+}
+
+input WithdrawClaimListDeferInput {
+  """주문 번호"""
+  order_number: String!
+
+  """상품 주문 번호 목록"""
+  order_item_number_list: [String!]!
+}
+
+"""processOrderCancellationInput의 입력"""
+input ProcessOrderCancellationInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+
+  """주문 번호"""
+  order_number: String!
+
+  """취소 요청 사유"""
+  requested_reason: String
+
+  """취소 요청 사유 카테고리"""
+  requested_reason_category: RequestedReasonCategory!
+}
+
+"""approveOrderCancellation의 입력"""
+input ApproveOrderCancellationInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+
+  """주문 번호"""
+  order_number: String!
+}
+
+"""rejectOrderCancellation의 입력"""
+input RejectOrderCancellationInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+
+  """주문 번호"""
+  order_number: String!
+
+  """거절 사유"""
+  reason: String!
+}
+
+"""approveOrderReturn의 입력"""
+input ApproveOrderReturnInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+
+  """주문 번호"""
+  order_number: String!
+}
+
+"""rejectOrderReturn의 입력"""
+input RejectOrderReturnInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+
+  """주문 번호"""
+  order_number: String!
+
+  """거절 사유"""
+  reason: String!
+}
+
+"""markOrderItemListAsExchangeCollecting 의 입력"""
+input MarkOrderItemListAsExchangeCollectingInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+
+  """주문 번호"""
+  order_number: String!
+
+  """택배사"""
+  shipping_company: OrderShippingCompany
+
+  """운송장 번호"""
+  invoice_number: String
+}
+
+"""markOrderItemListAsExchangeCollected 의 입력"""
+input MarkOrderItemListAsExchangeCollectedInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+}
+
+"""markOrderItemListAsExchanged 의 입력"""
+input MarkOrderItemListAsExchangedInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+}
+
+"""updateInvoiceOfExchangeOrderItemList 의 입력"""
+input UpdateInvoiceOfExchangeOrderItemListInput {
+  """상태를 변경할 교환 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+
+  """택배사"""
+  shipping_company: OrderShippingCompany!
+
+  """운송장 번호"""
+  invoice_number: String!
+}
+
+"""rejectOrderExchange 의 입력"""
+input RejectOrderExchangeInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+
+  """주문 번호"""
+  order_number: String!
+
+  """거절 사유"""
+  reason: String!
+}
+
+"""주문 상품 문의 댓글 입력"""
+input CreateOrderItemInquiryReplyInput {
+  """주문 문의 레코드 ID"""
+  order_item_inquiry_id: ID
+
+  """상위 글 ID"""
+  parent_id: ID
+
+  """댓글 내용"""
+  content: String!
+}
+
+"""주문 상품 문의 답변(댓글)"""
+type OrderItemInquiryReply {
+  """기본 키"""
+  id: ID!
+
+  """상위 답변 글 레코드 ID"""
+  parent_id: ID
+
+  """답변 내용"""
+  content: String!
+
+  """생성 날짜"""
+  date_created: CrTimestamp!
+
+  """수정 날짜"""
+  date_updated: CrTimestamp!
+
+  """댓글 목록"""
+  reply_list: [OrderItemInquiryReply!]!
+}
+
+"""주문 상품 문의 답변 수정 입력"""
+input UpdateOrderItemInquiryReplyContentInput {
+  """주문 문의 답변 레코드 ID"""
+  id: ID!
+
+  """댓글 내용"""
+  content: String!
+}
+
+input CreateProductAnswerInput {
+  question_id: ID!
+  contents: String!
+}
+
+input UpdateProductAnswerInput {
+  id: ID!
+  contents: String!
+}
+
+input CreateProductInput {
+  """상품명"""
+  name: String!
+
+  """상품 설명"""
+  description: String!
+
+  """상품 타입"""
+  type: ProductType @deprecated(reason: "fulfillment_type으로 대체 ZIGZIN -> ZIGZIN, GENERAL -> MERCHANT")
+
+  """배송 타입"""
+  fulfillment_type: ProductFulfillmentType
+
+  """필수정보제공고시 code"""
+  essential_code: String!
+
+  """상품정보제공 고시"""
+  essentials: [ProductEssentialInput!]
+
+  """배송비 타입"""
+  shipping_fee_type: ProductShippingFeeType @deprecated(reason: "site_list -> shipping_fee로 더 자세한 정보 넘기게 변경 ")
+
+  """상품 판매 상태"""
+  sales_status: ProductSalesStatus!
+
+  """상품 노출 상태"""
+  display_status: ProductDisplayStatus!
+
+  """상품 품목 부가 속성 리스트"""
+  option_list: [ProductOptionInput!]!
+
+  """상품 부가 속성 리스트. 제거 예정입니다. 해당 속성은 지그재그에서 자동으로 채워줍니다."""
+  attribute_list: [ProductAttributeInput!]
+
+  """상품의 품목 리스트"""
+  item_list: [ItemInput!]!
+
+  """상품의 이미지 리스트"""
+  image_list: [ProductImageInput!]!
+
+  """사용자 입력 옵션 리스트"""
+  custom_input_option_list: [ProductCustomInputOptionInput!]
+
+  """카테고리"""
+  category: ProductCategoryInput!
+
+  """멀티 사이트"""
+  site_list: [ProductSiteInput!]!
+
+  """브랜드 ID"""
+  brand_id: ID
+
+  """국제배송 정보"""
+  international_delivery: ProductInternationalDeliveryInput
+
+  """병행수입 여부 - 셀링툴에서 대응이 모두 되면 필수로 변경"""
+  parallel_imported: ProductParallelImported
+
+  """솔루션사의 관리코드 - pk 값"""
+  external_code: String
+
+  """자사몰 상품 관리코드"""
+  product_code: String
+
+  """수정자"""
+  auditor: String
+
+  """솔루션사 서비스명(영문 소문자) - ex)zigzag. 제거 예정. x-solution 헤더값으로 대체"""
+  solution: String @deprecated(reason: "제거 예정. x-solution 헤더값으로 대체")
+
+  """최소구매수량"""
+  minimum_order_quantity: Int @deprecated(reason: "order -> quantity -> minimum_per_order 로 대체")
+
+  """최대구매수량"""
+  maximum_order_quantity: Int @deprecated(reason: "order -> quantity -> maximum_per_customer 로 대체")
+
+  """주문 관련 정보"""
+  order: ProductOrderInput
+
+  """발송소요일"""
+  shipping_days: Int
+
+  """배송유형"""
+  shipping_type: CatalogProductShippingType
+
+  """배송 주소"""
+  address: CatalogProductAddressInput
+
+  """묶음배송 여부"""
+  bundle_type: CatalogProductShippingBundleType
+
+  """상품 특성"""
+  trait_list: [ProductTraitInput!]
+
+  """과세 타입"""
+  tax_type: CatalogTaxType
+
+  """취소수수료"""
+  cancellation_fee_specification_list: [CancellationFeeSpecificationInput!]
+
+  """상품 용량 정보"""
+  package_unit: PackageUnitInput
+
+  """상품 사이즈 정보"""
+  size_detail_list: [ProductSizeDetailInput!]
+
+  """검색어 리스트"""
+  search_keyword_list: [ProductSearchKeywordInput!]
+}
+
+input UpdateProductInput {
+  """상품 ID"""
+  id: ID!
+
+  """상품명"""
+  name: String!
+
+  """상품 설명"""
+  description: String!
+
+  """상품 타입"""
+  type: ProductType @deprecated(reason: "fulfillment_type으로 대체 ZIGZIN -> ZIGZIN, GENERAL -> MERCHANT")
+
+  """배송 타입"""
+  fulfillment_type: ProductFulfillmentType
+
+  """상품정보제공 고시"""
+  essentials: [ProductEssentialInput!]
+
+  """배송비 타입"""
+  shipping_fee_type: ProductShippingFeeType @deprecated(reason: "site_list -> shipping_fee로 더 자세한 정보 넘기게 변경 ")
+
+  """상품 판매 상태"""
+  sales_status: ProductSalesStatus!
+
+  """상품 노출 상태"""
+  display_status: ProductDisplayStatus!
+
+  """상품 품목 부가 속성 리스트"""
+  option_list: [ProductOptionInput!]!
+
+  """상품 부가 속성 리스트. 제거 예정입니다. 해당 속성은 지그재그에서 자동으로 채워줍니다."""
+  attribute_list: [ProductAttributeInput!]
+
+  """상품의 품목 리스트"""
+  item_list: [ItemInput!]!
+
+  """상품의 이미지 리스트"""
+  image_list: [ProductImageInput!]!
+
+  """사용자 입력 옵션 리스트"""
+  custom_input_option_list: [ProductCustomInputOptionInput!]
+
+  """카테고리"""
+  category: ProductCategoryInput!
+
+  """멀티 사이트"""
+  site_list: [ProductSiteInput!]!
+
+  """필수정보제공고시 code"""
+  essential_code: String!
+
+  """브랜드 ID"""
+  brand_id: ID
+
+  """국제배송 정보"""
+  international_delivery: ProductInternationalDeliveryInput
+
+  """병행수입 여부 - 셀링툴에서 대응이 모두 되면 필수로 변경"""
+  parallel_imported: ProductParallelImported
+
+  """자사몰 상품 관리코드"""
+  product_code: String
+
+  """수정자"""
+  auditor: String
+
+  """솔루션사 서비스명(영문 소문자) - ex)zigzag. 제거 예정. x-solution 헤더값으로 대체"""
+  solution: String @deprecated(reason: "제거 예정. x-solution 헤더값으로 대체")
+
+  """최소구매수량"""
+  minimum_order_quantity: Int @deprecated(reason: "order -> quantity -> minimum_per_order 로 대체")
+
+  """최대구매수량"""
+  maximum_order_quantity: Int @deprecated(reason: "order -> quantity -> maximum_per_customer 로 대체")
+
+  """주문 관련 정보"""
+  order: ProductOrderInput
+
+  """발송소요일"""
+  shipping_days: Int
+
+  """배송유형"""
+  shipping_type: CatalogProductShippingType
+
+  """배송주소"""
+  address: CatalogProductAddressInput
+
+  """묶음배송여부"""
+  bundle_type: CatalogProductShippingBundleType
+
+  """상품 특성"""
+  trait_list: [ProductTraitInput!]
+
+  """과세 타입"""
+  tax_type: CatalogTaxType
+
+  """취소수수료"""
+  cancellation_fee_specification_list: [CancellationFeeSpecificationInput!]
+
+  """상품 용량 정보"""
+  package_unit: PackageUnitInput
+
+  """상품 사이즈 정보"""
+  size_detail_list: [ProductSizeDetailInput!]
+
+  """검색어 리스트"""
+  search_keyword_list: [ProductSearchKeywordInput!]
+}
+
+input ItemAvailableStockQuantityInput {
+  product_id: ID!
+  item_id: ID!
+
+  """재고"""
+  quantity: Int!
+}
+
+input UpdateItemSalesStatusInput {
+  product_id: ID!
+  item_id: ID!
+  sales_status: ProductSalesStatus!
+}
+
+input CreateShopShippingAddressBookInput {
+  """주소록 이름"""
+  name: String!
+
+  """
+  우편번호
+  - 예시: 13494
+  """
+  postcode: String!
+
+  """
+  도로명 주소
+  - 예시: 경기 성남시 분당구 판교역로 235 H스퀘어 N동
+  """
+  address: String!
+
+  """
+  상세 주소
+  - 예시: 6층
+  """
+  address_detail: String
+
+  """배송에 사용하는 택배사"""
+  shipping_company: ShopShippingAddressCompany!
+
+  """굿스플로 연동 유무"""
+  is_goodsflow: Boolean!
+
+  """기본 주소록 설정"""
+  is_default: Boolean!
+}
+
+type CreateShopShippingAddressBookResult {
+  """생성된 배송 주소록 ID"""
+  id: ID!
+}
+
+input UpdateShopShippingAddressBookInput {
+  """주소록 ID"""
+  id: ID!
+
+  """주소록 이름"""
+  name: String!
+
+  """
+  우편번호
+  - 예시: 13494
+  """
+  postcode: String!
+
+  """
+  도로명 주소
+  - 예시: 경기 성남시 분당구 판교역로 235 H스퀘어 N동
+  """
+  address: String!
+
+  """
+  상세 주소
+  - 예시: 6층
+  """
+  address_detail: String
+
+  """배송에 사용하는 택배사"""
+  shipping_company: ShopShippingAddressCompany!
+
+  """굿스플로 연동 유무"""
+  is_goodsflow: Boolean!
+
+  """기본 주소록 설정"""
+  is_default: Boolean!
+}
+
+"""수령자 정보"""
+type Receiver {
+  """이름"""
+  name: String!
+
+  """휴대폰 번호"""
+  mobile_tel: String!
+
+  """우편번호"""
+  postcode: String!
+
+  """주소"""
+  address1: String!
+
+  """상세 주소"""
+  address2: String
+}
+
+"""주문서"""
+type Order {
+  """주문 번호"""
+  order_number: String!
+
+  """주문서 생성일자"""
+  date_created: CrTimestamp!
+
+  """주문 결제일자"""
+  date_paid: CrTimestamp
+
+  """결제 수단"""
+  payment_method: PaymentMethod!
+
+  """결제 상태"""
+  payment_status: PaymentStatus!
+
+  """주문자 정보"""
+  orderer: Orderer!
+
+  """수령자 정보"""
+  receiver: Receiver!
+
+  """배송 메모"""
+  shipping_memo: String
+
+  """SITE id"""
+  site_id: ID!
+
+  """국가 정보 code"""
+  country: CountryType!
+
+  """사용 포인트"""
+  points_used: Int!
+
+  """사용 마일리지"""
+  total_mileage_amount: Int!
+
+  """소멸된 포인트 금액"""
+  expired_point_amount: Int!
+
+  """소멸된 마일리지 금액"""
+  expired_mileage_amount: Int!
+
+  """실결제 금액"""
+  total_payment_amount: Int!
+
+  """가상계좌 입금 정보"""
+  vbank_pay_info: VbankPayInfo
+}
+
+"""주문서"""
+type ZigzinOrder {
+  """주문 번호"""
+  order_number: String!
+
+  """주문서 생성일자"""
+  date_created: CrTimestamp!
+
+  """주문 결제일자"""
+  date_paid: CrTimestamp
+
+  """주문자 정보"""
+  orderer: Orderer!
+}
+
+"""주문서 목록 및 요약 데이터"""
+type OrderList {
+  """주문서 목록"""
+  item_list: [Order!]!
+
+  """총 개수"""
+  total_count: Int!
+}
+
+"""주문 요청"""
+type OrderItemRequest {
+  """상품주문요청(클레임) 번호 (함께 생성된 상품주문요청은 같은 번호를 가짐)"""
+  order_item_request_number: String!
+
+  """요청 날짜"""
+  date_requested: CrTimestamp!
+
+  """요청 타입"""
+  type: OrderItemRequestType!
+
+  """요청 상태"""
+  status: OrderItemRequestStatus!
+
+  """상품 수거 방법"""
+  collecting_type: CollectingType
+
+  """
+  요청 사유 카테고리
+    - 100번대: [취소] 구매자 귀책
+    - 200번대: [취소] 판매자 귀책
+    - 300번대: [반품] 구매자 귀책
+    - 400번대: [반품] 판매자 귀책
+  """
+  requested_reason_category: RequestedReasonCategory!
+
+  """
+  귀책 주체 (구매자(USER) / 판매자(SELLER))
+    - 요청 사유 카테고리에 따라 결정됨
+  """
+  responsibility: OrderRefundResponsibility!
+
+  """배송비 추가 지불방식 정보 (초도/반품/교환 시점별 결제수단)"""
+  shipping_fee_additional_charge_method: ShippingFeeAdditionalChargeMethod
+
+  """요청 사유"""
+  requested_reason: String
+
+  """철회/거부 날짜"""
+  date_withdrawn: CrTimestamp
+
+  """유저가 직접 반품 택배를 보냈을 시, 해당 택배의 택배사"""
+  shipping_company: String
+
+  """유저가 직접 반품 택배를 보냈을 시, 해당 택배의 운송장 번호"""
+  invoice_number: String
+
+  """교환 요청 정보"""
+  exchange_request_info: ExchangeRequestInfo
+
+  """환불된 금액 상세"""
+  refunded_amount_detail: RefundedAmountDetail
+
+  """요청 수량"""
+  requested_quantity: Int!
+
+  """취소/반품 요청의 현재 보류"""
+  active_defer: OrderItemRequestDefer
+}
+
+"""
+상품 수거 방법
+  - SELLER_COLLECT_REQUIRED: 셀러가 수거
+  - USER_ALREADY_SENT: 유저가 직접 택배 보냄
+  - USER_WILL_SEND: 유저가 직접 택배를 보낼 예정
+"""
+enum CollectingType {
+  SELLER_COLLECT_REQUIRED
+  USER_ALREADY_SENT
+  USER_WILL_SEND
+}
+
+"""요청 사유 카테고리"""
+enum RequestedReasonCategory {
+  CANCEL_AFTER_CONFIRMED_DEFECTIVE_PRODUCT
+  CANCEL_AFTER_CONFIRMED_DIFFRENT_FROM_ORDERED
+  CANCEL_AFTER_CONFIRMED_DIFFRENT_FROM_PRODUCT_INFO
+  CANCEL_AFTER_CONFIRMED_FOUND_BETTER_PRICE
+  CANCEL_AFTER_CONFIRMED_MISORDER
+  CANCEL_AFTER_CONFIRMED_MISSING_DELIVERY
+  CANCEL_AFTER_CONFIRMED_MISSING_PRODUCT
+  CANCEL_AFTER_CONFIRMED_NO_LONGER_WANTED
+  CANCEL_AFTER_CONFIRMED_SERVICE_DISSATISFIED
+  CANCEL_AFTER_CONFIRMED_SHIPPING_DELAY
+  CANCEL_AFTER_CONFIRMED_SIZE_MISMATCH
+  CANCEL_CROQUIS_RESPONSIBILITY
+  CANCEL_ETC_BY_KAKAOSTYLE
+  CANCEL_ETC_BY_SELLER
+  CANCEL_ETC_BY_USER
+  CANCEL_FOUND_BETTER_PRICE
+  CANCEL_GIFT_EXPIRED
+  CANCEL_GIFT_REJECTED
+  CANCEL_INVALID_PRODUCT_INFO
+  CANCEL_INVALID_PRODUCT_RECEIVING
+  CANCEL_MISORDER
+  CANCEL_MISSELECT_PRODUCT
+  CANCEL_MISSING_PRODUCT
+  CANCEL_NO_LONGER_WANTED
+  CANCEL_OVERSEAS_DEFECTIVE_PRODUCT
+  CANCEL_OVERSEAS_DEFECTIVE_PRODUCT_BEFORE_DELIVERY
+  CANCEL_OVERSEAS_DIFFRENT_FROM_PRODUCT_INFO
+  CANCEL_OVERSEAS_MISSING_PRODUCT
+  CANCEL_OVERSEAS_NOT_ARRIVED
+  CANCEL_OVERSEAS_SOLD_OUT
+  CANCEL_PRICE_DISSATISFIED
+  CANCEL_SERVICE_DISSATISFIED
+  CANCEL_SHIPPING_DELAY
+  CANCEL_SHIPPING_DELAY_DISSATISFIED
+  CANCEL_SHIPPING_LONG_TERM_DELAY
+  CANCEL_SHIPPING_WILL_DELAY
+  CANCEL_SOLD_OUT
+  CANCEL_UNABLE_EXPORT_DECLARATION
+  CANCEL_WILL_REORDER
+  EXCHANGE_DEFECTIVE_PRODUCT
+  EXCHANGE_DIFFRENT_FROM_ORDERED
+  EXCHANGE_DIFFRENT_FROM_PRODUCT_INFO
+  EXCHANGE_MISORDER
+  EXCHANGE_NO_LONGER_WANTED
+  EXCHANGE_SIZE_MISMATCH
+  RETURN_DEFECTIVE_PRODUCT
+  RETURN_DIFFRENT_FROM_ORDERED
+  RETURN_DIFFRENT_FROM_PRODUCT_INFO
+  RETURN_FOUND_BETTER_PRICE
+  RETURN_MISORDER
+  RETURN_MISSING_DELIVERY
+  RETURN_MISSING_PRODUCT
+  RETURN_NO_LONGER_WANTED
+  RETURN_SERVICE_DISSATISFIED
+  RETURN_SHIPPING_DELAY
+  RETURN_SIZE_MISMATCH
+}
+
+"""
+클레임 귀책 주체 (배송비 부담 주체 결정)
+  - SELLER: 판매자 귀책
+  - USER: 구매자 귀책
+"""
+enum OrderRefundResponsibility {
+  SELLER
+  USER
+}
+
+"""
+배송비 추가 지불방식 정보
+  - 초도/반품/교환 배송비 각 시점별 결제수단을 나타냅니다.
+"""
+type ShippingFeeAdditionalChargeMethod {
+  """초도 배송비 결제수단"""
+  initial: ShippingFeeChargeMethod
+
+  """반품 배송비 결제수단"""
+  return: ShippingFeeChargeMethod
+
+  """교환 배송비 결제수단"""
+  exchange: ShippingFeeChargeMethod
+}
+
+"""교환 요청 정보"""
+type ExchangeRequestInfo {
+  """교환 요청 정보 생성일"""
+  date_created: CrTimestamp!
+
+  """교환하고자 하는 상품 주문 정보"""
+  product_info: ExchangeOrderedProductInfo
+
+  """수량"""
+  quantity: Int!
+
+  """배송 메모"""
+  shipping_memo: String
+
+  """수령자 정보"""
+  receiver: Receiver!
+}
+
+type RefundedAmountDetail {
+  """차감 금액"""
+  deduction_amount: Int!
+
+  """최종 환불 금액"""
+  refunded_total_amount: Int!
+
+  """환불 요청된 상품주문 가격 정보"""
+  requested_item_amounts: [RequestedItemAmounts!]!
+
+  """환불 요청된 배송비"""
+  requested_shipping_fee_amount: Int!
+}
+
+type OrderItemRequestDefer {
+  """보류 생성 시간"""
+  date_created: CrTimestamp!
+}
+
+type RequestedItemAmounts {
+  """상품주문 번호"""
+  order_item_number: String!
+
+  """상품주문별 환불 요청 금액"""
+  refunded_item_amounts: PaymentAmountDetail!
+}
+
+type PaymentAmountDetail {
+  """현금 결제 금액"""
+  cash_amount: Int!
+
+  """쿠폰 할인 금액"""
+  coupon_discount_amount: Int!
+
+  """마일리지 결제 금액"""
+  mileage_amount: Int!
+
+  """포인트 결제 금액"""
+  point_amount: Int!
+}
+
+type ExchangeOrderedProductInfo {
+  image_url: String!
+  name: String!
+  option_detail_list: [ExchangeProductOptionDetail!]
+  options: String!
+  price: Int!
+  url: String!
+}
+
+type ExchangeProductOptionDetail {
+  name: String!
+  value: String!
+}
+
+"""
+배송비 결제수단
+  - NOT_REQUIRED: 해당 없음
+  - USER_WILL_ENCLOSE_WITH_PACKAGE: 택배박스에 동봉
+  - USER_WILL_DEPOSIT_PRIVATELY: 쇼핑몰 계좌로 송금(계좌송금)
+  - DEDUCT_FROM_REFUND_PAYMENT: 환불금에서 차감
+  - ADDITIONAL_PAYMENT: 바로결제
+"""
+enum ShippingFeeChargeMethod {
+  NOT_REQUIRED
+  USER_WILL_ENCLOSE_WITH_PACKAGE
+  USER_WILL_DEPOSIT_PRIVATELY
+  DEDUCT_FROM_REFUND_PAYMENT
+  ADDITIONAL_PAYMENT
+}
+
+"""배송 정보"""
+type ShippingInfo {
+  """도서산간 배송비"""
+  extra_shipping_fee: Int
+
+  """기본/초도 배송비"""
+  shipping_fee: Int
+
+  """무료배송 기준 금액"""
+  free_shipping_amount: Int
+
+  """반품 배송비"""
+  return_shipping_fee: Int
+
+  """부분 반품 배송비"""
+  partial_return_shipping_fee: Int
+
+  """교환 배송비"""
+  exchange_shipping_fee: Int
+}
+
+"""선택된 옵션 상세 정보"""
+type ProductOptionDetail {
+  """옵션명"""
+  name: String!
+
+  """옵션값"""
+  value: String!
+
+  """옵션명(한국어)"""
+  kr_name: String
+
+  """옵션값(한국어)"""
+  kr_value: String
+  option_detail_type: OptionDetailType!
+}
+
+"""주문한 상품 정보"""
+type OrderedProductInfo {
+  """상품 이미지 주소"""
+  image_url: String!
+
+  """상품 주소"""
+  url: String!
+
+  """상품 이름"""
+  name: String!
+
+  """상품 옵션"""
+  options: String!
+
+  """상품 번호"""
+  product_no: String
+
+  """품목 코드"""
+  product_item_code: String
+
+  """선택된 옵션 상세 정보 목록"""
+  option_detail_list: [ProductOptionDetail!]
+
+  """솔루션이 부여한 상품 코드"""
+  product_code: String
+
+  """판매자가 부여한 상품 코드"""
+  custom_product_code: String
+
+  """판매자가 부여한 품목 코드"""
+  custom_product_item_code: String
+}
+
+enum OrderItemProductOptionType {
+  ADDITIONAL
+  BASIC
+}
+
+"""상품 상세 정보"""
+type ProductDetailInfo {
+  """상품의 특성관련 정보"""
+  trait_list: [String!]! @deprecated(reason: "use order_item_product.trait_list")
+
+  """최소구매수량 타입"""
+  minimum_order_quantity_type: MinimumOrderQuantityType!
+}
+
+"""상품 아이템의 추가 옵션정보(연동형 옵션/추가입력 옵션)"""
+type ProductAdditionalOption {
+  """필수여부"""
+  is_required: Boolean!
+
+  """옵션명"""
+  name: String!
+
+  """옵션값"""
+  value: String!
+}
+
+enum MinimumOrderQuantityType {
+  ITEM
+  PRODUCT
+}
+
+"""배송비 결제 시점"""
+enum ShippingFeeType {
+  COD
+  FREE
+  PRE_PAYMENT
+}
+
+"""배송 그룹"""
+type ShippingGroup {
+  """배송비 그룹 ID (같은 배송비 그룹 여부 확인용)"""
+  id: ID!
+
+  """총 상품 금액"""
+  total_item_amount: Int!
+
+  """총 배송비"""
+  total_shipping_fee: Int!
+
+  """배송 정보"""
+  shipping_info: ShippingInfo
+
+  """배송비 그룹의 수단별 총 결제 금액(최초 결제 정보)"""
+  payment_amount: ShippingGroupPaymentAmount
+}
+
+"""상품 프로모선 적용 정보"""
+type OrderPromotionItem {
+  """상품주문 아이디"""
+  order_item_id: ID!
+
+  """상품 프로모션 적용 정보"""
+  order_promotion: OrderPromotion!
+
+  """주문 프로모션 아이디"""
+  order_promotion_id: ID!
+
+  """주문 프로모션그룹 아이디"""
+  order_promotion_item_group_id: ID
+
+  """프로모션 전체 적용가"""
+  promotion_applied_discount_price: Int!
+
+  """프로모션 개별 적용가"""
+  promotion_applied_item_discount_price: Int!
+}
+
+enum OrderFulfillmentType {
+  """직진배송"""
+  ZIGZIN
+
+  """스토어배송"""
+  MERCHANT
+
+  """공급업체 배송"""
+  VENDOR_FLEX
+}
+
+"""상품주문 단위의 수단별 결제 금액(최초 결제 정보)"""
+type OrderItemPaymentAmount {
+  """실 결제 금액"""
+  paid_cash_amount: Int!
+
+  """포인트 결제 금액"""
+  paid_point_amount: Int!
+
+  """마일리지 결제 금액"""
+  paid_mileage_amount: Int!
+
+  """쿠폰 할인 금액"""
+  coupon_discount_amount: Int!
+}
+
+"""직진 주문 품목 아이템"""
+type ZigzinOrderItem {
+  """ORDER ITEM ID"""
+  id: ID!
+
+  """주문서"""
+  order: ZigzinOrder!
+
+  """수량"""
+  quantity: Int!
+
+  """총 금액"""
+  total_amount: Int!
+
+  """단가"""
+  unit_price: Int!
+
+  """주문 품목 번호"""
+  order_item_number: String!
+
+  """상태"""
+  status: OrderItemStatus!
+
+  """주문한 상품 정보"""
+  order_item_product: OrderItemProduct!
+
+  """상품 프로모션 적용 정보"""
+  order_promotion_item: OrderPromotionItem
+
+  """쿠폰 사용 정보 목록"""
+  coupon_used_info_list: [CouponOrderItem!]
+}
+
+"""주문 프로모션"""
+type OrderPromotion {
+  """프로모션 적용 수량 (N)"""
+  applied_quantity: Int
+
+  """주문 프로모션 아이디"""
+  id: ID!
+
+  """최수 주문 금액"""
+  min_required_amount: Int
+
+  """최소 주문 수량 (N+1)"""
+  min_required_quantity: Int
+
+  """프로모션 아이디"""
+  promotion_id: ID!
+
+  """프로모션명"""
+  promotion_title: String!
+
+  """프로모션 타입"""
+  promotion_type: PromotionType!
+
+  """프로모션별 적용된 총 금액"""
+  total_promotion_price: Int!
+}
+
+enum PromotionType {
+  BOGO
+  BOGO_DISCOUNT
+  EXPERIENCE_GROUP
+  FIRST_ORDER
+  RAFFLE
+  SHIPPING_FEE
+  CUSTOM_PRICE
+  CONDITION_DEAL
+}
+
+"""배송비 그룹의 수단별 총 결제 금액(최초 결제 정보)"""
+type ShippingGroupPaymentAmount {
+  """실 결제 금액"""
+  total_cash_amount: Int!
+
+  """총 쿠폰할인 금액"""
+  total_discount_amount: Int!
+
+  """마일리지 결제 금액"""
+  total_mileage_amount: Int!
+
+  """포인트 결제 금액"""
+  total_point_amount: Int!
+}
+
+input ChangeOrderItemListStatusInput {
+  """상태를 변경할 주문 아이템의 번호 목록"""
+  order_item_number_list: [String!]!
+}
+
+"""요청 목록 아이템의 입력"""
+input OrderItemRequestListItemInput {
+  """요청할 주문 아이템 번호"""
+  order_item_number: String!
+
+  """요청 사유 카테고리"""
+  requested_reason_category: RequestedReasonCategory!
+
+  """요청 사유"""
+  requested_reason: String
+}
+
+"""createOrderItemRequestList의 입력"""
+input CreateOrderItemRequestListInput {
+  """요청 타입"""
+  type: OrderItemRequestType!
+
+  """주문 번호"""
+  order_number: String!
+
+  """요청 목록"""
+  item_list: [OrderItemRequestListItemInput!]!
+}
+
+type ZigzinReturnOrderQcItem {
+  order_number: String!
+  order_item_number: String!
+  confirm_quantity: Int
+  reject_quantity: Int
+}
+
+"""카테고리 asset"""
+type CategoryAsset {
+  """key"""
+  key: String!
+
+  """value"""
+  value: String @deprecated(reason: "values로 대체 - open-api에서 호출 없어지면 제거")
+
+  """values"""
+  values: CrJson!
+}
+
+"""Serve JSON object"""
+scalar CrJson
+
+"""주문 상품 문의 첨부파일"""
+type OrderItemInquiryAttachment {
+  """첨부파일 유형"""
+  type: OrderItemInquiryAttachmentType!
+
+  """원본 파일 URL"""
+  original_url: String!
+
+  """썸네일 파일 URL"""
+  thumbnail_url: String!
+
+  """순서"""
+  sequence: Int!
+
+  """생성 날짜"""
+  date_created: CrTimestamp!
+}
+
+"""주문 상품 문의 첨부파일 유형 (사진/영상)"""
+enum OrderItemInquiryAttachmentType {
+  PHOTO
+  VIDEO
+}
+
+enum ProductQuestionType {
+  PRODUCT
+  SIZE
+  STOCK
+  SHIPPING
+  OTHER
+}
+
+enum ProductQuestionStatus {
+  UNANSWERED
+  ANSWERED
+  IN_PROGRESS
+}
+
+type ProductAnswer {
+  id: ID!
+  date_created: CrTimestamp!
+  date_updated: CrTimestamp!
+  contents: String!
+  deleted: Boolean!
+}
+
+type OpenApiProductReviewRelation {
+  """상품 ID"""
+  product_id: ID!
+
+  """외부 코드"""
+  related_code: String!
+
+  """매핑 일시"""
+  related_at: CrTimestamp!
+}
+
+type ProductEssential {
+  key: String
+  name: String!
+  value: String!
+}
+
+type ProductOption {
+  id: ID!
+
+  """속성명"""
+  name: String!
+
+  """옵션 타입"""
+  option_type: ProductOptionType!
+
+  """상품 옵션 포맷"""
+  format: ProductOptionFormat!
+
+  """솔루션사의 관리코드"""
+  external_code: String
+
+  """속성 값"""
+  value_list: [ProductOptionValue!]!
+}
+
+type ProductAttribute {
+  id: ID!
+
+  """속성명"""
+  name: String! @deprecated(reason: "응답값 변경으로 인해 value의 name을 사용해주세요")
+
+  """속성 값"""
+  value_list: [ProductAttributeValue!] @deprecated(reason: "응답값 변경으로 인해 value의 value_list를 사용해주세요")
+
+  """key"""
+  key: String!
+
+  """value"""
+  value: ProductAttributeValueV2
+}
+
+type Item {
+  id: ID!
+
+  """품목명"""
+  name: String!
+
+  """옵션 타입"""
+  option_type: ProductOptionType!
+
+  """품목 가격"""
+  price: Int! @deprecated(reason: "응답값 변경으로 인해 ItemSite.original_price 를 사용해주세요.")
+
+  """품목 코드"""
+  item_code: String
+
+  """솔루션사의 관리코드"""
+  external_code: String
+
+  """품목 판매 상태"""
+  sales_status: ProductSalesStatus!
+
+  """품목 노출 상태"""
+  display_status: ProductDisplayStatus!
+
+  """품목의 부가 속성 리스트"""
+  attribute_list: [ItemAttribute!]!
+
+  """품목의 재고"""
+  inventory: ItemInventory
+
+  """삭제 여부"""
+  deleted: Boolean!
+
+  """site 별 아이템 정보"""
+  site_list: [ItemSite!]!
+}
+
+type ProductImage {
+  id: ID!
+
+  """이미지 URL(도메인 포함)"""
+  origin_url: String!
+
+  """zigzag CDN으로 제공하는 원본 이미지"""
+  image_url: String!
+
+  """이미지 타입"""
+  image_type: ProductImageType!
+}
+
+type ProductCustomInputOption {
+  id: ID
+
+  """상품 옵션명"""
+  name: String!
+
+  """옵션 타입"""
+  option_type: ProductOptionType!
+
+  """필수 여부"""
+  required: Boolean!
+
+  """값 입력 제한"""
+  max_length: Int
+}
+
+type ProductCategory {
+  id: ID!
+
+  """카테고리 ID"""
+  category_id: ID!
+
+  """카테고리 전체 이름"""
+  category_full_name: String!
+}
+
+type ProductPrice {
+  """할인가"""
+  discount_price: Int!
+
+  """정상가"""
+  original_price: Int!
+}
+
+type ProductSite {
+  """site"""
+  site: Site!
+
+  """country code"""
+  country: CountryCode!
+
+  """할인가"""
+  discount_price: Int!
+
+  """정상가"""
+  original_price: Int!
+
+  """상품 유예 상태"""
+  suspend_status: SuspendStatus!
+
+  """배송비 정책"""
+  shipping_fee: CatalogProductShippingFee
+}
+
+type ProductInternationalDelivery {
+  """부피"""
+  volume: ProductInternationalDeliveryVolume
+
+  """무게 g"""
+  weight: Int
+
+  """
+  원산지 두자리 국가코드 사용 https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes
+  """
+  origin: String
+
+  """혼용율"""
+  composition: String
+}
+
+type ProductOrder {
+  """구매 수량"""
+  quantity: ProductOrderQuantity!
+}
+
+type CatalogProductShippingAddress {
+  return_id: ID!
+}
+
+type ProductTrait {
+  id: ID
+
+  """OVERSEAS_PURCHASE_AGENCY, INBOUND_OVERSEA_SHIPPING"""
+  trait_type: String!
+}
+
+type CancellationFeeSpecification {
+  id: ID!
+
+  """기준 시간. HH:mm:ss.SSS"""
+  base_time: String!
+  applicable_list: [String!]!
+  rule_list: [CancellationFeeRule!]!
+}
+
+type ProductSearchKeyword {
+  id: ID!
+
+  """검색어"""
+  value: String!
+}
+
+type ProductSizeDetail {
+  id: ID!
+
+  """사이즈카테고리 ID"""
+  size_category_id: ID
+
+  """상품 사이즈정보"""
+  value_list: [ProductSizeDetailValue!]!
+
+  """등록타입(SYSTEM, SELLER)"""
+  registration_type: ProductSizeDetailRegistrationType!
+}
+
+type PackageUnit {
+  """수량"""
+  quantity: PackageUnitValue!
+
+  """용량"""
+  capacity: PackageUnitValue
+}
+
+enum ProductType {
+  """직진배송 상품"""
+  ZIGZIN
+
+  """일반 상품"""
+  GENERAL
+}
+
+enum ProductFulfillmentType {
+  """직진배송"""
+  ZIGZIN
+
+  """스토어배송"""
+  MERCHANT
+
+  """공급업체 배송"""
+  VENDOR_FLEX
+
+  """디지털배송"""
+  DIGITAL_DELIVERY
+}
+
+enum ProductShippingFeeType {
+  """무료 배송"""
+  FREE_SHIPPING
+
+  """SHOP의 배송정책을 따름"""
+  SHOP_POLICY
+}
+
+enum ProductSalesStatus {
+  """준비 중"""
+  PREPARING
+
+  """세일 중"""
+  ON_SALE
+
+  """판매 종료"""
+  CLOSED
+
+  """유예"""
+  SUSPENDED
+
+  """품절"""
+  SOLD_OUT
+}
+
+enum ProductDisplayStatus {
+  """노출"""
+  VISIBLE
+
+  """숨김"""
+  HIDDEN
+}
+
+enum ProductEntryType {
+  """연동형"""
+  CRAWLING_API
+
+  """등록형"""
+  DIRECT
+}
+
+enum ProductParallelImported {
+  """병행수입"""
+  PARALLEL_IMPORTED
+
+  """병행수입 아님"""
+  NOT_PARALLEL_IMPORTED
+}
+
+enum CatalogProductShippingType {
+  """일반배송"""
+  GENERAL
+
+  """설치배송"""
+  INSTALLATION
+
+  """해외배송"""
+  INTERNATIONAL
+
+  """주문 제작 후 배송"""
+  MAKE_TO_ORDER
+}
+
+enum CatalogProductShippingBundleType {
+  """묶음배송 가능"""
+  CONSOLIDATED
+
+  """묶음배송 불가"""
+  SEPARATED
+}
+
+enum CatalogTaxType {
+  """과세"""
+  TAX
+
+  """면세"""
+  FREE
+}
+
+type ProductInternationalDeliveryVolume {
+  """가로 cm"""
+  width: Float!
+
+  """세로 cm"""
+  height: Float!
+
+  """깊이 cm"""
+  depth: Float!
+}
+
+type ProductOptionValue {
+  id: ID!
+
+  """솔루션사의 관리코드"""
+  external_code: String
+
+  """속성 값"""
+  value: String!
+
+  """옵션 컬러코드"""
+  code: String
+
+  """옵션 이미지 주소"""
+  image_url: String
+}
+
+enum ProductOptionType {
+  BASIC
+  ADDITIONAL
+}
+
+enum ProductOptionFormat {
+  TEXT
+  DATE
+}
+
+type ProductAttributeValue {
+  """key"""
+  key: String!
+
+  """value"""
+  value: String!
+}
+
+type ProductAttributeValueV2 {
+  name: String
+  value_list: [String!]
+}
+
+type ItemAttribute {
+  """속성 명"""
+  name: String!
+
+  """속성 값"""
+  value: String!
+}
+
+type ItemInventory {
+  """가용 재고"""
+  quantity: Int!
+
+  """총 재고"""
+  total_quantity: Int! @deprecated(reason: "제거 예정. quantity 사용")
+}
+
+type ItemSite {
+  """site"""
+  site: Site!
+
+  """country code"""
+  country: CountryCode!
+
+  """정상가"""
+  original_price: Int!
+
+  """품목 할인가"""
+  sales_price: Int! @deprecated(reason: "openapi에서는 사용하지 않는 필드 original_price로 응답 받아서 original_price로 ItemSiteInput에 요청한다.")
+}
+
+enum CountryCode {
+  KR
+  US
+  JP
+  CA
+}
+
+enum ProductImageType {
+  MAIN
+  SUB
+}
+
+type CatalogProductShippingFee {
+  fee_type: CatalogProductShippingFeeType
+  base_fee: Int
+  area_fee: CatalogProductShippingAreaFee
+  conditional_amount: Int
+  return_fee: CatalogProductShippingReturnFee
+  exchange_fee: Int
+}
+
+enum SuspendStatus {
+  """판매 중단"""
+  BLOCK
+
+  """노출 중단"""
+  SUSPEND
+
+  """정상 상품"""
+  NONE
+}
+
+type CatalogProductShippingAreaFee {
+  jeju: Int
+  isolated: Int
+}
+
+type CatalogProductShippingReturnFee {
+  total: Int
+  partial: Int
+}
+
+enum CatalogProductShippingFeeType {
+  """무료 배송"""
+  FREE
+
+  """고정비 배송"""
+  CHARGED
+
+  """조건부 무료 배송"""
+  CONDITIONAL_FREE
+}
+
+type ProductOrderQuantity {
+  """주문당 최소 구매 수량"""
+  minimum_per_order: Int!
+
+  """주문당 최소 구매 수량 타입"""
+  minimum_per_order_type: ProductOrderQuantityType!
+
+  """주문당 최대 구매 수량 - null 이면 제한 없음"""
+  maximum_per_order: Int
+
+  """인당 최대 구매 수량 - null 이면 제한 없음"""
+  maximum_per_customer: Int
+}
+
+enum ProductOrderQuantityType {
+  PRODUCT
+  ITEM
+}
+
+type CancellationFeeRule {
+  rate: Float!
+  range: CancellationFeeRange!
+}
+
+type CancellationFeeRange {
+  start: Int!
+  end: Int!
+  unit: CancellationFeeRangeUnit!
+}
+
+enum CancellationFeeRangeUnit {
+  HOUR
+}
+
+type ProductSizeDetailValue {
+  """옵션값"""
+  option_value: String!
+
+  """속성값"""
+  attribute_list: [ProductSizeDetailAttribute!]
+
+  """순서"""
+  order: Int!
+}
+
+enum ProductSizeDetailRegistrationType {
+  SELLER
+  SYSTEM
+}
+
+type ProductSizeDetailAttribute {
+  """사이즈템플릿 key (ex: length)"""
+  key: String
+
+  """사이즈 이름"""
+  name: String
+
+  """사이즈 값"""
+  value: String!
+}
+
+type SizeCategoryImage {
+  normal: String
+  dark: String
+}
+
+type SizeCategoryTemplateValue {
+  key: String!
+  required: Boolean!
+  value: String!
+}
+
+type ProductSummary {
+  """상품 ID"""
+  id: ID!
+
+  """상품명"""
+  name: String!
+
+  """판매 상태"""
+  sales_status: ProductSalesStatus!
+
+  """노출 상태"""
+  display_status: ProductDisplayStatus!
+
+  """솔루션사의 관리코드 - pk 값"""
+  external_code: String
+
+  """자사몰 상품 관리코드"""
+  product_code: String
+
+  """배송 타입"""
+  fulfillment_type: ProductFulfillmentType
+
+  """카테고리"""
+  category: ProductCategory!
+
+  """상품 이미지 리스트"""
+  image_list: [ProductImage!]!
+
+  """사이트별 가격"""
+  site_list: [ProductSite!]!
+}
+
+type PackageUnitValue {
+  """단위"""
+  unit: String!
+
+  """값"""
+  value: Float!
+}
+
+input ProductEssentialInput {
+  key: String
+  name: String!
+  value: String!
+}
+
+input ProductOptionInput {
+  id: ID
+
+  """속성명"""
+  name: String!
+
+  """속성 값"""
+  value_list: [ProductOptionValueInput!]!
+
+  """솔루션사의 관리코드 - pk 값"""
+  external_code: String
+
+  """옵션 타입"""
+  option_type: ProductOptionType
+
+  """상품 옵션 포맷"""
+  format: ProductOptionFormat
+}
+
+input ProductAttributeInput {
+  id: ID
+
+  """속성 key (카테고리 조회 api의 asset_list의 key 값)"""
+  key: String
+
+  """속성 값"""
+  value: ProductAttributeValueV2Input
+}
+
+input ItemInput {
+  id: ID
+
+  """품목명"""
+  name: String
+
+  """품목 코드"""
+  item_code: String
+
+  """솔루션사의 관리코드 - pk 값"""
+  external_code: String
+
+  """품목 판매 상태"""
+  sales_status: ProductSalesStatus!
+
+  """품목 노출 상태"""
+  display_status: ProductDisplayStatus @deprecated(reason: "제거 예정 - sales_status로 노출 제어 sales_status.SUSPENDED 이면 노출 그외는 미노출")
+
+  """품목의 부가 속성 리스트"""
+  attribute_list: [ItemAttributeInput!]!
+
+  """품목의 재고"""
+  inventory: ItemInventoryInput
+
+  """아이템 site"""
+  site_list: [ItemSiteInput!]!
+
+  """옵션 타입"""
+  option_type: ProductOptionType
+}
+
+input ProductImageInput {
+  id: ID
+
+  """원본 파일 URL"""
+  origin_url: String!
+
+  """이미지 타입"""
+  image_type: ProductImageType!
+
+  """이미지 너비. 제거 예정. origin_url로 구해서 사용하기 때문에 값 넘겨주지 않아도 됨"""
+  width: Int
+
+  """이미지 높. 제거 예정. origin_url로 구해서 사용하기 때문에 값 넘겨주지 않아도 됨"""
+  height: Int
+}
+
+input ProductCustomInputOptionInput {
+  id: ID
+
+  """상품 옵션명"""
+  name: String!
+
+  """필수 여부"""
+  required: Boolean!
+
+  """값 입력 제한"""
+  max_length: Int
+
+  """옵션 타입"""
+  option_type: ProductOptionType
+}
+
+input ProductCategoryInput {
+  id: ID
+
+  """카테고리 ID"""
+  category_id: ID!
+}
+
+input ProductSiteInput {
+  site: Site!
+
+  """country code"""
+  country: CountryCode!
+
+  """시중 판매가"""
+  original_price: Int!
+
+  """배송비 정보"""
+  shipping_fee: CatalogProductShippingFeeInput
+}
+
+input ProductInternationalDeliveryInput {
+  """부피"""
+  volume: ProductInternationalDeliveryVolumeInput
+
+  """무게 g"""
+  weight: Int
+
+  """
+  원산지 두자리 국가코드 사용 https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes
+  """
+  origin: String
+
+  """혼용율"""
+  composition: String
+}
+
+input ProductOrderInput {
+  """구매 수량"""
+  quantity: ProductOrderQuantityInput!
+}
+
+input CatalogProductAddressInput {
+  """반송지 주소"""
+  return_id: ID!
+}
+
+input ProductTraitInput {
+  id: ID
+
+  """OVERSEAS_PURCHASE_AGENCY, INBOUND_OVERSEA_SHIPPING"""
+  trait_type: String!
+}
+
+input CancellationFeeSpecificationInput {
+  id: ID
+
+  """기준 시간. HH:mm:ss.SSS"""
+  base_time: String!
+  applicable_list: [String!]!
+  rule_list: [CancellationFeeRuleInput!]!
+}
+
+input PackageUnitInput {
+  """수량"""
+  quantity: PackageUnitValueInput!
+
+  """용량"""
+  capacity: PackageUnitValueInput
+}
+
+input ProductSizeDetailInput {
+  id: ID
+
+  """size_category id"""
+  size_category_id: ID
+
+  """상품 사이즈정보"""
+  value_list: [ProductSizeDetailValueInput!]
+
+  """등록타입(SYSTEM, SELLER) - 신규 데이터(id 없음)는 SELLER만 허용"""
+  registration_type: ProductSizeDetailRegistrationType!
+}
+
+input ProductSearchKeywordInput {
+  id: ID
+
+  """검색어"""
+  value: String!
+}
+
+input PackageUnitValueInput {
+  """단위"""
+  unit: String!
+
+  """값"""
+  value: Float!
+}
+
+input ProductInternationalDeliveryVolumeInput {
+  """가로 cm"""
+  width: Float!
+
+  """세로 cm"""
+  height: Float!
+
+  """깊이 cm"""
+  depth: Float!
+}
+
+input ProductOptionValueInput {
+  id: ID
+
+  """속성 값"""
+  value: String!
+
+  """솔루션사의 관리코드 - pk 값"""
+  external_code: String
+
+  """옵션 컬러코드"""
+  code: String
+
+  """옵션 이미지 주소"""
+  image_url: String
+}
+
+input ProductAttributeValueV2Input {
+  name: String
+  value_list: [String!]
+}
+
+input ProductAttributeValueInput {
+  """key"""
+  key: String!
+
+  """value"""
+  value: String!
+}
+
+input ItemAttributeInput {
+  """속성 명"""
+  name: String!
+
+  """속성 값"""
+  value: String!
+}
+
+input ItemInventoryInput {
+  item_id: ID
+
+  """재고"""
+  quantity: Int!
+}
+
+input ItemSiteInput {
+  """site"""
+  site: Site!
+
+  """country code"""
+  country: CountryCode!
+
+  """판매가"""
+  original_price: Int!
+}
+
+input CatalogProductShippingFeeInput {
+  fee_type: CatalogProductShippingFeeType!
+  base_fee: Int!
+  area_fee: CatalogProductShippingAreaFeeInput!
+  conditional_amount: Int
+  return_fee: CatalogProductShippingReturnFeeInput!
+  exchange_fee: Int!
+}
+
+input CatalogProductShippingAreaFeeInput {
+  jeju: Int!
+  isolated: Int!
+}
+
+input CatalogProductShippingReturnFeeInput {
+  total: Int!
+  partial: Int
+}
+
+input ProductOrderQuantityInput {
+  """주문당 최소 구매 수량"""
+  minimum_per_order: Int!
+
+  """주문당 최소 구매 수량 타입"""
+  minimum_per_order_type: ProductOrderQuantityType!
+
+  """주문당 최대 구매 수량 - null 이면 제한 없음"""
+  maximum_per_order: Int
+
+  """인당 최대 구매 수량 - null 이면 제한 없음"""
+  maximum_per_customer: Int
+}
+
+input CancellationFeeRuleInput {
+  rate: Float!
+  range: CancellationFeeRangeInput!
+}
+
+input CancellationFeeRangeInput {
+  start: Int!
+  end: Int!
+  unit: CancellationFeeRangeUnit!
+}
+
+input ProductSizeDetailValueInput {
+  """옵션값"""
+  option_value: String!
+
+  """속성값"""
+  attribute_list: [ProductSizeDetailAttributeInput!]
+
+  """순서"""
+  order: Int!
+}
+
+input ProductSizeDetailAttributeInput {
+  """사이즈템플릿 key (ex: length)"""
+  key: String
+
+  """사이즈 이름"""
+  name: String
+
+  """사이즈 값"""
+  value: String!
+}
+
+enum ShopShippingAddressCompany {
+  CJ
+  POSTAL
+  HANJIN
+  LOGEN
+  LOTTE
+  LOGIS
+  ILYANG
+  ETC
+}
+
+enum SiteForOpenApi {
+  ZIGZAG
+  POSTY
+  FBK
+  WHOLESALE
+  MYSTORE
+  KAKAOTALK_SHOPPING
+}
+
+type ShopAttributeForOpenApi {
+  """판매 채널"""
+  site: SiteForOpenApi!
+
+  """국가 코드"""
+  country_code: String!
+
+  """속성 key"""
+  key: String!
+
+  """속성 value"""
+  value: String!
+}
+
+type ShopShippingAddress {
+  id: ID!
+
+  """샵 ID"""
+  shop_id: ID!
+
+  """주소 이름"""
+  name: String!
+
+  """우편번호"""
+  postcode: String!
+
+  """주소"""
+  address: String!
+
+  """상세 주소"""
+  address_detail: String
+
+  """배송에 사용하는 택배사"""
+  shipping_company: ShopShippingAddressCompany!
+
+  """굿스플로 연동 유무"""
+  is_goodsflow: Boolean!
+
+  """기본 주소록 설정"""
+  is_default: Boolean!
+
+  """상품연동 주소지 사용 유무"""
+  is_product_sync: Boolean!
+}
+
+"""상품 리뷰 유형"""
+enum ProductReviewType {
+  TEXT
+  PHOTO
+  VIDEO
+  QUICK
+}
+
+type ProductReview {
+  """기본 키"""
+  id: ID!
+
+  """상품 코드"""
+  product_code: ID!
+
+  """상품리뷰 유형"""
+  type: ProductReviewType!
+
+  """상품리뷰 노출 상태"""
+  display: Boolean!
+
+  """리뷰 내용"""
+  contents: String!
+
+  """생성 날짜"""
+  date_created: CrTimestamp!
+
+  """수정 날짜"""
+  date_updated: CrTimestamp
+
+  """평점"""
+  rating: Int!
+
+  """도움돼요 수"""
+  like_count: Int!
+
+  """상품 리뷰 첨부파일 목록"""
+  attachment_list: [ProductReviewAttachment!]!
+
+  """주문 상품 옵션"""
+  product_options: [ProductReviewProductOption!]!
+
+  """사이트 이름"""
+  site: Site!
+}
+
+"""상품 리뷰 첨부파일"""
+type ProductReviewAttachment {
+  """상위 상품 리뷰 레코드 ID"""
+  product_review_id: ID!
+
+  """생성 날짜"""
+  date_created: CrTimestamp!
+
+  """원본 파일 URL"""
+  original_url: String!
+
+  """썸네일 파일 URL"""
+  thumbnail_url: String
+
+  """순서"""
+  order: Int!
+}
+
+type ProductReviewProductOption {
+  key: String!
+  value: String!
+}
+
+enum ProductReviewStatus {
+  PRE_INSPECTION
+  PRE_INSPECTION_INSPECTOR_ASSIGNED
+  NORMAL
+  NORMAL_ATTACHMENT_DELETED
+  DELETED
+}
+
+"""
+주문 정산 아이템 목록의 날짜 검색 타입
+- BASED: 정산 기준일
+- SCHEDULED: 정산 예정일
+"""
+enum OrderSettlementItemListDateQueryType {
+  BASED
+  SCHEDULED
+}
+
+"""주문 정산 아이템"""
+type OrderSettlementItem {
+  """정산 기준일"""
+  date_based_ymd: Int!
+
+  """정산 예정일"""
+  date_scheduled_ymd: Int!
+
+  """정산 완료일"""
+  date_completed: CrTimestamp
+
+  """주문 생성일"""
+  order_created: CrTimestamp
+
+  """주문 번호"""
+  order_number: String!
+
+  """상품 주문 번호"""
+  order_item_number: String
+
+  """교환전 상품주문번호"""
+  exchange_order_item_number: String
+
+  """상품 이름"""
+  product_name: String!
+
+  """상품 아이디"""
+  product_id: ID
+
+  """상품 수량"""
+  quantity: Int
+
+  """판매사이트"""
+  site: Site!
+
+  """국가 정보"""
+  country: Country!
+
+  """카탈로그 연동 타입"""
+  catalog_relation_type: CatalogRelationType
+
+  """결제 수단"""
+  payment_method: OrderSettlementPaymentMethod!
+
+  """z결제 할인가 적용 여부"""
+  is_zpay_discount: Boolean!
+
+  """z결제 할인금액"""
+  zpay_discount_amount: Long
+
+  """총 금액"""
+  total_amount: Long!
+
+  """유상 결제 금액"""
+  pg_cash_amount: Long
+
+  """스토어 부담 금액"""
+  store_allotment_amount: Long
+
+  """플랫폼 부담 금액"""
+  platform_allotment_amount: Long
+
+  """프로모션 할인 셀러 분담금"""
+  promotion_seller_discount_amount: Long
+
+  """수수료율 (e.g 4.9% -> 490, 4.85 -> 485)"""
+  fee_rate_bp: Int!
+
+  """수수료"""
+  fee: Long
+
+  """공급가"""
+  fee_supply_amount: Long
+
+  """부가 가치세"""
+  fee_vat_amount: Long
+
+  """정산 금액"""
+  settlement_amount: Long
+}
+
+"""Long 타입"""
+scalar Long
+
+"""국가 정보"""
+enum Country {
+  KR
+  JP
+  US
+  CA
+}
+
+enum CatalogRelationType {
+  GENERAL
+  ZONLY
+  VENDOR_FLEX
+  ON_SITE
+  DIGITAL_DELIVERY
+}
+
+"""주문 결제 수단"""
+enum OrderSettlementPaymentMethod {
+  CARD
+  BANK
+  VBANK
+  PHONE
+  SIMPLE_CARD
+  SIMPLE_BANK
+  KAKAOPAY
+  GLOBAL_CARD
+  CONVENIENCE_STORE_JP
+  CONVENIENCE_STORE
+  TOSSPAY
+  BENEPIA_POINT
+  POINT
+}
+
+enum SearchStoreDateType {
+  BASED
+  SCHEDULED
+}
+
+type OrderSettlementShop {
+  """스토어 정산 번호"""
+  id: ID!
+
+  """정산 예정일"""
+  date_scheduled_ymd: Int!
+
+  """정산 완료일"""
+  date_settled: Int
+
+  """정산 상태"""
+  status: OrderSettlementShopStatus!
+
+  """주문금액"""
+  total_amount: Long!
+
+  """Z결제 수수료"""
+  total_fee: Long!
+
+  """실 결제 금액"""
+  total_pg_cash_amount: Long!
+
+  """스토어 부담금"""
+  total_store_allotment_amount: Long!
+
+  """프로모션 할인 금액 셀러 분담금"""
+  total_promotion_seller_discount_amount: Long!
+
+  """카카오스타일 부담금"""
+  total_platform_allotment_amount: Long!
+
+  """판매 정산 금액"""
+  total_settlement_amount: Long
+
+  """조정 정산 금액"""
+  adjustment_amount: Long!
+
+  """최종 정산 금액"""
+  final_settlement_amount: Long!
+}
+
+enum OrderSettlementShopStatus {
+  """정산 준비중"""
+  READY_SETTLED
+
+  """미정산"""
+  NOT_SETTLED
+
+  """정산 완료"""
+  SETTLED
+
+  """지급 보류"""
+  DEFERRED
+
+  """공제금 이관"""
+  DEDUCTION_TRANSFERRED
+
+  """조정금 이관"""
+  ADJUSTMENT_TRANSFERRED
+}
+
+type UserAccount {
+  email: String!
+}
+
+type VbankPayInfo {
+  """입금 금액"""
+  amount: Int!
+
+  """은행 이름"""
+  bank_name: String!
+
+  """입금 기한"""
+  due_date_ymd: Int!
+
+  """예금주 이름"""
+  holder: String!
+
+  """계좌 번호"""
+  number: String!
+}
+
+type CouponOrderItem {
+  """요청한 주문 아이템 ID"""
+  order_item_id: ID!
+
+  """쿠폰 적용 금액"""
+  amount: Int!
+
+  """카카오스타일 쿠폰 분담 금액"""
+  platform_amount: Int!
+
+  """셀러 쿠폰 분담 금액"""
+  seller_amount: Int!
+}
+
+"""쇼핑몰 주문"""
+type OrderShop {
+  """총 상품 금액"""
+  total_item_amount: Int!
+
+  """총 배송비"""
+  total_shipping_fee: Int!
+
+  """배송 정보"""
+  shipping_info: ShippingInfo
+}
+
+enum OptionDetailType {
+  INDEPENDENT
+  TEXT
+}

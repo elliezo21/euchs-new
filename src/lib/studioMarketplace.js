@@ -8,7 +8,7 @@
 import { callStudioApi, studioErrorMessage } from '@/lib/studioApi'
 import { visibleSends } from '@/lib/studioMarketplaceRules'
 
-export const MARKET_LABEL = { coupang: '쿠팡', cafe24: '카페24', smartstore: '스마트스토어', '11st': '11번가' }
+export const MARKET_LABEL = { coupang: '쿠팡', cafe24: '카페24', smartstore: '스마트스토어', '11st': '11번가', zigzag: '지그재그' }
 // 상태 문구 SEND_STATUS_LABEL·sendStatusLabel은 studioMarketplaceRules 한 곳 (아래 re-export)
 // 색: 전송 중·승인 대기 = 회색, 승인 완료·등록 완료 = 초록, 반려·실패 = 빨강 (st-badge 위에 덧붙이는 클래스)
 export const SEND_STATUS_CLASS = { sending: '', approval_pending: '', approved: 'st-badge-ok', registered: 'st-badge-ok', rejected: 'st-badge-danger', failed: 'st-badge-danger', deleted: '', ended: '' }
@@ -69,6 +69,11 @@ export const sendSmartstoreProduct = (payload) => call('smartstore_send', payloa
 export const listElevenstCategories = () => call('elevenst_categories')                     // → { categories:[{ id, name, wholeName }] } (최하위만)
 export const listElevenstAddresses = () => call('elevenst_addresses')                       // → { outAddresses, inAddresses, last:{ out, in }, defaults:{ out, in } }
 export const sendElevenstProduct = (payload) => call('elevenst_send', payload)              // → { sendId, productNo, status:'registered', stopped, stopError }
+// 지그재그(카카오스타일) (2026-10-02) — 연결 = Access Key·Secret Key(서버가 스토어 정보 조회로 확인) · 보내기 창의 지그재그 섹션(StudioSendZigzag)이 부른다
+export const connectZigzag = (form) => call('connect_zigzag', form)                           // { access_key, secret_key } → market_status 모양
+export const disconnectZigzag = () => call('disconnect_zigzag')
+export const getZigzagMeta = () => call('zigzag_meta')                                        // → { shop, categories, templates, addresses, lastReturnId }
+export const sendZigzagProduct = (payload) => call('zigzag_send', payload)                    // → { sendId, productId, status:'registered', display } · 다시 보내기면 updated·way
 
 /**
  * [판매처로 보내기] 진입 — 연결·내 상품을 확인하고 보내기 창에 필요한 값을 돌려준다.

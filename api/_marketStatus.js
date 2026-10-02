@@ -23,11 +23,14 @@
  *              selStatCd: 101 승인대기 · 102 승인전 · 103 판매중 · 104 품절 · 105 전시중지 · 106 판매정상종료 · 108 판매금지
  *              판정은 응답 prdNo가 우리 기록의 상품번호와 같을 때만 (판매자 상품코드는 중복 가능). 코드가 없는 예전 기록·응답에 없는 상품은 판정하지 않는다
  *              호출 한도: 문서에서 숫자를 확인하지 못함 → 한 번 요청에 서로 다른 코드 ELEVENST_LOOKUP_MAX개까지 (같은 breakerFor)
+ *   지그재그  product_summary_list(product_id_list 최대 100 — DIRECT 샵 전용) → sales_status·display_status · 목록에 없으면 product(id) (문서: 상품이 없으면 null)
+ *              CLOSED(문서 "삭제") = 삭제됨 · 그 밖 = 등록 완료(원문 "판매중 · 노출") — 규칙 api/_zigzagFields.js zigzagStatusOf (2026-10-02)
+ *              계정 식별값 = 스토어 ID(Query.shop shop_id — 연결 때 marketplace_accounts.market_account에 저장)
  * [확인 못 함 — 넣지 않음] 카페24: 조회 API를 이 작업에서 확인하지 않았다 (고객에게 숨긴 판매처)
  */
 
 /** 상태를 자동으로 확인하는 판매처 — 공식 문서로 조회 API를 확인한 곳만. 화면은 이 목록에 없는 판매처 칩에 "지원하지 않습니다" 안내 */
-export const STATUS_CHECK_MARKETS = ['coupang', 'smartstore', '11st']
+export const STATUS_CHECK_MARKETS = ['coupang', 'smartstore', '11st', 'zigzag']
 /** 확인할 기록 상태 — 살아 있거나 판매처에서 진행 중인 것. 실패(failed)·삭제됨(deleted)·판매 종료(ended)는 다시 보지 않는다 */
 export const CHECK_STATUSES = ['registered', 'approved', 'approval_pending', 'sending', 'rejected']
 /** 판매처에서 지워진 상품 — 새 상태 값 (DB check·칸 이름은 docs/sql/2026-10-02-marketplace-sends-deleted.sql) */
@@ -40,7 +43,7 @@ export const ENDED = 'ended'
 /** 상태 확인으로 새로 쓰는 값 — SQL 실행 전이면 DB check가 거절한다(상태는 두고 원문·확인 시각만 저장) */
 export const NEW_CHECK_STATUSES = [DELETED, ENDED]
 /** 한 번 요청에 판매처마다 꺼내 볼 기록 수 — 쿠팡 = 승인 완료는 삭제 목록 훑기로 한꺼번에(하나씩 조회는 COUPANG_SINGLE_MAX까지) · 스마트스토어 = 목록 조회 1번(문서 최대 500) · 11번가 = 코드마다 1번 */
-export const CHECK_BATCH = { coupang: 500, smartstore: 500, '11st': 30 }
+export const CHECK_BATCH = { coupang: 500, smartstore: 500, '11st': 30, zigzag: 100 }
 /** 11번가 — 한 번 요청에 부르는 서로 다른 판매자 상품코드 수 (넘으면 다음 요청에서) */
 export const ELEVENST_LOOKUP_MAX = 30
 /** 11번가 selStatCd → 화면 원문 (문서 표 그대로) */

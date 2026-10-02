@@ -131,3 +131,22 @@ export function menuChecks() {
   }
   return out
 }
+
+/**
+ * 지그재그(카카오스타일) 연결 안내 (2026-10-02) — 해성이 준 글 그대로(이미지 없이 글로만). 고치지 않는다
+ * 권한 이름 "상품조회"·"상품갱신" = 문서 권한 목록 GET-PRODUCT·UPDATE-PRODUCT (https://zigzag.kr/_openapi/docs/authorization)
+ */
+export const ZIGZAG_GUIDE_TITLE = '지그재그 연결 방법'
+export const ZIGZAG_GUIDE_PREP = '준비: 지그재그(카카오스타일)에 입점이 끝난 스토어여야 연결할 수 있습니다.'
+export const ZIGZAG_GUIDE = [
+  '카카오스타일 파트너센터(partners.kakaostyle.com)에 로그인합니다.',
+  '[내 스토어 정보 관리] → [API 인증키 관리]로 이동합니다.',
+  '[발급]을 누르고, 권한에서 "상품조회"와 "상품갱신"을 선택합니다.',
+  '발급 창에 나온 Access Key와 Secret Key를 복사해 아래 칸에 붙여 넣습니다. Secret Key는 발급 창을 닫으면 다시 볼 수 없습니다. 반드시 따로 보관해 주세요.',
+  '[연결]을 누르면 연결을 확인한 뒤 상품을 보낼 수 있습니다.',
+]
+export const ZIGZAG_GUIDE_NOTES_TITLE = '알아 두세요'
+export const ZIGZAG_GUIDE_NOTES = [
+  '인증키는 스토어마다 따로 발급됩니다.',
+  '인증키를 다시 발급했다면 이 화면에서 새 키로 다시 연결해 주세요.',
+]

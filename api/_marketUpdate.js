@@ -35,12 +35,15 @@
  *              주인 확인 = 판매자 상품코드 조회(GET …/prodmarketservice/sellerprodcode/{sellerPrdCd}) 응답에 우리 상품번호가 있으면 이 키(계정)의 상품
  *                (elevenstOwnerOf — 106 판매정상종료·108 판매금지면 살아 있지 않음 → 새로 등록). 코드가 없는 예전 기록은 조회할 열쇠가 없어
  *                확인 없이 수정을 시도한다(11번가가 키로 주인을 확인해 거절하면 그 문구 그대로) — 수정 XML에 코드를 넣으므로 그다음부터는 조회된다
+ *   지그재그   updateProduct(input: UpdateProductInput!) — 문서(상품 갱신): 생성과 같은 입력 + id, "id가 주어지지 않으면 값이 일치하더라도 새로 생성"
+ *              → 상품 조회(product)로 옵션·옵션 값·품목·대표 이미지·카테고리 id를 읽어 짝지어 넣는다(api/_zigzagFields.js mergeZigzagUpdate)
+ *              재고만 바뀌면 updateItemAvailableStockQuantity(문서: 아이템 재고 갱신) · 주인 = 이 스토어 키로 product가 조회되는지(없으면 null)
  */
 
 /** 살아 있는 상품 = 등록 완료·승인 완료·승인 대기 (삭제됨·판매 종료·실패·반려·전송 중은 아님) */
 export const LIVE_SEND_STATUSES = ['registered', 'approved', 'approval_pending']
 /** 판매처별 다시 보내기 방법 — 'modify' = 판매처에 있는 상품을 수정 · 'manual' = 수정 API 근거 없음(판매처에서 직접 수정, 보내기 막음 — 지금은 쓰는 판매처 없음). 없으면 예전처럼 새로 등록 */
-export const UPDATE_MODES = { coupang: 'modify', smartstore: 'modify', '11st': 'modify' }
+export const UPDATE_MODES = { coupang: 'modify', smartstore: 'modify', '11st': 'modify', zigzag: 'modify' }
 /** 수정하면 판매처 승인을 다시 받는 판매처 */
 export const REAPPROVAL_MARKETS = ['coupang']
 
