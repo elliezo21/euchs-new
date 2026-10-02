@@ -1,13 +1,14 @@
 /**
  * 판매처 > [보낸 상품] 목록 규칙 (2026-10-02 카드형 → 목록형) — 순수 함수 (scripts/test-marketplace.mjs가 그대로 부른다)
  *
- * 재료 = 서버 sends_list 응답(api/marketplace.js publicSend — 전송 기록 1건 = 1줄, created_at 최근순 최대 100건).
+ * 재료 = 서버 sends_list 응답(api/marketplace.js publicSend — 전송 기록 1건 = 1줄, created_at 최근순 · 2026-10-02부터 한도 없이 전부).
  *   쿠팡 다시 승인 요청은 같은 기록을 고친다(revision) · 스마트스토어·11번가·카페24는 보낼 때마다 새 기록.
  * 상품 1개 = 내 상품(exportId) 1개. 판매처 현황 칩·상태 분류는 판매처마다 가장 최근 기록 1건만 본다(sendsByExport와 같은 규칙).
  * 상태 문구는 studioMarketplaceRules.sendStatusLabel 한 곳 — 여기에는 문구 표를 두지 않는다(묶음 이름만).
  * import는 상대 경로(node 테스트가 그대로 부른다)
  */
 import { MARKETS, marketsFor, canResend, sendStatusLabel, badgeReason } from './studioMarketplaceRules.js'
+import { STATUS_CHECK_MARKETS, CHECK_STATUSES, AUTO_CHECK_MS } from '../../api/_marketStatus.js'
 
 // 판매처 이름·순서·필터 선택지는 판매처 목록 한 곳(studioMarketplaceRules.MARKETS · 보이는 범위 marketsFor)에서만 읽는다 —
 // 목록에 판매처가 늘면 칩·필터에 그대로 나온다. 판매처마다 표 칸을 만들지 않는다 (2026-10-02)
@@ -19,14 +20,14 @@ const marketRank = key => { const i = MARKETS.findIndex(m => m.key === key); ret
  */
 export const marketFilterOptions = ({ admin = false } = {}) => marketsFor({ admin }).filter(m => m.connect !== 'planned').map(m => ({ key: m.key, name: m.name }))
 
-/** 상태 묶음 — 위 카드 4개(all·done·pending·failed) + 상태 고르기에만 있는 '전송 중'(sending) */
+/** 상태 묶음 — 위 카드 4개(all·done·pending·failed) + 상태 고르기에만 있는 '전송 중'(sending)·'판매처에서 삭제됨'(deleted — 완료로 세지 않는다) */
 export const STATUS_GROUPS = [
   { key: 'all', label: '전체', statuses: null },
   { key: 'done', label: '등록·승인 완료', statuses: ['registered', 'approved'] },
   { key: 'pending', label: '승인 대기', statuses: ['approval_pending'] },
   { key: 'failed', label: '실패·반려', statuses: ['failed', 'rejected'] },
 ]
-export const STATUS_FILTERS = [...STATUS_GROUPS, { key: 'sending', label: '전송 중', statuses: ['sending'] }]
+export const STATUS_FILTERS = [...STATUS_GROUPS, { key: 'sending', label: '전송 중', statuses: ['sending'] }, { key: 'deleted', label: sendStatusLabel('deleted'), statuses: ['deleted'] }]
 const statusesOf = key => STATUS_FILTERS.find(g => g.key === key)?.statuses || null
 
 export const PERIODS = [
@@ -41,27 +42,40 @@ export const SEARCH_FIELDS = [{ key: 'name', label: '상품명' }, { key: 'no', 
 export const PAGE_SIZES = [20, 50, 100]
 export const DEFAULT_PAGE_SIZE = 50
 
-/** 칩 색 묶음 — 'ok' 등록·승인 완료 · 'wait' 승인 대기·전송 중 · 'bad' 실패·반려 · '' 그 밖 */
+/** 칩 색 묶음 — 'ok' 등록·승인 완료 · 'wait' 승인 대기·전송 중 · 'bad' 실패·반려 · 'gone' 판매처에서 삭제됨(회색) · '' 그 밖 */
 export function chipTone(status) {
   if (status === 'registered' || status === 'approved') return 'ok'
   if (status === 'approval_pending' || status === 'sending') return 'wait'
   if (status === 'failed' || status === 'rejected') return 'bad'
+  if (status === 'deleted') return 'gone'
   return ''
 }
 
 /**
  * "판매처 현황" 칩 — 이 상품을 실제로 보낸 판매처만(판매처마다 가장 최근 기록 1건). PC 표·폰 카드가 같이 쓴다
- * 순서: 실패·반려 → 승인 대기·전송 중 → 완료 → 그 밖, 같은 묶음 안은 판매처 목록 순서
+ * 순서: 실패·반려 → 승인 대기·전송 중 → 완료 → 판매처에서 삭제됨 → 그 밖, 같은 묶음 안은 판매처 목록 순서
  * max개까지 다 보이고, 넘치면 (max−1)개 + "+N" 칩 — title = 나머지 "판매처 이름 상태"를 줄마다
- * @returns {{ chips:[{ id, market, status, tone, name, label, title }], more: null | { count, label, title } }}
- *   label = "판매처 이름 + sendStatusLabel(status)" · title = 실패·반려 사유(badgeReason — 없으면 '')
+ * @returns {{ chips:[{ id, market, status, tone, name, label, title, live }], more: null | { count, label, title } }}
+ *   label = "판매처 이름 + sendStatusLabel(status)" (+ " N건" — 완료 칩이고 그 판매처에 살아 있는 상품이 2개 이상일 때 · liveCount)
+ *   title = 실패·반려 사유(badgeReason) + 상태 자동 확인을 지원하지 않는 판매처면 UNCHECKED_NOTE (줄바꿈으로)
  */
 export const CHIP_MAX = 5
-const TONE_ORDER = ['bad', 'wait', 'ok', '']
+const TONE_ORDER = ['bad', 'wait', 'ok', 'gone', '']
+/** 살아 있는 상품 = 등록 완료·승인 완료 (판매처에서 삭제됨·실패·반려·대기는 아님) */
+export const LIVE_STATUSES = ['registered', 'approved']
+/** 같은 작업으로 이 판매처에 살아 있는 상품 수 — 그 판매처의 모든 기록 중 LIVE_STATUSES */
+export const liveCount = (p, market) => (Array.isArray(p?.history) ? p.history : []).filter(s => s.market === market && LIVE_STATUSES.includes(s.status)).length
+/** 상태 자동 확인을 지원하는 판매처인지 (api/_marketStatus.js STATUS_CHECK_MARKETS 한 곳) */
+export const statusCheckable = market => STATUS_CHECK_MARKETS.includes(market)
+export const UNCHECKED_NOTE = '이 판매처는 상태 자동 확인을 지원하지 않습니다'
 export function marketChips(p, { max = CHIP_MAX } = {}) {
   const all = Object.values(p?.byMarket || {}).map(s => {
     const name = sentMarketName(s.market)
-    return { id: s.id, market: s.market, status: s.status, tone: chipTone(s.status), name, label: `${name} ${sendStatusLabel(s.status)}`, title: badgeReason(s) }
+    const tone = chipTone(s.status)
+    const live = liveCount(p, s.market)
+    const label = `${name} ${sendStatusLabel(s.status)}${tone === 'ok' && live >= 2 ? ` ${live}건` : ''}`
+    const title = [badgeReason(s), statusCheckable(s.market) ? '' : UNCHECKED_NOTE].filter(Boolean).join('\n')
+    return { id: s.id, market: s.market, status: s.status, tone, name, label, title, live }
   }).sort((a, b) => TONE_ORDER.indexOf(a.tone) - TONE_ORDER.indexOf(b.tone) || marketRank(a.market) - marketRank(b.market) || String(a.market).localeCompare(String(b.market)))
   if (all.length <= max) return { chips: all, more: null }
   const rest = all.slice(max - 1)
@@ -167,3 +181,31 @@ export function fixAction(p, s) {
   if (s.market === 'coupang' && canResend(s)) return 'resend'
   return p.exportId ? 'send' : ''
 }
+
+// ── 판매처 상태 확인 (2026-10-02) — 서버 sync(판매처 공통)를 화면이 부르는 규칙. 예약 실행(cron) 없이 [보낸 상품] 탭을 열 때 ──
+export { AUTO_CHECK_MS }
+/** 한 번 확인에서 서버를 부르는 최대 횟수(묶음 수) · 묶음 사이 쉬는 시간 — 판매처 호출 한도·서킷 브레이커(5초 20건)를 넘기지 않게 */
+export const CHECK_ROUNDS_MAX = 40
+export const CHECK_ROUND_GAP_MS = 1500
+/** 확인 대상 기록 — 자동 확인 판매처 + 판매처 상품번호 + 확인할 상태 (서버 checkMarket과 같은 조건) */
+export const isCheckTarget = s => !!s && statusCheckable(s.market || 'coupang') && CHECK_STATUSES.includes(s.status) && /^\d{1,20}$/.test(String(s.sellerProductId || ''))
+/** 화면의 "판매처 상태 마지막 확인" — 기록들의 lastSyncedAt 중 가장 최근 (없으면 null) */
+export function lastCheckedAt(sends) {
+  let best = 0
+  for (const s of Array.isArray(sends) ? sends : []) { const t = timeOf(s?.lastSyncedAt); if (t > best) best = t }
+  return best ? new Date(best).toISOString() : null
+}
+/** 탭을 열 때 자동으로 확인할지 — 확인 대상 중 한 번도 확인하지 않았거나 마지막 확인이 10분보다 오래된 기록이 있으면 */
+export function needsAutoCheck(sends, now = Date.now()) {
+  return (Array.isArray(sends) ? sends : []).some(s => isCheckTarget(s) && (!timeOf(s.lastSyncedAt) || now - timeOf(s.lastSyncedAt) > AUTO_CHECK_MS))
+}
+/** "10/2 10:20" (한국 시각) · 없으면 '-' */
+export function fmtCheckedAt(iso) {
+  const t = timeOf(iso)
+  if (!t) return '-'
+  const k = new Date(t + 9 * 3600000)
+  return `${k.getUTCMonth() + 1}/${k.getUTCDate()} ${String(k.getUTCHours()).padStart(2, '0')}:${String(k.getUTCMinutes()).padStart(2, '0')}`
+}
+/** 확인을 그만둘 오류(판매처 전체가 막힘)가 있는지 — 남은 묶음이 있어도 더 부르지 않는다 */
+export const CHECK_STOP_CODES = ['breaker_open', 'rate_limited', 'access_denied']
+export const checkShouldStop = errors => (Array.isArray(errors) ? errors : []).some(e => CHECK_STOP_CODES.includes(e?.code))

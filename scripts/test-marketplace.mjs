@@ -194,7 +194,7 @@ const BASE = {
   eq('재고 100000 → 거절', C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 100000 }] }).ok, false)
   eq('본문에 키·서명 없음', /access[-_]?key|secret|signature|authorization/i.test(JSON.stringify(b.body)), false)
 }
-eq('쿠팡 상태 → 우리 상태', ['심사중', '승인대기중', '승인완료', '부분승인완료', '승인반려', '상품삭제', ''].map(C.mapCoupangStatus), ['approval_pending', 'approval_pending', 'approved', 'approved', 'rejected', 'failed', 'approval_pending'])
+eq('쿠팡 상태 → 우리 상태', ['심사중', '승인대기중', '승인완료', '부분승인완료', '승인반려', '상품삭제', ''].map(C.mapCoupangStatus), ['approval_pending', 'approval_pending', 'approved', 'approved', 'rejected', 'deleted', 'approval_pending'])
 eq('출고지·반품지 정리', [C.normalizeOutbound([{ outboundShippingPlaceCode: 100, shippingPlaceName: '창고', usable: true, remoteInfos: [{ remoteInfoId: 1, deliveryCode: 'CJGLS', jeju: 5000, notJeju: 2500, usable: true }, { remoteInfoId: 2, deliveryCode: 'HANJIN', jeju: 1, notJeju: 1, usable: false }], placeAddresses: [{ addressType: 'ROADNAME', returnZipCode: '1', returnAddress: '주소', returnAddressDetail: '상세', companyContactNumber: '02' }] }])[0], C.normalizeReturnCenters([{ returnCenterCode: '200', shippingPlaceName: '반품', deliverCode: 'CJGLS', deliverName: 'CJ', placeAddresses: [] }])[0].address.deliverCode],
   [{ kind: 'outbound', place_code: '100', name: '창고', usable: true, address: { zip: '1', address: '주소', addressDetail: '상세', contact: '02', remote: [{ code: 'CJGLS', jeju: 5000, notJeju: 2500 }] } }, 'CJGLS'])
 
@@ -295,6 +295,22 @@ globalThis.fetch = async (url, opts = {}) => {
       if (q.get('limit')) hit = hit.slice(0, Number(q.get('limit')))
       const keys = path[3].split('->').filter(Boolean)
       return json(hit.map(r => ({ [path[1]]: keys.reduce((o, k) => (o == null ? null : o[k] ?? null), r[path[2]]) })))
+    }
+    // 여러 칸 + JSON 경로(별칭:칸->a->>b) select = 보낸 상품 목록(2026-10-02 LIST_SELECT) — PostgREST처럼 칸을 골라 주고 offset·limit 쪽 나누기
+    if (table === 'marketplace_sends' && sel.includes(',') && sel.includes('->')) {
+      const off = Number(q.get('offset') || 0), lim = q.get('limit') ? Number(q.get('limit')) : Infinity
+      hit = hit.slice(off, off + lim)
+      const parts = sel.split(',')
+      return json(hit.map(r => Object.fromEntries(parts.map(part => {
+        const m = /^(\w+):(\w+)((?:->>?\w+)+)$/.exec(part)
+        if (!m) return [part, r[part] ?? null]
+        let v = r[m[2]]
+        for (const [, txt, k] of m[3].matchAll(/->(>?)(\w+)/g)) {
+          v = v == null ? null : (v[k] ?? null)
+          if (txt && v != null) v = typeof v === 'object' ? JSON.stringify(v) : String(v)
+        }
+        return [m[1], v]
+      }))))
     }
     return json(hit)
   }
@@ -1097,7 +1113,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   ])
   eq('배지 줄: 판매처마다 최신 1건 · MARKETS 순서 · 안 보낸 판매처는 없음', [by.E1.map(s => [s.market, s.id, s.status]), by.E2.map(s => [s.market, s.id]), Object.keys(by)], [[['coupang', 'b', 'approval_pending'], ['smartstore', 'c', 'rejected']], [['coupang', 'd']], ['E1', 'E2']])
   eq('배지 줄: 목록이 비거나 이상해도 빈 값', [R.sendsByExport([]), R.sendsByExport(null)], [{}, {}])
-  eq('배지 색: 승인 대기 회색 · 승인·등록됨(카페24) 초록 · 반려·실패 빨강', R.SEND_BADGE_CLASS, { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', registered: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger' })
+  eq('배지 색: 승인 대기·판매처에서 삭제됨 회색 · 승인·등록됨(카페24) 초록 · 반려·실패 빨강', R.SEND_BADGE_CLASS, { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', registered: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger', deleted: 'st-badge' })
   eq('초록 배지 색 = 스튜디오 토큰', /\.studio-root \.st-badge-ok \{[^}]*var\(--st-success\)/.test(read('src/styles/studio-tokens.css')), true)
   eq('툴팁: 반려·실패만 · 기록된 사유 그대로', [R.badgeReason(by.E1[1]), R.badgeReason(by.E1[0]), R.badgeReason({ status: 'approved', reason: 'x' }), R.badgeReason({ status: 'failed', reason: null }), R.badgeReason(null)], ['카테고리가 맞지 않습니다', '', '', '', ''])
   const listShown = list.slice(list.indexOf('<template>'), list.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
@@ -1348,7 +1364,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('진열상태: 진열함 = display T·selling T · 진열안함 = F·F · 없으면 F·F · 다른 값은 거절', [[dOn.body.request.display, dOn.body.request.selling], [dOff.body.request.display, dOff.body.request.selling], [dNone.body.request.display, dNone.body.request.selling], K.buildCafe24Product({ productName: 'a', price: 1, detailPaths: ['x'], display: 'Y' }).ok, K.buildCafe24Product({ productName: 'a', price: 1, detailPaths: ['x'], display: true }).ok, [K.isDisplayFlag('T'), K.isDisplayFlag('F'), K.isDisplayFlag('t'), K.isDisplayFlag('')]], [['T', 'T'], ['F', 'F'], ['F', 'F'], false, false, [true, true, false, false]])
   eq('서버·화면: body.display를 검사(isDisplayFlag)해 buildCafe24Product에 넘기고 응답에 display · 목록(publicSend)에 보낸 진열상태 · 섹션 라디오 진열안함(기본 F)/진열함 + 한 줄 안내 · 요약 표 진열상태·판매상태 · 결과 "등록되었습니다"', [
     /if \(!isDisplayFlag\(display\)\) return sendError\(res, 400, 'invalid_input'/.test(read('api/marketplace.js')), /buildCafe24Product\(\{ productName, price, categoryNo, detailPaths, display \}\)/.test(read('api/marketplace.js')), /status: 'registered', display, adminUrl/.test(read('api/marketplace.js')),
-    /display: c24 \? \(s\.request_json\?\.body\?\.request\?\.display === 'T' \? 'T' : 'F'\) : null/.test(read('api/marketplace.js')),
+    /display: c24 \? \(s\.c24_display === 'T' \? 'T' : 'F'\) : null/.test(read('api/marketplace.js')) && read('api/marketplace.js').includes("'c24_display:request_json->body->request->>display'"), // 2026-10-02 목록은 칸만 골라 읽음(LIST_SELECT)
     /data-mk-c24-display-off/.test(sec) && /data-mk-c24-display-on/.test(sec) && sec.includes("fit: 'contain', display: 'F'"), /진열함을 선택하면 등록 즉시 쇼핑몰에 노출됩니다\./.test(sec),
     /label: '진열상태', value: DISPLAY_LABEL\[f\.value\.display\]/.test(sec) && /label: '판매상태', value: SELLING_LABEL\[f\.value\.display\]/.test(sec), /등록되었습니다\. 상품번호 \{\{ done\.productNo \}\} · \{\{ DISPLAY_LABEL\[f\.display\] \}\}/.test(sec), sec.includes('display: f.value.display,'),
     /진열상태: \{\{ s\.display === 'T' \? '진열함' : '진열안함' \}\}/.test(sl),
@@ -1435,8 +1451,8 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     c24send.indexOf("market: CAFE24, status: 'sending'") < c24send.indexOf("path: '/products/images'"), /marketplace_sql_missing/.test(c24send), /2026-09-30-marketplace-sends-cafe24\.sql/.test(c24send),
     /display, selling: display,/.test(read('api/_cafe24.js')), /status: 'registered'/.test(c24send), /api\/marketplace\?t=/.test(c24send),
   ], [true, true, true, true, true, true, true, true, true, true, true, true, false])
-  eq('서버: 응답·기록에 토큰 없음 (access_token은 헤더로만) · 쿠팡 send·sync 코드는 그대로(market=eq.coupang) · 목록 = 관리자 쿠팡+카페24+스마트스토어+11번가 / 고객 쿠팡+스마트스토어+11번가 (2026-10-01)', [
-    /access_token|refresh_token|oauth_enc/.test(c24send), /Bearer \$\{c\.accessToken\}/.test(read('api/_cafe24.js')), /market=eq\.\$\{MARKET\}&seller_product_id=not\.is\.null&status=in\.\(sending,approval_pending,rejected\)/.test(api),
+  eq('서버: 응답·기록에 토큰 없음 (access_token은 헤더로만) · 상태 확인 = 판매처 공통 checkMarket(2026-10-02 — 쿠팡 전용 sync 대신) · 목록 = 관리자 쿠팡+카페24+스마트스토어+11번가 / 고객 쿠팡+스마트스토어+11번가 (2026-10-01)', [
+    /access_token|refresh_token|oauth_enc/.test(c24send), /Bearer \$\{c\.accessToken\}/.test(read('api/_cafe24.js')), /market=eq\.\$\{market\}&seller_product_id=not\.is\.null&status=in\.\(\$\{CHECK_STATUSES\.join\(','\)\}\)/.test(api),
     api.includes('const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE},${ELEVENST}` : `${MARKET},${SMARTSTORE},${ELEVENST}`') && /market=in\.\(\$\{markets\}\)&order=created_at\.desc/.test(api), /market: MARKET, status: 'sending', request_json: \{\} \}/.test(api),
   ], [false, true, true, true, true])
   eq('SQL: marketplace_sends market에 cafe24 · status에 registered · 새 표·GRANT 없음 · 미실행 표시', [/check \(market in \('coupang', 'cafe24'\)\)/.test(sql), /'registered'\)\)/.test(sql), /create table|grant /.test(sql), /상태: 미실행/.test(sql)], [true, true, false, true])
@@ -1573,7 +1589,19 @@ function smartstoreRelay(u, method, opts) {
     // int64 — JS 안전 정수를 넘는 번호도 글자 그대로 읽는지
     return new Response('{"originProductNo":9007199254740993,"smartstoreChannelProductNo":12345678901,"originProduct":{"statusType":"SALE"}}', { status: 200, headers: { 'Content-Type': 'application/json;charset=UTF-8' } })
   }
-  return json({ code: 'NOT_FOUND', message: 'no route' }, 404)
+  // 상태 확인 (2026-10-02) — ssRelay.products = { 원상품번호: statusType | 'GONE'(원상품 조회 404 NOT_FOUND) }. 목록 조회는 GONE·HIDDEN을 돌려주지 않는다
+  if (p === '/external/v1/products/search' && method === 'POST') {
+    const b = JSON.parse(opts.body), map = ssRelay.products || {}
+    ssRelay.searchBodies = [...(ssRelay.searchBodies || []), b]
+    return json({ contents: (b.originProductNos || []).map(String).filter(no => map[no] && !['GONE', 'HIDDEN'].includes(map[no])).map(no => ({ originProductNo: Number(no), channelProducts: [{ originProductNo: Number(no), channelProductNo: Number(no) + 1, channelServiceType: 'STOREFARM', statusType: map[no], channelProductDisplayStatusType: 'ON' }] })), page: 1, size: b.size, totalElements: 0 })
+  }
+  const op = /^\/external\/v2\/products\/origin-products\/(\d+)$/.exec(p)
+  if (op && method === 'GET') {
+    const st = (ssRelay.products || {})[op[1]]
+    if (st === 'GONE' || st == null) return json({ code: 'NOT_FOUND', message: '데이터 없음', timestamp: '2026-10-02T00:00:00Z' }, 404)
+    return json({ originProduct: { statusType: st === 'HIDDEN' ? 'SUSPENSION' : st, name: 'x' } })
+  }
+  return json({ code: 'GW.NOT_FOUND', message: 'no route' }, 404)
 }
 {
   const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
@@ -2658,7 +2686,7 @@ function elevenstRelay(u, method, opts) {
   }
   eq('업무용어: 배지 = 상태만(등록 완료·승인 대기·승인 완료·전송 중) · 중복 확인 문구 · 결과 표 상태 · [실패 건 재전송]', [
     R.SEND_STATUS_LABEL, R.sentConfirmText('registered'), R.sentConfirmText('approved'), R.sentConfirmText('approval_pending'), R.sentConfirmText('sending'), R.RESULT_WAIT_LABEL, R.RETRY_FAILED_LABEL,
-  ], [{ sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료', rejected: '반려', failed: '실패' }, '이 판매처에 등록 완료된 상품입니다. 중복 등록하시겠습니까?', '이 판매처에 등록 완료된 상품입니다. 중복 등록하시겠습니까?', '승인 대기 중인 상품입니다. 중복 등록하시겠습니까?', '전송 중인 상품입니다. 중복 등록하시겠습니까?', '대기', '실패 건 재전송'])
+  ], [{ sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료', rejected: '반려', failed: '실패', deleted: '판매처에서 삭제됨' }, '이 판매처에 등록 완료된 상품입니다. 중복 등록하시겠습니까?', '이 판매처에 등록 완료된 상품입니다. 중복 등록하시겠습니까?', '승인 대기 중인 상품입니다. 중복 등록하시겠습니까?', '전송 중인 상품입니다. 중복 등록하시겠습니까?', '대기', '실패 건 재전송'])
   {
     // 이번 작업에서 새로 넣은 고객 문구 — 합니다체 · "~요" 끝 없음 · 예전 문구 없음
     const strip = s => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
@@ -2724,7 +2752,7 @@ function elevenstRelay(u, method, opts) {
   ], [['send:e1', 'A', 'C', 'B', 'D'], ['a1', 'a2', 'a3'], { coupang: 'a1', smartstore: 'a2' }, '여름 원피스', 'd1', null])
   eq('상태 카드 4개 = 전체·등록·승인 완료·승인 대기·실패·반려 · 숫자 = 그 상태가 판매처 칸(최근 기록)에 하나라도 있는 상품 수 · 지난 실패(뒤에 등록됨)는 안 셈', [
     SL.STATUS_GROUPS.map(g => g.label), SL.statusCounts(P), SL.STATUS_FILTERS.map(g => g.key),
-  ], [['전체', '등록·승인 완료', '승인 대기', '실패·반려'], { all: 5, done: 2, pending: 1, failed: 2 }, ['all', 'done', 'pending', 'failed', 'sending']])
+  ], [['전체', '등록·승인 완료', '승인 대기', '실패·반려'], { all: 5, done: 2, pending: 1, failed: 2 }, ['all', 'done', 'pending', 'failed', 'sending', 'deleted']])
   eq('상태 거르기: 실패·반려 · 전송 중 · 등록·승인 완료 · 승인 대기', [f({ status: 'failed' }), f({ status: 'sending' }), f({ status: 'done' }), f({ status: 'pending' })], [['C', 'B'], ['send:e1'], ['A', 'D'], ['A']])
   eq('판매처 거르기: 그 판매처 기록이 있는 상품만 · 판매처 + 상태는 같은 기록(스마트스토어 지난 실패는 안 걸림) · 쿠팡 + 등록·승인 완료', [f({ market: 'smartstore' }), f({ market: 'smartstore', status: 'failed' }), f({ market: 'coupang', status: 'done' }), f({ market: '11st' })], [['send:e1', 'A'], [], ['D'], ['B']])
   eq('보낸 기간: 오늘(한국 날짜) · 최근 7·30·90일 · 전체 · 판매처 + 기간도 같은 기록', [f({ period: 'today' }), f({ period: '7' }), f({ period: '30' }), f({ period: '90' }), f({ period: 'all' }).length, f({ market: 'smartstore', period: 'today' }), SL.kstDay('2026-10-01T15:30:00Z')], [['send:e1', 'A'], ['send:e1', 'A', 'C'], ['send:e1', 'A', 'C'], ['send:e1', 'A', 'C', 'B'], 5, ['send:e1'], '2026-10-02'])
@@ -2759,7 +2787,7 @@ function elevenstRelay(u, method, opts) {
   const ch = SL.marketChips(X)
   eq('칩 (a) 순서: 실패·반려 → 승인 대기·전송 중 → 완료, 같은 묶음 안은 판매처 목록 순서 · 문구 = 판매처 이름 + sendStatusLabel · 실패 칩 title = 사유', [
     SL.marketChips(X, { max: 99 }).chips.map(c => c.label), ch.chips.map(c => c.tone), ch.chips[0].title, ch.chips[2].title,
-  ], [['스마트스토어 실패', '에이블리 반려', 'G마켓·옥션 승인 대기', '지그재그 전송 중', '쿠팡 승인 완료', '11번가 등록 완료', '카페24 등록 완료'], ['bad', 'bad', 'wait', 'wait'], 'smartstore 사유', ''])
+  ], [['스마트스토어 실패', '에이블리 반려', 'G마켓·옥션 승인 대기', '지그재그 전송 중', '쿠팡 승인 완료', '11번가 등록 완료', '카페24 등록 완료'], ['bad', 'bad', 'wait', 'wait'], 'smartstore 사유', SL.UNCHECKED_NOTE])
   eq('칩 (b) 7곳 = 4개 + "+3" · "+3" title = 나머지 판매처와 상태 전부 · 5곳 이하면 다 보이고 "+N" 없음', [
     ch.chips.length, ch.more, SL.marketChips(SL.groupSentProducts(seven.slice(0, 5))[0]).chips.length, SL.marketChips(SL.groupSentProducts(seven.slice(0, 5))[0]).more, SL.CHIP_MAX,
   ], [4, { count: 3, label: '+3', title: '쿠팡 승인 완료\n11번가 등록 완료\n카페24 등록 완료' }, 5, null, 5])
@@ -2778,12 +2806,135 @@ function elevenstRelay(u, method, opts) {
     optsBefore.map(m => m.key).join() === R.marketsFor({ admin: false }).filter(m => m.connect !== 'planned').map(m => m.key).join(), optsAdded.at(-1), addedChip, /<option v-for="m in marketOptions"/.test(tpl), /'(coupang|smartstore|11st)'\s*[,\]]/.test(slib),
   ], [['coupang', 'smartstore', '11st'], ['쿠팡', '스마트스토어', '11번가'], true, false, true, 'kakaostyle', '카카오스타일 등록 완료', true, false])
   eq('화면: 필터·검색·정렬·페이지는 화면 안에서만(localStorage 없음) · 새로고침 = 기존 syncSends만 · 수정 후 재전송 = 기존 창(sendToMarketplace·resendToMarketplace) · [판매처에서 보기]는 adminUrl 있을 때만 · 폰 44px', [
-    /localStorage|sessionStorage/.test(sl + slib), /await syncSends\(\)/.test(sl), /callStudioApi|fetch\(/.test(sl + slib), /fixHow\.value === 'resend' \? await resendToMarketplace\(id\) : await sendToMarketplace\(fixExportId\.value\)/.test(sl),
+    /localStorage|sessionStorage/.test(sl + slib), /await syncSends\(since\)/.test(sl), /callStudioApi|fetch\(/.test(sl + slib), /fixHow\.value === 'resend' \? await resendToMarketplace\(id\) : await sendToMarketplace\(fixExportId\.value\)/.test(sl),
     /<StudioSendModal [^>]*:market="fixMarket" :sent="fixSent"/.test(tpl), /v-if="chipTone\(s\.status\) === 'ok' && s\.adminUrl"/.test(tpl), /@media \(max-width: 767\.98px\) \{\s+\.sl-tap \{ height: 44px; min-height: 44px; \}/.test(sl),
   ], [false, true, false, true, true, true, true])
   eq('화면: PC 표(md 이상)·폰 카드(md 미만) · 폰 [필터] 펼치기 · 펼친 줄 = 그 상품의 모든 기록 · 로그아웃 구독', [
     /class="hidden md:block st-card overflow-hidden" data-sl-table/.test(tpl), /class="md:hidden flex flex-col gap-3" data-sl-cards/.test(tpl), /:class="filtersOpen \? 'flex' : 'hidden md:flex'"/.test(tpl), /<tr v-for="s in p\.history"/.test(tpl), /euchs-auth-changed/.test(sl),
   ], [true, true, true, true, true])
+}
+
+// ── 판매처 상태 자동 확인 (2026-10-02) — 서버 판매처 공통 sync · 삭제됨 · 100건 한도 없음 · 화면 규칙(개수·10분) ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const MS = await import('../api/_marketStatus.js')
+  const SL = await import('../src/lib/studioSentList.js')
+  const R = await import('../src/lib/studioMarketplaceRules.js')
+  // 순수 규칙
+  eq('상태 확인 판매처 = 공식 문서로 조회 API를 확인한 곳(쿠팡·스마트스토어) · 11번가·카페24 없음 · 대상 상태 · 삭제 값', [MS.STATUS_CHECK_MARKETS, MS.CHECK_STATUSES, MS.DELETED, MS.CHECK_BATCH, MS.AUTO_CHECK_MS], [['coupang', 'smartstore'], ['registered', 'approved', 'approval_pending', 'sending', 'rejected'], 'deleted', { coupang: 30, smartstore: 500 }, 600000])
+  eq('스마트스토어 statusType → 기록: DELETE = 삭제됨 · 그 밖 문서 값 = 등록 완료 + 원문 · 모르는 값 = null', [MS.smartstoreStatusOf('DELETE'), MS.smartstoreStatusOf('SALE'), MS.smartstoreStatusOf('SUSPENSION'), MS.smartstoreStatusOf('WEIRD'), MS.smartstoreStatusOf(undefined)],
+    [{ status: 'deleted', raw: '삭제' }, { status: 'registered', raw: '판매 중' }, { status: 'registered', raw: '판매 중지' }, null, null])
+  eq('목록 조회 본문 = PRODUCT_NO + 원상품번호(안전한 정수만) + size = 개수(최대 500) · 응답 → 번호별 statusType(STOREFARM 먼저)', [
+    MS.smartstoreSearchBody(['5001', 'x', '9007199254740993', '5002']),
+    [...MS.smartstoreSearchStatuses({ contents: [{ originProductNo: 5001, channelProducts: [{ channelServiceType: 'WINDOW', statusType: 'SUSPENSION' }, { channelServiceType: 'STOREFARM', statusType: 'SALE' }] }, { originProductNo: 5002, channelProducts: [] }] })],
+  ], [{ searchKeywordType: 'PRODUCT_NO', originProductNos: [5001, 5002], page: 1, size: 2 }, [['5001', 'SALE']]])
+  eq('삭제 판단(404) = 본문 code가 정확히 NOT_FOUND일 때만 · since = ISO만, 앞으로의 시각은 지금', [MS.isSsNotFound(404, '{"code":"NOT_FOUND","message":"데이터 없음"}'), MS.isSsNotFound(404, '{"code":"GW.NOT_FOUND"}'), MS.isSsNotFound(400, '{"code":"NOT_FOUND"}'),
+    MS.checkSince('2026-10-02T01:00:00.000Z', Date.parse('2026-10-02T02:00:00Z')), MS.checkSince('2099-01-01T00:00:00Z', Date.parse('2026-10-02T02:00:00Z')), MS.checkSince('어제', Date.parse('2026-10-02T02:00:00Z'))],
+    [true, false, false, '2026-10-02T01:00:00.000Z', '2026-10-02T02:00:00.000Z', '2026-10-02T02:00:00.000Z'])
+  // 화면 규칙 — 살아 있는 상품 개수·삭제됨·지원 안 하는 판매처 안내
+  const T = (id, market, status, at, extra = {}) => ({ id, exportId: 'P', market, status, sellerProductId: `${id.length + 1000}`, productName: '상품', createdAt: at, ...extra })
+  const four = SL.groupSentProducts([T('s1', 'smartstore', 'registered', '2026-10-01T01:00:00Z'), T('s2', 'smartstore', 'registered', '2026-10-01T02:00:00Z'), T('s3', 'smartstore', 'registered', '2026-10-01T03:00:00Z'), T('s4', 'smartstore', 'registered', '2026-10-01T04:00:00Z'), T('s0', 'smartstore', 'deleted', '2026-10-01T00:30:00Z'), T('c1', 'coupang', 'approved', '2026-10-01T05:00:00Z')])[0]
+  const failLast = SL.groupSentProducts([T('s1', 'smartstore', 'registered', '2026-10-01T01:00:00Z'), T('s2', 'smartstore', 'registered', '2026-10-01T02:00:00Z'), T('s3', 'smartstore', 'failed', '2026-10-01T03:00:00Z')])[0]
+  eq('칩 개수: 같은 작업으로 한 판매처에 살아 있는 상품(등록·승인 완료, 삭제됨 제외) 2개 이상 = "N건" · 1개면 없음 · 최근 기록이 실패면 붙이지 않음', [
+    SL.marketChips(four).chips.map(c => c.label), SL.liveCount(four, 'smartstore'), SL.marketChips(failLast).chips.map(c => c.label),
+  ], [['쿠팡 승인 완료', '스마트스토어 등록 완료 4건'], 4, ['스마트스토어 실패']])
+  const gone = SL.groupSentProducts([T('d1', 'coupang', 'deleted', '2026-10-01T01:00:00Z', { exportId: 'G' }), T('o1', 'smartstore', 'registered', '2026-10-01T01:00:00Z', { exportId: 'H' }), T('o2', 'coupang', 'deleted', '2026-10-01T02:00:00Z', { exportId: 'H' })])
+  eq('삭제됨: 회색(gone) · 칩 순서 완료 뒤 · 상태 카드에서 완료로 안 셈 · 상태 고르기 "판매처에서 삭제됨" · [수정 후 재전송] 없음', [
+    SL.chipTone('deleted'), SL.marketChips(gone.find(p => p.key === 'H')).chips.map(c => c.tone), SL.statusCounts(gone), keys2(SL.filterSentProducts(gone, { status: 'deleted' })), SL.STATUS_FILTERS.at(-1).label, SL.fixAction(gone[0], gone[0].history[0]),
+  ], ['gone', ['ok', 'gone'], { all: 2, done: 1, pending: 0, failed: 0 }, ['H', 'G'], '판매처에서 삭제됨', ''])
+  function keys2(list) { return list.map(p => p.key) }
+  const st11 = SL.groupSentProducts([T('e1', '11st', 'registered', '2026-10-01T01:00:00Z'), T('e2', 'smartstore', 'registered', '2026-10-01T01:00:00Z')])[0]
+  eq('상태 자동 확인을 지원하지 않는 판매처 칩 title = 안내 한 줄 (지원하는 판매처는 없음)', SL.marketChips(st11).chips.map(c => [c.market, c.title]), [['smartstore', ''], ['11st', '이 판매처는 상태 자동 확인을 지원하지 않습니다']])
+  // 10분 규칙
+  const now = Date.parse('2026-10-02T01:30:00Z')
+  const S = (market, status, synced, pid = '123') => ({ id: `${market}-${status}-${synced}`, market, status, sellerProductId: pid, lastSyncedAt: synced })
+  eq('자동 확인(10분): 확인 대상 중 확인 안 했거나 10분 넘은 기록이 있으면 · 5분 전 확인 = 안 함 · 지원 안 하는 판매처·실패·삭제됨·상품번호 없음은 대상 아님', [
+    SL.needsAutoCheck([S('coupang', 'approved', '2026-10-02T01:25:00Z')], now), SL.needsAutoCheck([S('coupang', 'approved', '2026-10-02T01:19:00Z')], now), SL.needsAutoCheck([S('smartstore', 'registered', null)], now),
+    SL.needsAutoCheck([S('11st', 'registered', null), S('coupang', 'failed', null), S('coupang', 'deleted', null), S('coupang', 'approved', null, null)], now), SL.needsAutoCheck([], now),
+  ], [false, true, true, false, false])
+  eq('마지막 확인 = 기록 중 가장 최근 lastSyncedAt · "10/2 10:20"(한국 시각) · 없으면 "-" · 멈출 오류', [
+    SL.lastCheckedAt([S('coupang', 'approved', '2026-10-02T01:20:00Z'), S('smartstore', 'registered', '2026-10-02T00:10:00Z'), S('11st', 'registered', null)]), SL.fmtCheckedAt('2026-10-02T01:20:00Z'), SL.fmtCheckedAt(null), SL.lastCheckedAt([]),
+    SL.checkShouldStop([{ code: 'market_rejected' }]), SL.checkShouldStop([{ code: 'breaker_open' }]),
+  ], ['2026-10-02T01:20:00.000Z', '10/2 10:20', '-', null, false, true])
+  // 100건 넘는 데이터 — 상품 400개 · 기록 3,000건에서도 상품·카드 숫자가 빠지지 않음
+  const big = Array.from({ length: 3000 }, (_, i) => ({ id: `b${i}`, exportId: `X${i % 400}`, market: ['coupang', 'smartstore', '11st'][i % 3], status: ['registered', 'failed', 'approval_pending', 'approved', 'deleted'][i % 5], productName: `상품 ${i % 400}`, createdAt: new Date(Date.parse('2026-09-01T00:00:00Z') + i * 60000).toISOString() }))
+  const bigP = SL.groupSentProducts(big), bigC = SL.statusCounts(bigP)
+  eq('100건 넘는 데이터: 기록 3,000건 → 상품 400개 · 이력 합계 3,000 · 카드 숫자 = 거르기 결과 개수 · 페이지 8쪽(50개씩)', [
+    bigP.length, bigP.reduce((n, p) => n + p.history.length, 0), [bigC.done, bigC.pending, bigC.failed].map((n, i) => n === SL.filterSentProducts(bigP, { status: ['done', 'pending', 'failed'][i] }).length), SL.pageSlice(bigP, 1, 50).pages,
+  ], [400, 3000, [true, true, true], 8])
+
+  // 서버 — 판매처 공통 sync (쿠팡 + 스마트스토어, 조회만) · 삭제됨 · 목록 100건 한도 없음
+  const keepSends = db.marketplace_sends, keepAcc = db.marketplace_accounts.slice(), keepStatus = relay.status, keepMode = relay.mode
+  relay.mode = 'ok'
+  if (!db.marketplace_accounts.some(a => a.user_id === UID && a.market === 'coupang')) await post('connect', CONNECT) // 앞 묶음이 연결을 끊었다 — 출고지·반품지 조회로 키 확인(가짜 중계)
+  const coupangOn = db.marketplace_accounts.some(a => a.user_id === UID && a.market === 'coupang')
+  if (!db.marketplace_accounts.some(a => a.user_id === UID && a.market === 'smartstore')) db.marketplace_accounts.push({ id: newId(), user_id: UID, market: 'smartstore', seller_login_id: '내 스토어 애플리케이션', vendor_id: null, access_key_enc: encryptSecret('ss-app-id-1', K), secret_key_enc: encryptSecret('$2a$10$abcdefghijklmnopqrstuv', K), key_last4: 'id-1', expires_at: null, status: 'connected' })
+  const at = m => new Date(Date.parse('2026-10-01T00:00:00Z') + m * 60000).toISOString()
+  const row = (id, market, status, pid, m, extra = {}) => ({ id, user_id: UID, export_id: 'E-SYNC', market, status, seller_product_id: pid, coupang_status: null, reason: null, last_synced_at: null, created_at: at(m), request_json: {}, ...extra })
+  db.marketplace_sends = [
+    row('k-c1', 'coupang', 'approved', '1234567890', 1, { request_json: { body: { sellerProductName: '쿠팡 상품' } } }),
+    row('k-s1', 'smartstore', 'registered', '5001', 2, { request_json: { body: { originProduct: { name: '스스 상품' } } } }),
+    row('k-s2', 'smartstore', 'registered', '5002', 3), row('k-s3', 'smartstore', 'registered', '5003', 4), row('k-s4', 'smartstore', 'registered', '5004', 5),
+    row('k-s5', 'smartstore', 'failed', null, 6), row('k-e1', '11st', 'registered', '7001', 7),
+  ]
+  relay.status = '상품삭제'
+  ssRelay.products = { 5001: 'SALE', 5002: 'SUSPENSION', 5003: 'GONE', 5004: 'DELETE' }
+  ssRelay.searchBodies = []
+  relay.calls = []
+  const sy = await post('sync', { since: new Date().toISOString() })
+  const byId = Object.fromEntries(db.marketplace_sends.map(r => [r.id, r]))
+  const ssCalls = relay.calls.filter(c => c.path.startsWith('/smartstore/')).map(c => `${c.method} ${c.path.replace('/smartstore', '')}`)
+  const cpCalls = relay.calls.filter(c => c.path.startsWith('/coupang/')).map(c => c.method)
+  eq('sync(판매처 공통): 끝나면 목록 한 번(more false) · 쿠팡 상품삭제 = 삭제됨 · 스마트스토어 판매 중·판매 중지 = 등록 완료 + 원문 · 404 NOT_FOUND·DELETE = 삭제됨 · 실패·11번가는 그대로', [
+    coupangOn, sy.statusCode, sy.body.more, Array.isArray(sy.body.sends), sy.body.errors,
+    ['k-c1', 'k-s1', 'k-s2', 'k-s3', 'k-s4', 'k-s5', 'k-e1'].map(id => [byId[id].status, byId[id].coupang_status]),
+  ], [true, 200, false, true, [], [['deleted', '상품삭제'], ['registered', '판매 중'], ['registered', '판매 중지'], ['deleted', '삭제'], ['deleted', '삭제'], ['failed', null], ['registered', null]]])
+  eq('sync 호출: 스마트스토어 = 토큰 1 + 목록 조회 1(4개 번호) + 검색에 없는 1개만 원상품 조회 · 쿠팡 = GET만 · 등록·수정·삭제 호출 없음 · 확인 시각 = 확인한 기록만', [
+    ssCalls, ssRelay.searchBodies[0]?.originProductNos, cpCalls.every(m => m === 'GET'), relay.calls.some(c => ['PUT', 'DELETE', 'PATCH'].includes(c.method)),
+    ['k-c1', 'k-s1', 'k-s2', 'k-s3', 'k-s4', 'k-s5', 'k-e1'].map(id => !!byId[id].last_synced_at),
+  ], [['POST /external/v1/oauth2/token', 'POST /external/v1/products/search', 'GET /external/v2/products/origin-products/5003'], [5001, 5002, 5003, 5004], true, false, [true, true, true, true, true, false, false]])
+  eq('목록: 판매처 원문(coupangStatus) · 삭제됨 상태 그대로 · 상품명은 판매처별 위치에서 · request_json 없음', [sy.body.sends.find(s => s.id === 'k-s1').coupangStatus, sy.body.sends.find(s => s.id === 'k-c1').status, sy.body.sends.find(s => s.id === 'k-c1').productName, sy.body.sends.find(s => s.id === 'k-s1').productName, 'request_json' in sy.body.sends[0]], ['판매 중', 'deleted', '쿠팡 상품', '스스 상품', false])
+  // DB에 'deleted'가 아직 없으면(SQL 실행 전) 상태는 그대로 · 원문·확인 시각만
+  db.marketplace_sends = [row('k-c9', 'coupang', 'approved', '1234567890', 1)]
+  const realFetch3 = globalThis.fetch
+  globalThis.fetch = async (url, o = {}) => (new URL(url).pathname === '/rest/v1/marketplace_sends' && o.method === 'PATCH' && JSON.parse(o.body).status === 'deleted'
+    ? json({ code: '23514', message: 'new row for relation "marketplace_sends" violates check constraint "marketplace_sends_status_check"' }, 400) : realFetch3(url, o))
+  const sy2 = await post('sync', {})
+  globalThis.fetch = realFetch3
+  eq('SQL 실행 전: deleted 저장이 막히면 상태는 그대로(승인 완료) + 원문 "상품삭제" + 확인 시각 · 오류로 끝나지 않음', [sy2.statusCode, db.marketplace_sends[0].status, db.marketplace_sends[0].coupang_status, !!db.marketplace_sends[0].last_synced_at], [200, 'approved', '상품삭제', true])
+  // 묶음 나누기 — 한 번에 판매처마다 CHECK_BATCH까지, 남으면 more true + 목록 없음
+  MS.CHECK_BATCH.coupang = 1
+  relay.status = '승인완료'
+  db.marketplace_sends = [row('k-m1', 'coupang', 'approved', '1234567890', 1), row('k-m2', 'coupang', 'approved', '1234567890', 2)]
+  const sy3 = await post('sync', {})
+  MS.CHECK_BATCH.coupang = 30
+  eq('묶음: 쿠팡 대상이 한 번 묶음보다 많으면 more true · 목록은 보내지 않음(끝날 때 한 번)', [sy3.body.more, 'sends' in sy3.body], [true, false])
+  // 목록 100건 한도 없음 — 2,500건 = 1,000씩 3번
+  db.marketplace_sends = Array.from({ length: 2500 }, (_, i) => row(`L${i}`, 'coupang', 'failed', null, i, { export_id: `E${i % 300}` }))
+  let listGets = 0
+  const realFetch4 = globalThis.fetch
+  globalThis.fetch = async (url, o = {}) => { const u2 = new URL(url); if (u2.pathname === '/rest/v1/marketplace_sends' && (o.method || 'GET') === 'GET' && u2.searchParams.get('offset') != null) listGets++; return realFetch4(url, o) }
+  const big2 = await post('sends_list')
+  globalThis.fetch = realFetch4
+  eq('sends_list: 100건 한도 없음 — 2,500건 전부 · 1,000건씩 3번 · 같은 줄 두 번 없음', [big2.body.sends.length, listGets, new Set(big2.body.sends.map(s => s.id)).size], [2500, 3, 2500])
+  db.marketplace_sends = keepSends
+  db.marketplace_accounts = keepAcc
+  relay.status = keepStatus
+  relay.mode = keepMode
+
+  // 화면
+  const sl = read('src/components/studio/StudioSendList.vue'), view = read('src/views/studio/StudioChannelSentView.vue')
+  const shown = s => s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
+  const NAMES = /쿠팡|스마트스토어|11번가|카페24|G마켓|옥션|에이블리|지그재그|메이크샵|고도몰/
+  eq('화면: 판매처 전용 버튼·안내 없음(보이는 글자에 판매처 이름 없음) · "판매처 상태 마지막 확인" + [지금 확인] · 누르는 동안 "확인 중…" · 판매처 상태 원문 줄', [
+    NAMES.test(shown(sl) + shown(view)), /쿠팡 상태 새로고침/.test(sl), /판매처 상태 마지막 확인: \{\{ fmtCheckedAt\(checkedAt\) \}\}/.test(sl), /\{\{ syncing \? '확인 중…' : '지금 확인' \}\}/.test(sl), /판매처 상태: \{\{ s\.coupangStatus \}\}/.test(sl),
+  ], [false, false, true, true, true])
+  eq('화면: 탭을 열면 10분 규칙으로 자동 확인(화면당 10분에 한 번까지) · 묶음마다 같은 since · 멈출 오류면 그만 · 끝나면 목록 한 번 · 자동은 오류를 로그만 · 예약 실행 없음', [
+    /if \(auto && needsAutoCheck\(sends\.value\) && Date\.now\(\) - autoAt > AUTO_CHECK_MS\)/.test(sl), /const since = new Date\(\)\.toISOString\(\)/.test(sl) && /await syncSends\(since\)/.test(sl), /if \(!r\.more \|\| checkShouldStop\(errs\)\) break/.test(sl),
+    /if \(!listed\) await load\(\{ auto: false \}\)/.test(sl), /if \(manual && my === checkSeq\) syncErrors\.value = errs/.test(sl), /"crons"/.test(read('vercel.json')),
+  ], [true, true, true, true, true, false])
+  eq('SQL 파일: status에 deleted · 미실행 표시 · 새 표·GRANT 없음', (s => [/'registered', 'deleted'\)\)/.test(s), /상태: 미실행/.test(s), /create table|grant /i.test(s.replace(/GRANT·RLS/g, ''))])(read('docs/sql/2026-10-02-marketplace-sends-deleted.sql')), [true, true, false])
+  eq('상태 문구 한 곳: deleted = "판매처에서 삭제됨" · 이미 보냄에 안 들어감(다시 보낼 수 있음)', [R.sendStatusLabel('deleted'), R.ALREADY_SENT_STATUSES.includes('deleted')], ['판매처에서 삭제됨', false])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

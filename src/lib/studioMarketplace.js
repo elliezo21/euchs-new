@@ -10,7 +10,7 @@ import { callStudioApi, studioErrorMessage } from '@/lib/studioApi'
 export const MARKET_LABEL = { coupang: '쿠팡', cafe24: '카페24', smartstore: '스마트스토어', '11st': '11번가' }
 // 상태 문구 SEND_STATUS_LABEL·sendStatusLabel은 studioMarketplaceRules 한 곳 (아래 re-export)
 // 색: 전송 중·승인 대기 = 회색, 승인 완료·등록 완료 = 초록, 반려·실패 = 빨강 (st-badge 위에 덧붙이는 클래스)
-export const SEND_STATUS_CLASS = { sending: '', approval_pending: '', approved: 'st-badge-ok', registered: 'st-badge-ok', rejected: 'st-badge-danger', failed: 'st-badge-danger' }
+export const SEND_STATUS_CLASS = { sending: '', approval_pending: '', approved: 'st-badge-ok', registered: 'st-badge-ok', rejected: 'st-badge-danger', failed: 'st-badge-danger', deleted: '' }
 export const REP_SIZE = 1000 // 브라우저가 만드는 대표 이미지 한 변(px) — 쿠팡 정사각형 500~5000
 export { isNotReady, needsGuide, latestSendByExport, sendsByExport, badgeReason, SEND_BADGE_CLASS, SEND_STATUS_LABEL, sendStatusLabel, SETTINGS_TABS, CHANNEL_TABS } from '@/lib/studioMarketplaceRules'
 
@@ -41,7 +41,8 @@ export const searchBrand = (brandName) => call('brand_search', { brandName })
 export const getCategoryMeta =(categoryCode) => call('category_meta', { categoryCode })
 export const sendProduct = (payload) => call('send', payload)
 export const listSends = () => call('sends_list')
-export const syncSends = () => call('sync')
+// 판매처 상태 확인 (2026-10-02 — 판매처 공통). since = 이번 확인을 시작한 시각 → 서버가 나눠 확인하고 { errors, more, sends(끝났을 때만) }
+export const syncSends = (since) => call('sync', since ? { since } : {})
 // 11번가 · 스마트스토어 · 카페24 연결 (2026-09-30) — 상태는 studioMarketLinks.js가 한 곳에서 들고 있다
 export const getMarketLinks = () => call('market_status')
 export const connectElevenst = (form) => call('connect_11st', form)

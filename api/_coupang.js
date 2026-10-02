@@ -445,7 +445,7 @@ export function buildProductBody(p) {
   //   requested는 늘 true(resendPlan) — "저장 및 자동으로 판매 승인 요청". 승인 요청 API는 따로 부르지 않는다
   if (p.update) {
     const pid = Number(p.update.sellerProductId)
-    if (!Number.isSafeInteger(pid) || pid <= 0) return { ok: false, message: '다시 보낼 상품을 찾지 못했어요. [상태 새로고침]을 눌러 주세요.' }
+    if (!Number.isSafeInteger(pid) || pid <= 0) return { ok: false, message: '다시 보낼 상품을 찾지 못했습니다. [지금 확인]을 누르세요.' }
     body.sellerProductId = pid
     const ids = matchItemIds(outItems, p.update.items)
     outItems.forEach((it, i) => { if (ids[i]) { it.sellerProductItemId = ids[i].sellerProductItemId; it.vendorItemId = ids[i].vendorItemId } })
@@ -460,6 +460,6 @@ export function mapCoupangStatus(statusName) {
   const s = String(statusName || '')
   if (s === '승인완료' || s === '부분승인완료') return 'approved'
   if (s === '승인반려') return 'rejected'
-  if (s === '상품삭제') return 'failed'
+  if (s === '상품삭제') return 'deleted' // 판매처에서 삭제됨 (2026-10-02 — 예전 'failed'. 상태 값·근거 api/_marketStatus.js DELETED)
   return 'approval_pending' // 심사중·임시저장·승인대기중
 }

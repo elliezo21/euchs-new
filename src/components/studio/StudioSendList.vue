@@ -1,9 +1,12 @@
 <template>
   <section id="sends" ref="root" class="scroll-mt-6" data-mk-sends>
-    <div class="flex items-center gap-2 mb-4">
+    <div class="flex flex-wrap items-center gap-2 mb-4">
       <h2 class="st-h-section">보낸 상품</h2>
-      <!-- 서버 sync = 쿠팡 기록만(전송 중·승인 대기·반려 최근 30건) — 쿠팡으로 보낸 기록이 있을 때만 -->
-      <button v-if="hasCoupang" type="button" class="st-btn sl-tap ml-auto" :disabled="syncing" data-mk-sync @click="sync">{{ syncing ? '확인 중…' : '쿠팡 상태 새로고침' }}</button>
+      <!-- 판매처 상태 확인 = 연결된 모든 판매처(서버 sync — 판매처 공통). 탭을 열 때 10분이 지났으면 자동, [지금 확인] = 바로 -->
+      <div v-if="sends.length" class="flex items-center gap-2 ml-auto" data-sl-check>
+        <span class="st-desc-sm" data-sl-checked-at>판매처 상태 마지막 확인: {{ fmtCheckedAt(checkedAt) }}</span>
+        <button type="button" class="st-btn sl-tap" :disabled="syncing" data-mk-sync @click="runCheck({ manual: true })">{{ syncing ? '확인 중…' : '지금 확인' }}</button>
+      </div>
     </div>
     <p v-if="errorMsg" class="text-[13px] break-keep" :class="errorSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-sends-error>{{ errorMsg }}
       <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">[연결] 탭으로 가기</router-link></p>
@@ -109,7 +112,7 @@
                           <td class="whitespace-nowrap">{{ sentMarketName(s.market) }}</td>
                           <td>
                             <span class="sl-chip" :class="`is-${chipTone(s.status)}`">{{ sendStatusLabel(s.status) }}</span>
-                            <div v-if="s.coupangStatus" class="st-desc-sm mt-0.5">쿠팡 상태: {{ s.coupangStatus }}</div>
+                            <div v-if="s.coupangStatus" class="st-desc-sm mt-0.5" :data-sl-market-status="s.id">판매처 상태: {{ s.coupangStatus }}</div>
                             <div v-if="s.revision" class="st-desc-sm mt-0.5" :data-mk-send-revision="s.id">다시 보낸 횟수 {{ s.revision }}</div>
                             <!-- 카페24 = 등록 완료 → 진열상태(보낸 값) (2026-09-30) -->
                             <div v-if="s.market === 'cafe24' && s.status === 'registered'" class="st-desc-sm mt-0.5 break-keep" :data-mk-send-display="s.id">진열상태: {{ s.display === 'T' ? '진열함' : '진열안함' }}</div>
@@ -172,14 +175,15 @@
       </template>
     </template>
     <StudioSendModal :open="resendOpen" :prepare="resendPrepare" :market="fixMarket" :sent="fixSent" :load-error="resendError" @close="resendOpen = false" @sent="onResent" @retry="loadFix" />
-    <p v-if="syncErrors.length" class="mt-2 text-[12px] break-keep" :class="isNotReady(syncErrors[0].code) ? 'st-muted' : 'font-bold st-danger-text'">일부 상품의 상태를 확인하지 못했습니다: {{ syncErrors[0].message }}</p>
+    <p v-if="syncErrors.length" class="mt-2 text-[12px] break-keep" :class="isNotReady(syncErrors[0].code) ? 'st-muted' : 'font-bold st-danger-text'" data-sl-check-error>일부 상품의 상태를 확인하지 못했습니다: {{ syncErrors[0].market ? `${sentMarketName(syncErrors[0].market)} — ` : '' }}{{ syncErrors[0].message }}</p>
   </section>
 </template>
 
 <script setup>
-// 판매처 > [보낸 상품] 탭 (2026-10-02 카드형 → 목록형) — marketplace_sends(서버 sends_list, 최근 100건)를 한 번 읽어 화면에서 상품별로 묶고·거르고·나눈다.
+// 판매처 > [보낸 상품] 탭 (2026-10-02 카드형 → 목록형) — marketplace_sends(서버 sends_list, 한도 없이 전부)를 한 번 읽어 화면에서 상품별로 묶고·거르고·나눈다.
 // 규칙은 studioSentList.js 순수 함수. 상태 문구 = sendStatusLabel 한 곳. 필터·검색·정렬·페이지는 이 화면 안에서만(저장하지 않음).
-// [쿠팡 상태 새로고침] = 서버 sync(쿠팡 상품 조회 + histories로 반려 사유 — 쿠팡 기록만, 고른 상품만 따로 부를 수는 없다)
+// 판매처 상태 확인 = 서버 sync(판매처 공통 — 상태 자동 확인을 지원하는 판매처만, 조회만). 예약 실행 없이 탭을 열 때 10분이 지났으면 자동(needsAutoCheck),
+//   [지금 확인] = 바로. 서버가 묶음으로 나눠 확인하고(more) 화면은 같은 since로 다시 부른다 — 확인 중에도 목록은 그대로, 끝나면 목록을 한 번 받아 칩만 바뀐다
 // [수정 후 재전송] = 기존 보내기 창 — 쿠팡 반려는 예전 다시 승인 요청 길(resendToMarketplace), 그 밖은 그 상품 + 그 판매처만 체크(sendToMarketplace + market)
 // 판매처는 칸을 따로 두지 않고 "판매처 현황" 칩(marketChips) — 이름·순서·필터 선택지는 판매처 목록 한 곳(MARKETS·marketsFor)에서
 // 목록이 바뀔 때마다 'update'로 올려 보낸다
@@ -191,6 +195,7 @@ import { isAdminOrStaff } from '@/lib/auth'
 import {
   STATUS_GROUPS, STATUS_FILTERS, PERIODS, SORTS, SEARCH_FIELDS, PAGE_SIZES, DEFAULT_PAGE_SIZE,
   sentMarketName, marketFilterOptions, marketChips, failedLatest, chipTone, groupSentProducts, statusCounts, filterSentProducts, sortSentProducts, pageSlice, fixAction,
+  AUTO_CHECK_MS, CHECK_ROUNDS_MAX, CHECK_ROUND_GAP_MS, lastCheckedAt, needsAutoCheck, fmtCheckedAt, checkShouldStop,
 } from '@/lib/studioSentList'
 
 const FIX_LABEL = '수정 후 재전송'
@@ -223,7 +228,7 @@ const products = computed(() => groupSentProducts(sends.value))
 const counts = computed(() => statusCounts(products.value))
 const filtered = computed(() => sortSentProducts(filterSentProducts(products.value, { market: market.value, status: status.value, period: period.value, field: search.value.field, text: search.value.text, now: Date.now() }), sort.value))
 const paged = computed(() => pageSlice(filtered.value, page.value, pageSize.value))
-const hasCoupang = computed(() => sends.value.some(s => (s.market || 'coupang') === 'coupang'))
+const checkedAt = computed(() => lastCheckedAt(sends.value))
 // 판매처 필터 = 판매처 목록에서 (카페24처럼 관리자·스태프만 보는 곳은 marketsFor 규칙 그대로)
 const marketOptions = computed(() => marketFilterOptions({ admin: isAdminOrStaff.value }))
 // 이 페이지 상품의 판매처 현황 칩 (PC 표·폰 카드 같은 값)
@@ -252,30 +257,58 @@ function fail(where, e) {
   errorSoft.value = isNotReady(e.code)
   errorGuide.value = needsGuide(e.code) || e.code === 'not_connected'
 }
-async function load() {
+/** 목록 읽기 — auto면 읽은 뒤 확인이 필요한지 본다(이 화면이 떠 있는 동안 10분에 한 번까지 — 연결이 끊긴 판매처 기록이 있어도 되풀이하지 않게) */
+let autoAt = 0
+async function load({ auto = true } = {}) {
   const my = ++seq
   errorMsg.value = ''
   try {
     const r = await listSends()
-    if (my === seq) setSends(r.sends)
+    if (my !== seq) return
+    setSends(r.sends)
+    if (auto && needsAutoCheck(sends.value) && Date.now() - autoAt > AUTO_CHECK_MS) {
+      autoAt = Date.now()
+      runCheck()
+    }
   } catch (e) {
     if (my === seq) fail('보낸 상품 조회', e)
   }
 }
-async function sync() {
-  const my = ++seq
+/**
+ * 판매처 상태 확인 — 서버가 남은 묶음이 있다고 하면(more) 같은 since로 쉬었다가 다시 부른다(CHECK_ROUNDS_MAX까지).
+ * 판매처 전체가 막히는 오류(checkShouldStop)면 그만. 목록은 끝났을 때 한 번만 바꾼다. 오류는 [지금 확인]일 때만 목록 아래 한 줄(자동은 로그만)
+ */
+let checkSeq = 0
+const wait = ms => new Promise(r => setTimeout(r, ms))
+async function runCheck({ manual = false } = {}) {
+  if (syncing.value) return
+  const my = ++checkSeq
   syncing.value = true
-  errorMsg.value = ''
-  syncErrors.value = []
+  if (manual) syncErrors.value = []
+  const since = new Date().toISOString()
+  const errs = []
   try {
-    const r = await syncSends()
-    if (my !== seq) return
-    setSends(r.sends)
-    syncErrors.value = r.errors || []
+    let listed = false
+    for (let round = 0; round < CHECK_ROUNDS_MAX; round++) {
+      const r = await syncSends(since)
+      if (my !== checkSeq) return
+      errs.push(...(Array.isArray(r.errors) ? r.errors : []))
+      if (Array.isArray(r.sends)) { setSends(r.sends); listed = true; break }
+      if (!r.more || checkShouldStop(errs)) break
+      await wait(CHECK_ROUND_GAP_MS)
+      if (my !== checkSeq) return
+    }
+    if (!listed) await load({ auto: false })
+    if (errs.length) {
+      console.warn('[StudioSendList] 판매처 상태를 일부 확인하지 못함:', errs.map(e => `${e.market}:${e.code}`).join(', '))
+      if (manual && my === checkSeq) syncErrors.value = errs
+    }
   } catch (e) {
-    if (my === seq) fail('상태 새로고침', e)
+    if (my !== checkSeq) return
+    console.error('[StudioSendList] 판매처 상태 확인 실패 (목록은 그대로):', e.code, e)
+    if (manual) syncErrors.value = [{ code: e.code, message: e.message }]
   } finally {
-    syncing.value = false
+    if (my === checkSeq) syncing.value = false
   }
 }
 
@@ -318,7 +351,7 @@ function openFix(p, s) {
   resendOpen.value = true
   loadFix()
 }
-function onResent() { load() }
+function onResent() { load({ auto: false }) }
 
 /** 내 상품 카드의 배지를 눌렀을 때(?focus=<기록 id>) — 그 상품을 펼치고 그 줄로 가서 잠깐 표시한다 */
 const focusId = ref(null)
@@ -347,6 +380,9 @@ function clear() {
   focusId.value = null
   focusKey.value = null
   seq++
+  checkSeq++
+  syncing.value = false
+  autoAt = 0
   syncErrors.value = []
   errorMsg.value = ''
   resendOpen.value = false
@@ -390,6 +426,7 @@ defineExpose({ load, clear, focus })
 .sl-chip.is-ok { background: #DCFCE7; color: #166534; }
 .sl-chip.is-wait { background: #FEF3C7; color: #92400E; }
 .sl-chip.is-bad { background: #FEE2E2; color: #991B1B; }
+.sl-chip.is-gone { background: var(--st-soft); color: var(--st-muted); } /* 판매처에서 삭제됨 = 회색 */
 .sl-chip.is-more { cursor: help; } /* "+N" — 마우스를 올리면 나머지 판매처·상태(title) */
 
 .sl-card { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 14px; border-radius: 12px; background: var(--st-surface); border: 1px solid var(--st-line); text-align: left; cursor: pointer; min-height: 44px; transition: border-color 0.15s, box-shadow 0.15s; }

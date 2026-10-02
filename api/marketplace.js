@@ -27,8 +27,9 @@
  *                       repImage:{ dataBase64 }(정사각형 JPG — 브라우저가 만든다), optionImages?:[{ key:'r01', dataBase64 }](6장까지), searchTags? }
  *                     항목 규칙은 api/_coupangFields.js (화면과 같은 파일)
  *                     → 대표 이미지 검사·저장 → marketplace_sends(sending) → 상품 생성(requested:true) → { sendId, sellerProductId, status }
- *   sends_list        → { sends:[…] }
- *   sync              → 승인대기 건을 쿠팡에서 다시 읽어(상품 조회 + histories) 갱신 → { sends }
+ *   sends_list        → { sends:[…] }  (2026-10-02 100건 한도 없음 — LIST_PAGE씩 끝까지, 화면에 필요한 칸만 · request_json 원문 없음)
+ *   sync              { since? } → 판매처 상태 확인 (판매처 공통 checkMarket — 쿠팡·스마트스토어, 조회만) → { errors, more, sends(more가 false일 때만) }
+ *                       since = 이번 확인을 시작한 시각 — 그 뒤에 확인한 기록은 건너뛴다(나눠 부를 때 다음 묶음으로). 규칙·근거 api/_marketStatus.js
  *   market_status     → { elevenst, smartstore, cafe24: { connected, account } }   (2026-09-30 — 카페24는 refresh 만료 7일 전이면 이때 갱신)
  *   connect_11st      { seller_login_id, api_key } → 중계 경유 출고지 조회로 키 확인(api/_elevenst.js) → 암호화 저장(쿠팡과 같은 표·방식) — 연결까지만
  *   disconnect_11st   → 11번가 계정 삭제
@@ -75,6 +76,10 @@ import {
 } from './_smartstore.js'
 import { lastAddressesOf } from './_smartstoreFields.js'
 import {
+  STATUS_CHECK_MARKETS, CHECK_STATUSES, CHECK_BATCH, SS_SINGLE_MAX, SS_SEARCH_PATH, ssOriginProductPath, smartstoreStatusOf, smartstoreSearchBody,
+  smartstoreSearchStatuses, isSsNotFound, STOP_CODES, DELETED, checkSince, LIST_PAGE, LIST_PAGES_MAX,
+} from './_marketStatus.js'
+import {
   Cafe24Error, authorizeUrl, makeState, verifyState, verifyLaunch, exchangeCode, refreshAccess, missingScopes, needsRefresh, isMallId, normalizeMallId, appCredentials, redirectKeyFor, CAFE24_REDIRECT_URIS,
   cafe24Api, accessNeedsRefresh, isWon, cleanProductName, isCategoryNo, buildCafe24Product, isDisplayFlag, buildCafe24ProductImage, productImagePath, productNoOf, normalizeCategories, uploadedPaths, responseShape, CATEGORY_PAGE, CATEGORY_MAX_PAGES, cafe24AdminProductUrl,
 } from './_cafe24.js'
@@ -93,8 +98,6 @@ const OPTION_IMAGE_MAX = 6 // 옵션 대표 이미지(서로 다른 사진) — 
 const DOC_MAX_BYTES = 3 * 1024 * 1024 // 쿠팡 제한은 5MB — 요청 본문 크기 때문에 3MB까지 받는다
 const DOC_TYPES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' }
 const OFFER_ID_RE = /^\d{9,16}$/
-const SENDS_LIST_MAX = 100
-const SYNC_MAX = 30
 const ACCOUNT_PUBLIC = 'id,seller_login_id,vendor_id,key_last4,expires_at,status,last_checked_at,last_error,created_at,updated_at'
 const TEMPLATE_SELECT = 'id,name,delivery_charge_type,delivery_charge,free_ship_over_amount,delivery_charge_on_return,return_charge,exchange_charge,outbound_shipping_time_day,delivery_company_code,outbound_place_code,return_center_code,remote_area_deliverable,is_default,created_at,updated_at'
 const SEND_SELECT = 'id,export_id,market,seller_product_id,status,coupang_status,reason,approval_requested_at,last_synced_at,created_at,updated_at,request_json'
@@ -1130,7 +1133,7 @@ async function loadRejectedSend(ctx, resendId, res) {
   const rows = await sb(ctx.cfg, `marketplace_sends?select=${SEND_SELECT}&id=eq.${id}&user_id=eq.${ctx.userId}&market=eq.${MARKET}&limit=1`)
   const s = Array.isArray(rows) ? rows[0] : null
   if (!s) { sendError(res, 404, 'not_found', '보낸 상품을 찾을 수 없어요. 목록을 새로고침해 주세요.'); return null }
-  if (s.status !== 'rejected' || !/^\d{1,20}$/.test(String(s.seller_product_id || ''))) { sendError(res, 409, 'not_rejected', '반려된 상품만 고쳐서 다시 보낼 수 있어요. [상태 새로고침]을 눌러 주세요.'); return null }
+  if (s.status !== 'rejected' || !/^\d{1,20}$/.test(String(s.seller_product_id || ''))) { sendError(res, 409, 'not_rejected', '반려된 상품만 고쳐서 다시 보낼 수 있습니다. [지금 확인]을 누르세요.'); return null }
   if (!s.export_id) { sendError(res, 404, 'not_found', '내 상품을 찾을 수 없어요. 목록을 새로고침해 주세요.'); return null }
   return s
 }
@@ -1427,45 +1430,92 @@ async function resend(ctx, res, { cred, prev, sendId, requestJson, plan }) {
 }
 
 // ── 처리현황 ──
+// 목록에 필요한 칸만 (2026-10-02 — request_json 원문은 보낸 본문이라 크다: 기록 수천 건이면 응답이 수십 MB가 된다). 판매처마다 상품명 위치가 다르다
+const LIST_SELECT = [
+  'id', 'export_id', 'market', 'seller_product_id', 'status', 'coupang_status', 'reason', 'approval_requested_at', 'last_synced_at', 'created_at', 'updated_at',
+  'nm_coupang:request_json->body->>sellerProductName', 'nm_cafe24:request_json->body->request->>product_name',
+  'nm_smartstore:request_json->body->originProduct->>name', 'nm_11st:request_json->summary->>prdNm',
+  'category_name:request_json->>categoryName', 'revisions:request_json->revisions', 'mall_id:request_json->>mallId',
+  'c24_display:request_json->body->request->>display', 'ss_display:request_json->body->smartstoreChannelProduct->>channelProductDisplayStatusType',
+  'channel_product_no:result_json->>channelProductNo',
+].join(',')
+const NAME_COL = { [MARKET]: 'nm_coupang', [CAFE24]: 'nm_cafe24', [SMARTSTORE]: 'nm_smartstore', [ELEVENST]: 'nm_11st' }
 function publicSend(s) {
   const market = s.market || MARKET
   const c24 = market === CAFE24
   const ss = market === SMARTSTORE
-  const st11 = market === ELEVENST
   return {
+    // coupangStatus = 판매처가 준 상태 원문 (칸 이름은 예전 그대로 — 2026-10-02부터 스마트스토어 상태(판매 중·판매 중지·삭제 …)도 여기에)
     id: s.id, exportId: s.export_id, market, sellerProductId: s.seller_product_id, status: s.status, coupangStatus: s.coupang_status, reason: s.reason,
-    productName: (c24 ? s.request_json?.body?.request?.product_name : ss ? s.request_json?.body?.originProduct?.name : st11 ? s.request_json?.summary?.prdNm : s.request_json?.body?.sellerProductName) || null, categoryName: s.request_json?.categoryName || null, revision: revisionsOf(s).length,
-    adminUrl: c24 ? cafe24AdminProductUrl(s.request_json?.mallId, s.seller_product_id) : null, // 카페24 = 관리자 상품 화면
-    display: c24 ? (s.request_json?.body?.request?.display === 'T' ? 'T' : 'F') : null, // 카페24 진열상태(보낸 값 — 관리자에서 바꾼 뒤는 모름)
+    productName: s[NAME_COL[market]] || null, categoryName: s.category_name || null, revision: Array.isArray(s.revisions) ? s.revisions.length : 0,
+    adminUrl: c24 ? cafe24AdminProductUrl(s.mall_id, s.seller_product_id) : null, // 카페24 = 관리자 상품 화면
+    display: c24 ? (s.c24_display === 'T' ? 'T' : 'F') : null, // 카페24 진열상태(보낸 값 — 관리자에서 바꾼 뒤는 모름)
     // 스마트스토어 = 보낸 전시 상태(ON|SUSPENSION — 스마트스토어센터에서 바꾼 뒤는 모름) · 채널상품번호
-    ssDisplay: ss ? (s.request_json?.body?.smartstoreChannelProduct?.channelProductDisplayStatusType === 'ON' ? 'ON' : 'SUSPENSION') : null,
-    channelProductNo: ss ? (s.result_json?.channelProductNo || null) : null,
+    ssDisplay: ss ? (s.ss_display === 'ON' ? 'ON' : 'SUSPENSION') : null,
+    channelProductNo: ss ? (s.channel_product_no || null) : null,
     approvalRequestedAt: s.approval_requested_at, lastSyncedAt: s.last_synced_at, createdAt: s.created_at, updatedAt: s.updated_at,
   }
 }
-// 목록은 모든 판매처 (쿠팡 + 카페24 + 스마트스토어 + 11번가). sync는 쿠팡만(market=eq.coupang 그대로) — 카페24·스마트스토어는 등록 즉시 끝이라 다시 읽을 상태가 없다
-// result_json은 목록에서만 더 읽는다(스마트스토어 채널상품번호) — 쿠팡 다시 보내기·sync가 쓰는 SEND_SELECT는 그대로
+// 목록은 모든 판매처 (쿠팡 + 카페24 + 스마트스토어 + 11번가) · 100건 한도 없음 — LIST_PAGE(1000)씩 끝까지 (2026-10-02)
+// 화면이 상품별로 묶고 상태 카드 숫자·거르기·검색을 하므로 기록 전부가 필요하다. 쪽 경계에서 같은 줄이 두 번 오면 하나만
 async function loadSends(ctx) {
   // 카페24 기록은 관리자·스태프에게만 (2026-10-01 카페24 고객에게 숨김 — 기록은 DB에 그대로)
   const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE},${ELEVENST}` : `${MARKET},${SMARTSTORE},${ELEVENST}`
-  const rows = await sb(ctx.cfg, `marketplace_sends?select=${SEND_SELECT},result_json&user_id=eq.${ctx.userId}&market=in.(${markets})&order=created_at.desc&limit=${SENDS_LIST_MAX}`)
-  return (Array.isArray(rows) ? rows : []).map(publicSend)
+  const byId = new Map()
+  for (let page = 0; page < LIST_PAGES_MAX; page++) {
+    const rows = await sb(ctx.cfg, `marketplace_sends?select=${LIST_SELECT}&user_id=eq.${ctx.userId}&market=in.(${markets})&order=created_at.desc,id.desc&limit=${LIST_PAGE}&offset=${page * LIST_PAGE}`)
+    const list = Array.isArray(rows) ? rows : []
+    for (const r of list) if (!byId.has(r.id)) byId.set(r.id, r)
+    if (list.length < LIST_PAGE) return [...byId.values()].map(publicSend)
+  }
+  console.error(`[marketplace] 보낸 상품 기록이 ${LIST_PAGE * LIST_PAGES_MAX}건을 넘음 — 최근 것만 보냄 ${ctx.userId}`)
+  return [...byId.values()].map(publicSend)
 }
 async function sendsList(ctx, body, res) {
   return res.status(200).json({ sends: await loadSends(ctx) })
 }
-async function sync(ctx, body, res) {
-  const cred = await withCredentials(ctx, res)
-  if (!cred) return
-  const rows = await sb(ctx.cfg, `marketplace_sends?select=${SEND_SELECT}&user_id=eq.${ctx.userId}&market=eq.${MARKET}&seller_product_id=not.is.null&status=in.(sending,approval_pending,rejected)&order=created_at.desc&limit=${SYNC_MAX}`)
-  const errors = []
-  for (const s of Array.isArray(rows) ? rows : []) {
+
+// ── 판매처 상태 확인 (2026-10-02) — 조회만. 판매처 공통 흐름 = sync → 판매처마다 checkMarket → CHECKERS[판매처] ──
+// 규칙·근거·한도는 api/_marketStatus.js. 확인 대상 = 판매처 상품번호가 있고 CHECK_STATUSES인 기록(같은 작업을 여러 번 보낸 옛 기록도 — 칩의 "N건"이 맞도록)
+const CHECK_SELECT = 'id,market,seller_product_id,status,coupang_status,reason,last_synced_at'
+/** 연결 함수(withCredentials·smartstoreCredentials)는 실패하면 res에 오류를 보낸다 — 판매처마다 따로 확인할 때는 응답 대신 오류만 받는다 */
+function errorSink() {
+  const sink = { error: null, code: 0, status(c) { sink.code = c; return sink }, json(b) { sink.error = { code: b?.code || 'unknown', message: b?.message || '' }; return sink } }
+  return sink
+}
+/** 상태 저장 — 'deleted'가 DB check에 아직 없으면(SQL 실행 전) 상태는 그대로 두고 원문·확인 시각만 (원인 로그) */
+const isStatusCheckError = e => e?.status === 400 && /marketplace_sends_status_check|23514/.test(String(e?.message || ''))
+async function patchSend(ctx, id, patch) {
+  try {
+    await sb(ctx.cfg, `marketplace_sends?id=eq.${id}&user_id=eq.${ctx.userId}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' })
+  } catch (e) {
+    if (patch.status !== DELETED || !isStatusCheckError(e)) throw e
+    console.error('[marketplace] 상태 deleted를 저장하지 못함 — docs/sql/2026-10-02-marketplace-sends-deleted.sql 실행 필요:', id, e.message)
+    const { status, ...rest } = patch
+    await sb(ctx.cfg, `marketplace_sends?id=eq.${id}&user_id=eq.${ctx.userId}`, { method: 'PATCH', body: rest, prefer: 'return=minimal' })
+  }
+}
+/** 바뀐 것이 없는 기록 — 확인 시각만 한 번에 (주소 길이 때문에 100개씩) */
+async function touchSynced(ctx, ids) {
+  const at = new Date().toISOString()
+  for (let i = 0; i < ids.length; i += 100) {
+    await sb(ctx.cfg, `marketplace_sends?id=in.(${ids.slice(i, i + 100).join(',')})&user_id=eq.${ctx.userId}`, { method: 'PATCH', body: { last_synced_at: at }, prefer: 'return=minimal' })
+  }
+}
+/** 쿠팡 — 상품마다 등록상품 조회 1번(반려로 바뀌었거나 사유가 비었을 때만 histories 1번 더). @returns {'done'|'stopped'} */
+async function checkCoupang(ctx, rows, errors) {
+  const sink = errorSink()
+  const cred = await withCredentials(ctx, sink)
+  if (!cred) { errors.push({ market: MARKET, ...sink.error }); return 'stopped' }
+  const quiet = []
+  for (const s of rows) {
     try {
       const r = await coupangCall(cred.call, { method: 'GET', path: PATHS.product(s.seller_product_id) })
       const statusName = r?.data?.statusName || ''
       const next = mapCoupangStatus(statusName)
-      const patch = { status: next, coupang_status: statusName.slice(0, 40) || null, last_synced_at: new Date().toISOString() }
-      if (next === 'rejected') {
+      const raw = statusName.slice(0, 40) || null
+      const patch = { status: next, coupang_status: raw, last_synced_at: new Date().toISOString() }
+      if (next === 'rejected' && (s.status !== 'rejected' || !s.reason)) {
         try {
           const h = await coupangCall(cred.call, { method: 'GET', path: PATHS.histories(s.seller_product_id) })
           const list = Array.isArray(h?.data) ? h.data : (Array.isArray(h?.data?.content) ? h.data.content : [])
@@ -1473,15 +1523,86 @@ async function sync(ctx, body, res) {
           if (rej?.comment) patch.reason = String(rej.comment).slice(0, 2000)
         } catch (e) { console.warn('[marketplace] 반려 사유 조회 실패:', s.seller_product_id, e.code || e.message) }
       }
-      await sb(ctx.cfg, `marketplace_sends?id=eq.${s.id}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' })
+      if (next === s.status && raw === s.coupang_status && !('reason' in patch)) quiet.push(s.id)
+      else await patchSend(ctx, s.id, patch)
     } catch (e) {
       if (!(e instanceof CoupangError)) throw e
-      console.warn('[marketplace] 상태 조회 실패:', s.seller_product_id, e.code, e.raw)
-      errors.push({ id: s.id, code: e.code, message: e.message })
-      if (e.code === 'breaker_open' || e.code === 'rate_limited' || e.code === 'access_denied') break
+      console.warn('[marketplace] 쿠팡 상태 조회 실패:', s.seller_product_id, e.code, e.raw)
+      errors.push({ market: MARKET, id: s.id, code: e.code, message: e.message })
+      if (STOP_CODES.includes(e.code)) { await touchSynced(ctx, quiet); return 'stopped' }
+      quiet.push(s.id) // 이 기록만의 오류 — 확인 시각을 남겨 다음 묶음이 다른 기록으로 넘어가게
     }
   }
-  return res.status(200).json({ sends: await loadSends(ctx), errors })
+  await touchSynced(ctx, quiet)
+  return 'done'
+}
+/**
+ * 스마트스토어 — 토큰 1번 + 상품 목록 조회 1번(원상품번호 최대 500개). 검색 결과에 없는 상품은 원상품 조회로 하나씩(SS_SINGLE_MAX까지 — 404 NOT_FOUND = 삭제)
+ * @returns {'done'|'partial'|'stopped'}  partial = 하나씩 조회할 것이 남음(다음 요청에서)
+ */
+async function checkSmartstore(ctx, rows, errors) {
+  const sink = errorSink()
+  const cred = await smartstoreCredentials(ctx, sink)
+  if (!cred) { errors.push({ market: SMARTSTORE, ...sink.error }); return 'stopped' }
+  let found
+  try {
+    const r = await smartstoreApi(cred, { method: 'POST', path: SS_SEARCH_PATH, json: smartstoreSearchBody(rows.map(s => s.seller_product_id)) })
+    found = smartstoreSearchStatuses(r.json)
+  } catch (e) {
+    if (!(e instanceof SmartstoreError)) throw e
+    console.warn('[marketplace] 스마트스토어 상품 목록 조회 실패:', e.code, e.status, e.raw)
+    errors.push({ market: SMARTSTORE, code: e.code, message: e.message })
+    return 'stopped'
+  }
+  const quiet = []
+  let singles = 0, partial = false
+  for (const s of rows) {
+    let statusType = found.get(String(s.seller_product_id))
+    if (statusType == null) {
+      if (singles >= SS_SINGLE_MAX) { partial = true; continue } // 다음 요청에서 (확인 시각을 남기지 않는다)
+      singles++
+      try {
+        const r = await smartstoreApi(cred, { method: 'GET', path: ssOriginProductPath(s.seller_product_id) })
+        statusType = r.json?.originProduct?.statusType
+      } catch (e) {
+        if (!(e instanceof SmartstoreError)) throw e
+        if (isSsNotFound(e.status, e.raw)) statusType = 'DELETE'
+        else {
+          console.warn('[marketplace] 스마트스토어 원상품 조회 실패:', s.seller_product_id, e.code, e.status, e.raw)
+          errors.push({ market: SMARTSTORE, id: s.id, code: e.code, message: e.message })
+          if (STOP_CODES.includes(e.code)) { await touchSynced(ctx, quiet); return 'stopped' }
+          quiet.push(s.id)
+          continue
+        }
+      }
+    }
+    const next = smartstoreStatusOf(statusType)
+    if (!next) { console.warn('[marketplace] 스마트스토어 상태 값을 모름 (기록 그대로):', s.seller_product_id, statusType); quiet.push(s.id); continue }
+    if (next.status === s.status && next.raw === s.coupang_status) quiet.push(s.id)
+    else await patchSend(ctx, s.id, { status: next.status, coupang_status: next.raw, last_synced_at: new Date().toISOString() })
+  }
+  await touchSynced(ctx, quiet)
+  return partial ? 'partial' : 'done'
+}
+const CHECKERS = { [MARKET]: checkCoupang, [SMARTSTORE]: checkSmartstore }
+async function checkMarket(ctx, market, since, errors) {
+  const batch = CHECK_BATCH[market]
+  const or = encodeURIComponent(`(last_synced_at.is.null,last_synced_at.lt."${since}")`)
+  const rows = await sb(ctx.cfg, `marketplace_sends?select=${CHECK_SELECT}&user_id=eq.${ctx.userId}&market=eq.${market}&seller_product_id=not.is.null&status=in.(${CHECK_STATUSES.join(',')})&or=${or}&order=last_synced_at.asc.nullsfirst,created_at.desc&limit=${batch + 1}`)
+  const list = Array.isArray(rows) ? rows : []
+  if (!list.length) return false
+  const result = await CHECKERS[market](ctx, list.slice(0, batch), errors)
+  return result === 'partial' || (result === 'done' && list.length > batch) // 남은 것이 있으면 true
+}
+async function sync(ctx, body, res) {
+  const since = checkSince(body?.since)
+  const errors = []
+  let more = false
+  for (const market of STATUS_CHECK_MARKETS) {
+    if (await checkMarket(ctx, market, since, errors)) more = true
+  }
+  // 남은 것이 있으면 목록을 보내지 않는다 — 화면이 같은 since로 다시 부르고, 끝날 때 한 번만 받는다
+  return res.status(200).json(more ? { errors, more } : { errors, more, sends: await loadSends(ctx) })
 }
 
 // ── GET: 쿠팡이 내려받는 이미지 (로그인 없음 · 토큰만) ──

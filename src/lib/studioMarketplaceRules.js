@@ -174,11 +174,12 @@ export const optionTableNeed = ({ flexCols = 2, hasCny = false } = {}) => OPTION
 
 // 판매처 전송 상태 문구 — 고객 화면은 모두 이 한 곳(sendStatusLabel)을 쓴다 (2026-10-02 통일: 보내기 탭 줄 배지·보낸 상품 카드·내 상품 배지·보내기 창 배지·결과 표)
 // 상태 값(DB marketplace_sends.status)은 그대로, 문구만. registered = 카페24·스마트스토어·11번가(승인 절차 없음 — 등록 즉시 끝)
-export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료', rejected: '반려', failed: '실패' }
+// deleted = 판매처에서 상품이 지워진 것을 상태 확인으로 알게 됨 (2026-10-02 — api/_marketStatus.js DELETED)
+export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료', rejected: '반려', failed: '실패', deleted: '판매처에서 삭제됨' }
 /** 상태 → 문구. 목록에 없는 값은 원래 값 그대로(예전 화면과 같음) */
 export const sendStatusLabel = status => SEND_STATUS_LABEL[status] || String(status ?? '')
-// 상태 배지 — 색: 전송 중·승인 대기 = 회색, 승인 완료·등록 완료 = 초록, 반려·실패 = 빨강
-export const SEND_BADGE_CLASS = { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', registered: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger' }
+// 상태 배지 — 색: 전송 중·승인 대기·판매처에서 삭제됨 = 회색, 승인 완료·등록 완료 = 초록, 반려·실패 = 빨강
+export const SEND_BADGE_CLASS = { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', registered: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger', deleted: 'st-badge' }
 /**
  * 처음 체크할 판매처 — 특정 판매처 버튼([카페24로 보내기])으로 열었으면 그곳만, 다시 보내기면 쿠팡만, 아니면 연결된 곳 모두(defaultChecked)
  * sent = 이 상품을 이미 보낸 판매처(alreadySent) — [일괄 전송]·판매처 없이 열면 처음 체크에서 뺀다(2026-10-01 중복 등록 방지).
