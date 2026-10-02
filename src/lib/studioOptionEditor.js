@@ -79,21 +79,23 @@ export function rebuildRows(m) {
  * 값 칩은 1688 원문 값마다 하나(같은 한글로 읽혀도 따로 — 1688 SKU를 말없이 합치지 않는다). 번역 안 된 값은 빈 칩(고객이 눌러 넣는다)
  * 옵션 사용 = 가져온 옵션이 있을 때만 처음부터 켬
  * 1688 가격·재고는 넣지 않는다 (stock1688·priceCny = null — 칸은 예전 모양을 위해 남김)
+ * @param {object[]} skus send_prepare.source.skus (부분 목록)
+ * @param {{ stock?:{ [index]: number } }} o  stock = skus 순서별 재고 처음 값 — [주문한 옵션 불러오기]의 주문 수량(셀러가 산 수량, 2026-10-02 ②-1). 없으면 비움
  */
-export function optionEditorFromSource(skus) {
+export function optionEditorFromSource(skus, { stock = {} } = {}) {
   const src = marketOptionsFromSource(skus)
   const m = emptyOptionEditor()
   if (!src.rows.length) return m
   m.groups = src.groupNames.map(name => ({ id: nextId(m, 'g'), name, values: [] }))
   const chipOf = src.groupNames.map(() => new Map()) // 종류마다 원문(없으면 한글) → 칩
-  const sourceRows = src.rows.map(r => {
+  const sourceRows = src.rows.map((r, si) => {
     const ids = m.groups.map((g, gi) => {
       const label = clean(r.values[gi]), original = clean(r.originals[gi])
       const k = original || `ko:${label}`
       if (!chipOf[gi].has(k)) { const v = { id: nextId(m, 'v'), label, original }; chipOf[gi].set(k, v); g.values.push(v) }
       return chipOf[gi].get(k).id
     })
-    return { ids, row: r }
+    return { ids, row: r, stock: Number.isInteger(stock?.[si]) && stock[si] >= 0 ? stock[si] : null }
   })
   // 1688 SKU가 없는 조합 = 전체 조합 − 원천 줄
   const present = new Set(sourceRows.map(s => keyOf(s.ids)))
@@ -102,8 +104,9 @@ export function optionEditorFromSource(skus) {
   m.rows = []
   for (const s of sourceRows) {
     const key = keyOf(s.ids)
-    if (m.rows.some(r => r.key === key)) continue
-    m.rows.push({ key, ids: s.ids, addPrice: 0, stock: null, checked: false, stock1688: null, priceCny: null })
+    const same = m.rows.find(r => r.key === key)
+    if (same) { if (s.stock !== null) same.stock = (same.stock ?? 0) + s.stock; continue } // 같은 조합 두 줄 = 주문 수량은 더한다
+    m.rows.push({ key, ids: s.ids, addPrice: 0, stock: s.stock, checked: false, stock1688: null, priceCny: null })
   }
   m.enabled = true
   return rebuildRows(m)

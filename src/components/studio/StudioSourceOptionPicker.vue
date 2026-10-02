@@ -34,7 +34,7 @@
 // 고르기 규칙은 순수 함수 src/lib/studioSourceOptions.js — 결과(source.skus 모양의 부분 목록)를 'pick'으로 내보내고, 옵션을 바꾸는 일은 부르는 쪽이 한다
 //   (공통 정보·스마트스토어·11번가·지그재그 = StudioSendOptions가 optionEditorFromSource로 · 쿠팡 = fillFromSource)
 import { ref, computed } from 'vue'
-import { skuLabel, pickSkus, orderedSkus, orderedMissingNote } from '@/lib/studioSourceOptions'
+import { skuLabel, pickSkus, orderedSkus, orderedMissingNote, orderedMergeNote } from '@/lib/studioSourceOptions'
 
 const props = defineProps({
   skus: { type: Array, default: () => [] },      // send_prepare.source.skus
@@ -42,7 +42,7 @@ const props = defineProps({
   ordered: { type: Array, default: () => [] },   // send_prepare.ordered
   disabled: { type: Boolean, default: false },
 })
-const emit = defineEmits(['pick']) // ({ skus, from: 'ordered'|'1688' })
+const emit = defineEmits(['pick']) // ({ skus, from: 'ordered'|'1688', quantity? }) — quantity = skus 순서별 주문 수량(주문한 옵션만 — 재고 칸 처음 값)
 
 const open = ref(false)
 const checked = ref(new Set())
@@ -69,7 +69,7 @@ function onOrdered() {
     msg.value = orderedMissingNote(r.missing) || '주문한 옵션을 찾지 못했습니다.'
     return
   }
-  emit('pick', { skus: r.skus, from: 'ordered' })
-  msg.value = [`주문한 옵션 ${r.skus.length}개를 가져왔습니다.`, orderedMissingNote(r.missing)].filter(Boolean).join(' ')
+  emit('pick', { skus: r.skus, from: 'ordered', quantity: r.quantity })
+  msg.value = [`주문한 옵션 ${r.skus.length}개를 가져오고 재고 칸에 주문 수량을 넣었습니다. 재고는 고칠 수 있습니다.`, orderedMergeNote(r), orderedMissingNote(r.missing)].filter(Boolean).join(' ')
 }
 </script>

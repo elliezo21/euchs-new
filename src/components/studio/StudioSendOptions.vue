@@ -118,8 +118,8 @@ const editInput = ref(null)
 
 const clearMsg = gid => { delete msgs[gid] }
 // 불러온 옵션으로 지금 모양을 바꾼다 (같은 객체를 고친다 — 공통 정보면 판매처 섹션이 commonPatch로 따라온다)
-function onPick({ skus }) {
-  replaceOptionEditor(props.model, optionEditorFromSource(skus))
+function onPick({ skus, quantity }) {
+  replaceOptionEditor(props.model, optionEditorFromSource(skus, { stock: quantity })) // 주문한 옵션이면 재고 = 주문 수량(셀러가 산 수량), 1688 옵션이면 비움
   for (const k of Object.keys(drafts)) delete drafts[k]
   for (const k of Object.keys(msgs)) delete msgs[k]
   listMsg.value = ''
