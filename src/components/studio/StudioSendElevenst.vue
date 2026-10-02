@@ -92,8 +92,8 @@
       </div>
     </div>
 
-    <!-- 옵션 (싱글옵션 한 칸 — 종류가 여럿이면 "/"로 합침) — 가져온 상품에 옵션이 있을 때만. 규칙·근거 api/_marketOptions.js -->
-    <div v-if="opts.rows.length" v-show="showOwn('stock')" ref="optionsEl">
+    <!-- 옵션 (싱글옵션 한 칸 — 종류가 여럿이면 "/"로 합침) — 옵션 종류·값을 넣으면 조합 목록이 만들어진다(가져온 옵션이 없으면 꺼진 채). 규칙·근거 api/_marketOptions.js -->
+    <div v-show="showOwn('stock')" ref="optionsEl">
       <StudioSendOptions :model="opts" :disabled="!!done" :range="optionRange" :note="OPTION_NOTE" data-mk-11st-options />
     </div>
 
@@ -290,7 +290,8 @@ import {
   pickElevenstAddress, SELLER_OFFICE_URL, ORIGIN_CHINA, ORIGIN_KINDS, ORIGIN_DOMESTIC, ORIGIN_COUNTRIES, originFor, feeHasBase, bundleDeliveryYn, BUNDLE_OFF_NOTE,
   elevenstFormFromProduct, elevenstFormFromShipping, productTemplateFromElevenstForm, shippingTemplateFromElevenstForm,
 } from '../../../api/_elevenstFields.js'
-import { marketOptionsFromSource, optionsPayload, elevenstOptionProblems, elevenstOptionPriceRange, elevenstOptionMerge } from '../../../api/_marketOptions.js'
+import { optionsPayload, elevenstOptionProblems, elevenstOptionPriceRange, elevenstOptionMerge } from '../../../api/_marketOptions.js'
+import { optionEditorFromSource } from '@/lib/studioOptionEditor'
 import StudioSendOptions from './StudioSendOptions.vue'
 
 const CAT_SHOWN = 200
@@ -338,9 +339,10 @@ const f = ref({
   ...productBase(),
   testStop: false,
 })
-// 옵션 — 다른 판매처와 같은 원천(send_prepare.source.skus)·같은 공용 모양. 가져온 옵션이 있으면 처음부터 "옵션 사용"
-const opts = ref({ enabled: true, ...marketOptionsFromSource(props.prepare?.source?.skus) })
-const useOptions = computed(() => opts.value.enabled && opts.value.rows.length > 0)
+// 옵션 — 다른 판매처와 같은 원천(send_prepare.source.skus)·같은 옵션 편집 모양(src/lib/studioOptionEditor.js). 가져온 옵션이 있으면 처음부터 "옵션 사용"
+// 옵션 사용을 켜면 조합이 0개여도 옵션 상품으로 본다(빠짐 목록 "판매할 옵션") — 단일 재고 칸으로 몰래 돌아가지 않게
+const opts = ref(optionEditorFromSource(props.prepare?.source?.skus))
+const useOptions = computed(() => opts.value.enabled)
 const optionsOut = computed(() => (useOptions.value ? optionsPayload(opts.value) : null))
 const optionStockTotal = computed(() => (optionsOut.value?.rows || []).reduce((s, r) => s + (Number.isInteger(r.stock) ? r.stock : 0), 0))
 const optionRange = computed(() => elevenstOptionPriceRange(f.value.price))

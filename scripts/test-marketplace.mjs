@@ -2364,10 +2364,15 @@ function elevenstRelay(u, method, opts) {
 
   // 화면 연결 — 스마트스토어 섹션만 옵션 영역을 쓴다 (11번가는 근거 확정 전이라 보류 · 쿠팡은 손대지 않음)
   const ss = read('src/components/studio/StudioSendSmartstore.vue'), area = read('src/components/studio/StudioSendOptions.vue')
-  eq('스마트스토어 섹션: 옵션 영역 · 같은 원천(prepare.source.skus) · 화면 검사 = 서버 함수 · 옵션을 쓸 때만 options 보냄 · 재고 칸 대신 합계', [
-    /<StudioSendOptions v-if="opts\.rows\.length"/.test(ss), /marketOptionsFromSource\(props\.prepare\?\.source\?\.skus\)/.test(ss), /smartstoreOptionProblems\(/.test(ss), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(ss), /<label v-if="!useOptions"( v-show="showOwn\('stock'\)")? class="block">/.test(ss),
-  ], [true, true, true, true, true])
-  eq('옵션 영역: 옵션 사용 끄기 · 판매 체크 · 값·추가금액·재고 칸 · 가져온 원문 · 한 번에 넣기 · 1688 재고는 툴팁만', [/data-mk-opt-enabled/.test(area), /data-mk-opt-use/.test(area), /data-mk-opt-value/.test(area), /data-mk-opt-price/.test(area), /data-mk-opt-stock/.test(area), /가져온 옵션:/.test(area), /data-mk-opt-bulk-apply/.test(area), /`1688 재고 \$\{r\.stock1688\}`/.test(area)], [true, true, true, true, true, true, true, true])
+  eq('스마트스토어 섹션: 옵션 영역(늘 그림 — 가져온 옵션이 없으면 꺼진 채) · 같은 원천(prepare.source.skus) · 화면 검사 = 서버 함수 · 옵션을 쓸 때만 options 보냄 · 재고 칸 대신 합계', [
+    /<StudioSendOptions v-show="showOwn\('stock'\)" :model="opts"/.test(ss), /optionEditorFromSource\(props\.prepare\?\.source\?\.skus\)/.test(ss), /smartstoreOptionProblems\(/.test(ss), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(ss), /<label v-if="!useOptions"( v-show="showOwn\('stock'\)")? class="block">/.test(ss), /const useOptions = computed\(\(\) => opts\.value\.enabled\)/.test(ss),
+  ], [true, true, true, true, true, true])
+  eq('옵션 영역(2026-10-02): 옵션 사용 끄기 · 종류 추가·삭제 · 값 입력·[추가]·Enter · 칩 ⓧ · 선택 삭제·일괄입력·되살리기 · 추가금액·재고 칸 · 가져온 원문 · 1688 재고는 툴팁만 · "판매" 체크 없음', [
+    /data-mk-opt-enabled/.test(area), /data-mk-opt-group-add[^>]*>옵션 종류 추가</.test(area), /data-mk-opt-group-remove[^>]*>삭제</.test(area), /data-mk-opt-value-input[^>]*@keydown\.enter\.prevent="onAddValues\(g\)"/.test(area), /data-mk-opt-value-add[^>]*>추가</.test(area), /data-mk-opt-chip-remove/.test(area),
+    /data-mk-opt-delete[^>]*>선택 삭제</.test(area), /data-mk-opt-bulk-price-apply[^>]*>추가금액 일괄입력</.test(area), /data-mk-opt-bulk-stock-apply[^>]*>재고 일괄입력</.test(area), /data-mk-opt-restore[^>]*>삭제한 조합 되살리기</.test(area),
+    /data-mk-opt-price/.test(area), /data-mk-opt-stock/.test(area), /가져온 옵션:/.test(area), /`1688 재고 \$\{r\.stock1688\}`/.test(area), /data-mk-opt-use|판매 안 함/.test(area),
+  ], [true, true, true, true, true, true, true, true, true, true, true, true, true, true, false])
+  eq('옵션 영역 문구: 합니다체 · 대화체 없음 (화면·편집 안내 문구)', /(어요|예요|해요|돼요|아요|워요|네요|줘요)|주세요/.test(area.slice(0, area.indexOf('<style')) + read('src/lib/studioOptionEditor.js')), false)
   eq('쿠팡 섹션·서버는 공용 옵션을 쓰지 않음 (쿠팡 출력 그대로)', /StudioSendOptions|_marketOptions/.test(read('src/components/studio/StudioSendCoupang.vue') + read('api/_coupang.js') + read('api/_coupangFields.js')), false)
 
   // ── 11번가 싱글옵션 (공식 예제 singleOption1.txt) ──
@@ -2426,8 +2431,138 @@ function elevenstRelay(u, method, opts) {
 
   const el11 = read('src/components/studio/StudioSendElevenst.vue')
   eq('11번가 섹션: 옵션 영역(같은 컴포넌트) · 같은 원천 · 화면 검사 = 서버 함수 · 옵션 쓸 때만 options · 재고 칸 대신 합계 · 규칙 안내 · 요약 "옵션" 줄', [
-    /<StudioSendOptions :model="opts"[^>]*:note="OPTION_NOTE"/.test(el11), /marketOptionsFromSource\(props\.prepare\?\.source\?\.skus\)/.test(el11), /elevenstOptionProblems\(/.test(el11), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(el11), /<label v-if="!useOptions"( v-show="showOwn\('stock'\)")? class="block">/.test(el11), /0원인 옵션이 1개 이상/.test(el11), /label: '옵션', value: optionsSummary\.value/.test(el11),
+    /<StudioSendOptions :model="opts"[^>]*:note="OPTION_NOTE"/.test(el11), /optionEditorFromSource\(props\.prepare\?\.source\?\.skus\)/.test(el11), /elevenstOptionProblems\(/.test(el11), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(el11), /<label v-if="!useOptions"( v-show="showOwn\('stock'\)")? class="block">/.test(el11), /0원인 옵션이 1개 이상/.test(el11), /label: '옵션', value: optionsSummary\.value/.test(el11),
   ], [true, true, true, true, true, true, true])
+}
+
+// ── 옵션 편집 (2026-10-02) — src/lib/studioOptionEditor.js · 옵션 종류 줄 + 옵션값 칩 → 조합 목록 자동 생성 (공통 정보·스마트스토어·11번가) ──
+{
+  const E = await import('../src/lib/studioOptionEditor.js')
+  const O = await import('../api/_marketOptions.js')
+  const S = await import('../api/_smartstore.js')
+  const E11 = await import('../api/_elevenst.js')
+  const names = m => m.rows.map(r => r.values.join('/'))
+  const fresh = () => { const m = E.emptyOptionEditor(); m.enabled = true; return m }
+  const group = (m, name, text) => { E.addGroup(m); const g = m.groups[m.groups.length - 1]; E.setGroupName(m, g.id, name); if (text) E.addValues(m, g.id, text); return g }
+
+  // 조합 생성 1·2·3종류
+  const m1 = fresh(); group(m1, '색상', '블랙, 레드')
+  eq('조합(종류 1개): 값마다 한 줄 · 종류 이름 · 추가금액 0 · 재고 빈칸 · use true', [m1.groupNames, names(m1), m1.rows.map(r => [r.addPrice, r.stock, r.use])], [['색상'], ['블랙', '레드'], [[0, null, true], [0, null, true]]])
+  const m2 = fresh(); group(m2, '색상', '블랙, 레드'); group(m2, '사이즈', 'Small, Large')
+  eq('조합(종류 2개): 블랙·레드 × Small·Large = 4줄 (첫 종류가 바깥)', [m2.groupNames, names(m2)], [['색상', '사이즈'], ['블랙/Small', '블랙/Large', '레드/Small', '레드/Large']])
+  const m3 = fresh(); group(m3, '색상', '블랙, 레드'); group(m3, '사이즈', 'S, M, L'); group(m3, '재질', '면, 린넨')
+  eq('조합(종류 3개): 2×3×2 = 12줄 · 첫 줄·끝 줄', [m3.rows.length, names(m3)[0], names(m3)[11]], [12, '블랙/S/면', '레드/L/린넨'])
+  eq('옵션 종류 최대 3개: 4번째는 추가 안 함 + 안내', [E.addGroup(m3), m3.groups.length], [{ ok: false, message: '옵션 종류는 3개까지 추가할 수 있습니다.' }, 3])
+  const mEmpty = fresh(); group(mEmpty, '색상', '블랙'); group(mEmpty, '사이즈')
+  eq('값이 없는 종류는 조합에 안 들어감(종류 줄만) · 보낼 종류 이름에도 없음', [mEmpty.groupNames, names(mEmpty)], [['색상'], ['블랙']])
+
+  // 값 추가·삭제 뒤 기존 줄 값 유지
+  m2.rows[0].addPrice = 500; m2.rows[0].stock = 7; m2.rows[0].checked = true; m2.rows[3].stock = 2
+  E.addValues(m2, m2.groups[0].id, '화이트')
+  eq('값 추가 → 조합 다시 만듦 · 같은 조합 줄의 추가금액·재고·선택 유지 · 새 줄은 0·빈칸', [names(m2), m2.rows.map(r => [r.addPrice, r.stock, r.checked])],
+    [['블랙/Small', '블랙/Large', '레드/Small', '레드/Large', '화이트/Small', '화이트/Large'], [[500, 7, true], [0, null, false], [0, null, false], [0, 2, false], [0, null, false], [0, null, false]]])
+  E.removeValue(m2, m2.groups[1].id, m2.groups[1].values.find(v => v.label === 'Small').id)
+  eq('칩 ⓧ(Small) → 그 값이 든 조합만 빠짐 · 남은 줄 값 유지', [names(m2), m2.rows.map(r => r.stock)], [['블랙/Large', '레드/Large', '화이트/Large'], [null, 2, null]])
+  const rg = m2.groups[0].values.find(v => v.label === '레드')
+  eq('칩 이름 고치기: 줄 값 유지 · 같은 종류 안 중복·빈 값은 고치지 않음', [E.renameValue(m2, m2.groups[0].id, rg.id, '와인'), names(m2)[1], m2.rows[1].stock, E.renameValue(m2, m2.groups[0].id, rg.id, '블랙').message, E.renameValue(m2, m2.groups[0].id, rg.id, '  ').message],
+    [{ ok: true, message: '' }, '와인/Large', 2, '이미 있는 옵션값입니다: 블랙', '옵션값을 입력하세요.'])
+  E.setGroupName(m2, m2.groups[1].id, '크기')
+  eq('종류 이름 바꾸기 → 보낼 이름만 바뀌고 줄은 그대로', [m2.groupNames, m2.rows[1].stock], [['색상', '크기'], 2])
+  E.removeGroup(m2, m2.groups[1].id)
+  eq('종류 줄 [삭제] → 그 종류 없이 조합 다시 만듦', [m2.groupNames, names(m2)], [['색상'], ['블랙', '와인', '화이트']])
+
+  // 쉼표·중복
+  const mc = fresh(); const gc = group(mc, '사이즈')
+  eq('쉼표로 여러 값: "S, M, L" → 칩 3개 · 빈 토막 무시', [E.addValues(mc, gc.id, 'S, M,, L ,').added, gc.values.map(v => v.label)], [['S', 'M', 'L'], ['S', 'M', 'L']])
+  eq('같은 종류 안 중복 값(대소문자·띄어쓰기 무시)은 추가 안 함 + 문구 · 입력 안 중복도 한 번만', [E.addValues(mc, gc.id, 'm, XL, xl'), gc.values.map(v => v.label)],
+    [{ ok: true, message: '이미 있는 옵션값은 추가하지 않았습니다: m, xl', added: ['XL'], skipped: ['m', 'xl'] }, ['S', 'M', 'L', 'XL']])
+  eq('전부 중복 · 빈 입력 = 추가 없음 + 문구', [E.addValues(mc, gc.id, 'S').ok, E.addValues(mc, gc.id, 'S').message, E.addValues(mc, gc.id, ' , ').message], [false, '이미 있는 옵션값은 추가하지 않았습니다: S', '옵션값을 입력하세요.'])
+  const big = fresh(); group(big, 'a', Array.from({ length: 10 }, (_, i) => `a${i}`).join(',')); group(big, 'b', Array.from({ length: 10 }, (_, i) => `b${i}`).join(','))
+  const gBig = group(big, 'c', Array.from({ length: 10 }, (_, i) => `c${i}`).join(','))
+  eq('조합 1,000개(화면 한도)를 넘기는 값 추가는 막음 + 문구 · 목록 그대로', [E.addValues(big, gBig.id, 'c10').message, big.rows.length], ['조합이 1,000개를 넘습니다. 옵션값 수를 줄여 입력하세요.', 1000])
+
+  // 선택 삭제·되살리기
+  const md = fresh(); group(md, '색상', '블랙, 레드'); group(md, '사이즈', 'S, M')
+  md.rows[1].addPrice = 300; md.rows[1].stock = 4
+  md.rows[1].checked = true; md.rows[2].checked = true
+  eq('[선택 삭제]: 선택 없으면 막음 + 문구', E.deleteChecked(fresh()), { ok: false, message: '삭제할 조합을 선택하세요.' })
+  E.deleteChecked(md)
+  eq('[선택 삭제] → 목록·보낼 모양에서 빠짐(판매 안 함 표시가 아니라 실제로 없음) · 되살리기 대상 2개', [names(md), O.optionsPayload(md).rows.map(r => r.values.join('/')), E.restorableCount(md)], [['블랙/S', '레드/M'], ['블랙/S', '레드/M'], 2])
+  E.addValues(md, md.groups[1].id, 'L')
+  eq('값을 더해도 지운 조합은 다시 안 나옴 · 새 조합만 생김', names(md), ['블랙/S', '블랙/L', '레드/M', '레드/L'])
+  E.restoreDeleted(md)
+  eq('[삭제한 조합 되살리기] → 지울 때의 추가금액·재고로 돌아옴 · 선택 풀림 · 되살리기 대상 0', [names(md), md.rows.map(r => [r.addPrice, r.stock, r.checked]), E.restorableCount(md)],
+    [['블랙/S', '블랙/M', '블랙/L', '레드/S', '레드/M', '레드/L'], [[0, null, false], [300, 4, false], [0, null, false], [0, null, false], [0, null, false], [0, null, false]], 0])
+  md.rows[0].checked = true; E.deleteChecked(md)
+  E.removeValue(md, md.groups[1].id, md.groups[1].values.find(v => v.label === 'S').id)
+  eq('지운 조합의 값 칩을 빼면 되살리기 대상에서도 정리', E.restorableCount(md), 0)
+
+  // 일괄입력
+  const mb = fresh(); group(mb, '색상', '블랙, 레드, 화이트')
+  E.bulkSet(mb, 'stock', 10)
+  eq('[재고 일괄입력] 선택 없음 → 전체', mb.rows.map(r => r.stock), [10, 10, 10])
+  mb.rows[1].checked = true
+  E.bulkSet(mb, 'addPrice', 1000)
+  eq('[추가금액 일괄입력] 선택 있음 → 선택한 줄만', mb.rows.map(r => r.addPrice), [0, 1000, 0])
+  eq('일괄입력 값 검사: 재고 음수·소수 · 추가금액 빈칸 = 막음 + 문구 · 음수 추가금액은 됨', [E.bulkSet(mb, 'stock', -1).message, E.bulkSet(mb, 'stock', 1.5).message, E.bulkSet(mb, 'addPrice', null).message, E.bulkSet(mb, 'addPrice', -500).ok, mb.rows.map(r => [r.addPrice, r.stock])],
+    ['재고 수량을 0 이상 정수로 입력하세요.', '재고 수량을 0 이상 정수로 입력하세요.', '추가금액을 정수(원)로 입력하세요.', true, [[0, 10], [-500, 10], [0, 10]]])
+  E.checkAll(mb, true)
+  eq('전체 선택 · 해제', [mb.rows.every(r => r.checked), (E.checkAll(mb, false), mb.rows.some(r => r.checked))], [true, false])
+
+  // 1688 원천 미리 채우기 — 없는 조합 제외
+  const pair = (zh, ko = null) => ({ zh, ko })
+  const SKUS = [
+    { skuId: '1', values: [{ name: pair('颜色', '색상'), value: pair('黑色', '블랙') }, { name: pair('尺码', '사이즈'), value: pair('M', 'M') }], priceCny: 12.5, stock: 300 },
+    { skuId: '2', values: [{ name: pair('颜色', '색상'), value: pair('白色', '화이트') }, { name: pair('尺码', '사이즈'), value: pair('L', 'L') }], priceCny: 13, stock: 0 },
+    { skuId: '3', values: [{ name: pair('颜色', '색상'), value: pair('奇怪花纹') }, { name: pair('尺码', '사이즈'), value: pair('L', 'L') }], priceCny: null, stock: null },
+  ]
+  const ms = E.optionEditorFromSource(SKUS)
+  eq('1688 미리 채우기: 옵션 사용 켬 · 종류 이름 · 값 칩(원문마다 하나, 번역 없으면 빈 칩 + 원문) · 1688에 없는 조합 3개는 처음부터 뺌',
+    [ms.enabled, ms.groups.map(g => [g.name, g.values.map(v => [v.label, v.original])]), names(ms), E.excludedComboCount(ms)],
+    [true, [['색상', [['블랙', '黑色'], ['화이트', '白色'], ['', '奇怪花纹']]], ['사이즈', [['M', 'M'], ['L', 'L']]]], ['블랙/M', '화이트/L', '/L'], 3])
+  {
+    const src = O.marketOptionsFromSource(SKUS)
+    eq('미리 채운 줄 = 예전 공용 원천과 같은 값·원문·추가금액·재고·1688 참고값', ms.rows.map(r => [r.values, r.originals, r.addPrice, r.stock, r.use, r.stock1688, r.priceCny]), src.rows.map(r => [r.values, r.originals, r.addPrice, r.stock, r.use, r.stock1688, r.priceCny]))
+  }
+  eq('옵션 없는 상품 → 옵션 꺼짐·종류 없음·줄 없음 · 보낼 모양 null(단일상품)', [E.optionEditorFromSource([]).enabled, E.optionEditorFromSource(undefined).groups, E.optionEditorFromSource([]).rows, O.optionsPayload(E.optionEditorFromSource([]))], [false, [], [], null])
+  ms.rows[0].stock = 5
+  E.addGroup(ms); E.setGroupName(ms, ms.groups[2].id, '재질'); E.addValues(ms, ms.groups[2].id, '면')
+  eq('종류를 더해도 1688에 없는 조합은 계속 빠짐 · 같은 조합이 아니면 새 줄', [names(ms), ms.rows.map(r => r.stock)], [['블랙/M/면', '화이트/L/면', '/L/면'], [null, null, null]])
+  E.removeGroup(ms, ms.groups[2].id)
+  const blank = ms.groups[0].values.find(v => !v.label)
+  E.renameValue(ms, ms.groups[0].id, blank.id, '꽃무늬')
+  eq('빈 칩에 한글 넣기 → 그 줄 값이 채워지고 원문 표시 유지', [names(ms), ms.rows[2].originals], [['블랙/M', '화이트/L', '꽃무늬/L'], ['奇怪花纹', 'L']])
+
+  // 보낼 모양 불변 — 서버·판매처 변환은 예전 그대로
+  ms.rows.forEach((r, i) => { r.stock = [5, 3, 2][i]; r.addPrice = [0, 1000, 0][i] })
+  const pl = O.optionsPayload(ms)
+  eq('보낼 모양 = 예전과 같음 { groupNames, rows:[{ values, addPrice, stock }] } (편집 칸 없음)', pl, { groupNames: ['색상', '사이즈'], rows: [{ values: ['블랙', 'M'], addPrice: 0, stock: 5 }, { values: ['화이트', 'L'], addPrice: 1000, stock: 3 }, { values: ['꽃무늬', 'L'], addPrice: 0, stock: 2 }] })
+  const IN = {
+    productName: '머그', salePrice: 12900, leafCategoryId: '50000999', repUrl: 'https://shop-phinf.pstatic.net/a/rep.jpg', detailUrls: ['https://shop-phinf.pstatic.net/a/1.jpg'], display: 'SUSPENSION',
+    delivery: { company: 'CJGLS', feeType: 'FREE', returnFee: 3000, exchangeFee: 6000, shippingAddressId: 102, returnAddressId: 103 },
+    afterService: { phone: '010-1234-5678', guide: '상세페이지 참조' }, origin: { code: '03' }, notice: { itemName: '머그컵', modelName: 'MUG-01', manufacturer: '이유씨' },
+  }
+  const ssb = S.buildSmartstoreProduct({ ...IN, options: pl })
+  eq('편집한 옵션 → 스마트스토어 조합형 본문(변환 함수 그대로) · 재고 = 합계', [ssb.ok, ssb.body.originProduct.stockQuantity, ssb.body.originProduct.detailAttribute.optionInfo.optionCombinations.map(c => [c.optionName1, c.optionName2, c.price, c.stockQuantity])],
+    [true, 10, [['블랙', 'M', 0, 5], ['화이트', 'L', 1000, 3], ['꽃무늬', 'L', 0, 2]]])
+  const EIN = {
+    productName: '매일 쓰는 머그', categoryId: '1017898', price: 12900, repUrl: 'https://x/rep.jpg', detailUrls: ['https://x/01.jpg'],
+    vat: '01', origin: { kind: '02', code: '1287' }, kc: { '01': 'none', '02': 'none', '03': 'none', '04': 'none' },
+    delivery: { feeType: '01', jejuFee: 3000, islandFee: 5000, returnFee: 3000, exchangeFee: 6000, outAddr: '11', inAddr: '22' },
+    asDetail: '상세페이지 참조', rtngExchDetail: '상세페이지 참조', notice: { type: '891045', maker: '이유씨', country: '중국', phone: '010-1234-5678' }, now: new Date('2026-10-02T03:00:00Z'),
+  }
+  const eb = E11.buildElevenstProduct({ ...EIN, options: pl })
+  eq('편집한 옵션 → 11번가 싱글옵션 XML(변환 함수 그대로) · "/"로 합침 · 합계', [eb.ok, eb.summary.options, eb.summary.prdSelQty, /<colValue0>꽃무늬\/L<\/colValue0>/.test(eb.xml)], [true, { colTitle: '색상/사이즈', count: 3 }, 10, true])
+  eq('판매처 검사는 공용 함수 그대로: 빈 칩이 남으면 "옵션값을 모두 입력" · 11번가 0원 옵션 필수', [
+    O.smartstoreOptionProblems(O.optionsPayload(E.optionEditorFromSource(SKUS)), 12900).filter(x => /옵션값을 모두/.test(x)).length,
+    O.elevenstOptionProblems({ ...pl, rows: pl.rows.map(r => ({ ...r, addPrice: 100 })) }, 12900).includes('11번가는 추가금액 0원인 옵션이 1개 이상 있어야 합니다.'),
+  ], [1, true])
+
+  // 복사(공통 정보 ↔ 섹션) — 서로 안 바뀜
+  const cp = E.cloneOptionEditor(ms)
+  cp.groups[0].values[0].label = 'x'; cp.rows[0].stock = 99; cp.excluded[0][0] = 'zz'
+  eq('편집 모양 복사: 종류·칩·줄·제외 목록이 원본과 따로', [ms.groups[0].values[0].label, ms.rows[0].stock, ms.excluded[0][0] === 'zz', cp.seq === ms.seq], ['블랙', 5, false, true])
+  eq('공통 정보 복사 함수 = 편집 모양 복사', (await import('../src/lib/studioSendCommon.js')).cloneOptions === E.cloneOptionEditor, true)
 }
 
 // ── 22. 여러 판매처 한 번에 보내기 — 공통 정보 (2026-10-01) · src/lib/studioSendCommon.js (스마트스토어·11번가만, 쿠팡은 자기 칸) ──
@@ -2448,9 +2583,12 @@ function elevenstRelay(u, method, opts) {
   ]
   const PREP = { export: { projectTitle: '매일 쓰는 머그', title: 'x' }, source: { title: { ko: '머그' }, skus: SKUS }, images: [{ id: 'img1' }, { id: 'img2' }] }
   const c0 = SC.commonFromPrepare(PREP)
-  eq('처음 공통 값 = 섹션 처음 값과 같은 규칙: 상품명 한글(작업 이름) · 판매가·재고 비움 · 옵션 = 같은 원천 · 대표 이미지 = 첫 사진 · 여백 채우기', [c0.productName, c0.price, c0.stock, c0.opts, c0.repImageId, c0.fit],
-    ['매일 쓰는 머그', null, null, { enabled: true, ...O.marketOptionsFromSource(SKUS) }, 'img1', 'contain'])
-  eq('처음 공통 값: 사진·옵션 없는 상품 = 대표 이미지 null · 옵션 빈 모양(단일상품)', [SC.commonFromPrepare({ export: {}, images: [] }).repImageId, SC.commonFromPrepare({ export: {} }).opts], [null, { enabled: true, groupNames: [], rows: [] }])
+  {
+    const src = O.marketOptionsFromSource(SKUS)
+    eq('처음 공통 값 = 섹션 처음 값과 같은 규칙: 상품명 한글(작업 이름) · 판매가·재고 비움 · 옵션 = 같은 원천(종류·값·원문·추가금액·재고) · 대표 이미지 = 첫 사진 · 여백 채우기', [c0.productName, c0.price, c0.stock, c0.opts.enabled, c0.opts.groupNames, c0.opts.rows.map(r => [r.values, r.originals, r.addPrice, r.stock, r.use]), c0.repImageId, c0.fit],
+      ['매일 쓰는 머그', null, null, true, src.groupNames, src.rows.map(r => [r.values, r.originals, r.addPrice, r.stock, r.use]), 'img1', 'contain'])
+  }
+  eq('처음 공통 값: 사진·옵션 없는 상품 = 대표 이미지 null · 옵션 꺼짐·줄 없음(단일상품)', [SC.commonFromPrepare({ export: {}, images: [] }).repImageId, SC.commonFromPrepare({ export: {} }).opts.enabled, SC.commonFromPrepare({ export: {} }).opts.rows, O.optionsPayload(SC.commonFromPrepare({ export: {} }).opts)], [null, false, [], null])
 
   // 공통 가격 → 판매처 칸 (3-8: 금액을 바꾸지 않는다 — 반올림·자르기·임의 숫자 없음)
   const C = { ...c0, productName: '머그컵 350ml', price: 12900, stock: 30, repImageId: 'img2', fit: 'cover' }

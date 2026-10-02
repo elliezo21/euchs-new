@@ -9,7 +9,8 @@
  * [판매처별로 다르게] own = { name|price|stock|image: true } — 켠 묶음은 공통 값을 넣지 않는다(섹션 칸에서 따로 고친다)
  */
 import { pickKoreanName } from '../../api/_coupangFields.js'
-import { marketOptionsFromSource, ssOptionPriceRange, elevenstOptionPriceRange } from '../../api/_marketOptions.js'
+import { ssOptionPriceRange, elevenstOptionPriceRange } from '../../api/_marketOptions.js'
+import { optionEditorFromSource, cloneOptionEditor } from './studioOptionEditor.js'
 
 export const COMMON_MARKETS = ['smartstore', '11st']
 export const COMMON_GROUPS = [
@@ -40,14 +41,8 @@ export function commonOptionRange(markets, price) {
   return { min: Math.max(...list.map(r => r.min)), max: Math.min(...list.map(r => r.max)) }
 }
 
-/** 옵션 모양 복사 (공통 ↔ 섹션이 서로의 줄을 고치지 않게) */
-export function cloneOptions(o) {
-  return {
-    enabled: o?.enabled !== false,
-    groupNames: [...(Array.isArray(o?.groupNames) ? o.groupNames : [])],
-    rows: (Array.isArray(o?.rows) ? o.rows : []).map(r => ({ ...r, values: [...(r.values || [])], originals: [...(r.originals || [])] })),
-  }
-}
+/** 옵션 모양 복사 (공통 ↔ 섹션이 서로의 줄을 고치지 않게) — 옵션 편집 모양(종류·칩·삭제 목록)까지 */
+export const cloneOptions = cloneOptionEditor
 
 /**
  * 처음 공통 값 — 판매처 섹션의 처음 값과 같은 규칙 (상품명 한글만 · 금액·재고 비움 · 옵션 = 같은 원천 · 대표 이미지 = 첫 사진)
@@ -57,7 +52,7 @@ export function commonFromPrepare(prepare) {
   return {
     productName: pickKoreanName([prepare?.export?.projectTitle, prepare?.export?.title, prepare?.source?.title?.ko]),
     price: null, stock: null,
-    opts: { enabled: true, ...marketOptionsFromSource(prepare?.source?.skus) },
+    opts: optionEditorFromSource(prepare?.source?.skus),
     repImageId: prepare?.images?.[0]?.id ?? null, fit: 'contain',
   }
 }

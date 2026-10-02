@@ -76,8 +76,8 @@
       </div>
     </div>
 
-    <!-- 옵션 (조합형) — 가져온 상품에 옵션이 있을 때만. 규칙·근거 api/_marketOptions.js -->
-    <StudioSendOptions v-if="opts.rows.length" v-show="showOwn('stock')" :model="opts" :disabled="!!done" :range="optionRange" data-mk-ss-options />
+    <!-- 옵션 (조합형) — 옵션 종류·값을 넣으면 조합 목록이 만들어진다(가져온 옵션이 없으면 꺼진 채). 규칙·근거 api/_marketOptions.js -->
+    <StudioSendOptions v-show="showOwn('stock')" :model="opts" :disabled="!!done" :range="optionRange" data-mk-ss-options />
 
     <!-- 대표 이미지 -->
     <div v-show="showOwn('image')" class="block">
@@ -242,7 +242,8 @@ import {
   SS_DELIVERY_COMPANIES, SS_FEE_TYPES, DISPLAY_STATUSES, CUSTOMS_TAX_TYPES, ADDRESS_TYPES, pickSmartstoreAddress, SMARTSTORE_CENTER_URL,
   smartstoreFormFromProduct, smartstoreFormFromShipping, productTemplateFromSmartstoreForm, shippingTemplateFromSmartstoreForm,
 } from '../../../api/_smartstoreFields.js'
-import { marketOptionsFromSource, optionsPayload, smartstoreOptionProblems, ssOptionPriceRange } from '../../../api/_marketOptions.js'
+import { optionsPayload, smartstoreOptionProblems, ssOptionPriceRange } from '../../../api/_marketOptions.js'
+import { optionEditorFromSource } from '@/lib/studioOptionEditor'
 import StudioSendOptions from './StudioSendOptions.vue'
 
 const CAT_SHOWN = 200 // 선택 목록에 한 번에 보이는 카테고리 수 (검색으로 좁힌다)
@@ -281,9 +282,10 @@ const f = ref({
   display: DISPLAY_STATUSES[0], // 기본 전시중지
   customsTaxType: '', // 해외 출고지일 때만 보이고 필수 — 기본값 없음
 })
-// 옵션 — 쿠팡 옵션 표와 같은 원천(send_prepare.source.skus)을 공용 모양으로. 가져온 옵션이 있으면 처음부터 "옵션 사용"
-const opts = ref({ enabled: true, ...marketOptionsFromSource(props.prepare?.source?.skus) })
-const useOptions = computed(() => opts.value.enabled && opts.value.rows.length > 0)
+// 옵션 — 쿠팡 옵션 표와 같은 원천(send_prepare.source.skus)을 옵션 편집 모양으로(src/lib/studioOptionEditor.js). 가져온 옵션이 있으면 처음부터 "옵션 사용"
+// 옵션 사용을 켜면 조합이 0개여도 옵션 상품으로 본다(빠짐 목록 "판매할 옵션") — 단일 재고 칸으로 몰래 돌아가지 않게
+const opts = ref(optionEditorFromSource(props.prepare?.source?.skus))
+const useOptions = computed(() => opts.value.enabled)
 const optionsOut = computed(() => (useOptions.value ? optionsPayload(opts.value) : null))
 const optionStockTotal = computed(() => (optionsOut.value?.rows || []).reduce((s, r) => s + (Number.isInteger(r.stock) ? r.stock : 0), 0))
 const optionRange = computed(() => ssOptionPriceRange(f.value.salePrice))

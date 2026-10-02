@@ -31,7 +31,7 @@
     </div>
 
     <!-- 옵션 — 판매처 공용 옵션 영역 그대로. 추가금액 범위 = 체크한 판매처 범위가 모두 겹치는 곳 -->
-    <StudioSendOptions v-if="common.opts.rows.length" :model="common.opts" :disabled="disabled" :range="optionRange" :note="optionNote" data-mk-cm-options />
+    <StudioSendOptions :model="common.opts" :disabled="disabled" :range="optionRange" :note="optionNote" data-mk-cm-options />
 
     <!-- 대표 이미지 -->
     <div class="block">
@@ -66,7 +66,7 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
 })
 const marketNames = computed(() => MARKETS.filter(m => props.markets.includes(m.key)).map(m => m.name).join('·'))
-const useOptions = computed(() => props.common.opts.enabled && props.common.opts.rows.length > 0)
+const useOptions = computed(() => props.common.opts.enabled) // 판매처 섹션과 같은 규칙 — 켜면 조합이 0개여도 옵션 상품
 const optionStockTotal = computed(() => (useOptions.value ? optionsPayload(props.common.opts)?.rows || [] : []).reduce((s, r) => s + (Number.isInteger(r.stock) ? r.stock : 0), 0))
 const optionRange = computed(() => commonOptionRange(props.markets, props.common.price))
 const optionNote = computed(() => (props.markets.includes('11st') ? '11번가는 추가금액 0원인 옵션이 1개 이상 있어야 하고, 판매할 옵션 재고는 1개 이상이어야 합니다.' : ''))

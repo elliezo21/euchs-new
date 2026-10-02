@@ -222,9 +222,15 @@ if (built?.Coupang && built?.Modal) {
   // 옵션(조합형, 2026-10-01) — 가져온 상품에 옵션이 있으면 옵션 영역 · 없으면 예전 그대로 단일상품
   const sso = await render({ setup: () => { vueProvide(built.SEND_CACHE_KEY, ssCache); return () => h(built.Smartstore, { prepare: PREPARE(true, SOURCE) }) } }, {})
   eq('스마트스토어 섹션(옵션 있는 상품): 예외 없이 그려짐 · 옵션 영역 · 옵션 사용 체크 · 줄 수 = 가져온 옵션 수 · 재고 칸 대신 합계 · 옵션 재고 빈칸 · 추가금액 0 · 값 = 한글', [
-    sso.error, /data-mk-opt-table/.test(sso.html), checked(sso.html, 'data-mk-opt-enabled'), (sso.html.match(/data-mk-opt-row="/g) || []).length, /data-mk-ss-stock-total/.test(sso.html), /data-mk-ss-stock /.test(sso.html), val(sso.html, 'data-mk-opt-stock="0"'), val(sso.html, 'data-mk-opt-price="0"'), val(sso.html, 'data-mk-opt-value="0-0"'),
-  ], [null, true, true, SOURCE.skus.length, true, false, '', '0', '블랙'])
-  eq('스마트스토어 섹션(옵션 없는 상품): 옵션 영역 없음 · 단일 재고 칸 · 요약 표 옵션 "없음 (단일상품)"', [/data-mk-opt-table/.test(ss.html), /data-mk-ss-stock-total/.test(ss.html), /data-mk-ss-preview-row="옵션"[\s\S]{0,200}없음 \(단일상품\)/.test(ss.html)], [false, false, true])
+    sso.error, /data-mk-opt-table/.test(sso.html), checked(sso.html, 'data-mk-opt-enabled'), (sso.html.match(/data-mk-opt-row="/g) || []).length, /data-mk-ss-stock-total/.test(sso.html), /data-mk-ss-stock /.test(sso.html), val(sso.html, 'data-mk-opt-stock="0"'), val(sso.html, 'data-mk-opt-price="0"'), /data-mk-opt-value="0-0"[^>]*>블랙</.test(sso.html),
+  ], [null, true, true, SOURCE.skus.length, true, false, '', '0', true])
+  // 옵션 편집 (2026-10-02) — 옵션 종류 줄·값 칩·조합 목록 도구
+  eq('옵션 편집 화면: 종류 줄 1개(이름 "색상") · 값 칩 블랙·화이트 · [옵션 종류 추가]·[추가]·[삭제] · 옵션 목록 (총 2개) · [선택 삭제]·[추가금액 일괄입력]·[재고 일괄입력] · 되살리기는 지운 뒤에만 · 가져온 옵션 원문', [
+    (sso.html.match(/data-mk-opt-group-row="/g) || []).length, val(sso.html, 'data-mk-opt-group="0"'), (sso.html.match(/data-mk-opt-chip="/g) || []).length, /data-mk-opt-chip="블랙"/.test(sso.html) && /data-mk-opt-chip="화이트"/.test(sso.html),
+    /data-mk-opt-group-add[^>]*>옵션 종류 추가</.test(sso.html), /data-mk-opt-value-add="0"[^>]*>추가</.test(sso.html), /data-mk-opt-group-remove="0"[^>]*>삭제</.test(sso.html),
+    /data-mk-opt-total[^>]*>옵션 목록 \(총 2개\)</.test(sso.html), /data-mk-opt-delete[^>]*>선택 삭제</.test(sso.html), /data-mk-opt-bulk-price-apply[^>]*>추가금액 일괄입력</.test(sso.html), /data-mk-opt-bulk-stock-apply[^>]*>재고 일괄입력</.test(sso.html), /data-mk-opt-restore/.test(sso.html), /가져온 옵션: 黑色/.test(sso.html),
+  ], [1, '색상', 2, true, true, true, true, true, true, true, true, false, true])
+  eq('스마트스토어 섹션(옵션 없는 상품): 옵션 영역은 "옵션 사용" 꺼진 채(직접 켜서 종류·값 추가) · 옵션 표 없음 · 단일 재고 칸 · 요약 표 옵션 "없음 (단일상품)"', [/data-mk-opt-enabled/.test(ss.html), checked(ss.html, 'data-mk-opt-enabled'), /data-mk-opt-off/.test(ss.html), /data-mk-opt-table/.test(ss.html), /data-mk-ss-stock-total/.test(ss.html), /data-mk-ss-preview-row="옵션"[\s\S]{0,200}없음 \(단일상품\)/.test(ss.html)], [true, false, true, false, false, true])
   // 출고지·반품지 기본값 = 국내 주소 우선 (2026-10-01 운영 1차: 주소록 첫 번째 해외(항주)가 기본으로 잡혀 관부가세 400)
   const HZ = { id: 104, name: '항주 창고', type: 'RELEASE', address: '항주 1층', phone: '', overseas: true }
   const GJ = { id: 102, name: '광주 창고', type: 'RELEASE', address: '광주 북구 1층', phone: '', overseas: false }
@@ -314,7 +320,8 @@ if (built?.Elevenst) {
   eq('11번가 섹션(옵션 있는 상품): 예외 없이 그려짐 · 옵션 영역 · 줄 수 = 가져온 옵션 수 · 재고 칸 대신 합계 · 0원 옵션 안내 · 옵션 재고 빈칸 · 추가금액 0', [
     o11.error, /data-mk-opt-table/.test(o11.html), (o11.html.match(/data-mk-opt-row="/g) || []).length, /data-mk-11st-stock-total/.test(o11.html), /data-mk-11st-stock /.test(o11.html), /data-mk-opt-note[^>]*>[^<]*0원인 옵션이 1개 이상/.test(o11.html), inVal(o11.html, 'data-mk-opt-stock="0"'), inVal(o11.html, 'data-mk-opt-price="0"'),
   ], [null, true, SOURCE.skus.length, true, false, true, '', '0'])
-  eq('11번가 섹션(옵션 없는 상품): 옵션 영역 없음 · 단일 재고 칸 · 요약 표 옵션 "없음 (단일상품)"', [/data-mk-opt-table/.test(a.html), /data-mk-11st-stock /.test(a.html), /data-mk-11st-preview-row="옵션"[\s\S]{0,200}없음 \(단일상품\)/.test(a.html)], [false, true, true])
+  eq('11번가 섹션(옵션 없는 상품): 옵션 영역은 "옵션 사용" 꺼진 채 · 옵션 표 없음 · 단일 재고 칸 · 요약 표 옵션 "없음 (단일상품)"', [/data-mk-opt-off/.test(a.html), /data-mk-opt-table/.test(a.html), /data-mk-11st-stock /.test(a.html), /data-mk-11st-preview-row="옵션"[\s\S]{0,200}없음 \(단일상품\)/.test(a.html)], [true, false, true, true])
+  eq('11번가 섹션(옵션 있는 상품): 같은 옵션 편집 화면(종류 줄·칩·옵션 목록 도구)', [(o11.html.match(/data-mk-opt-group-row="/g) || []).length, (o11.html.match(/data-mk-opt-chip="/g) || []).length, /data-mk-opt-total[^>]*>옵션 목록 \(총 2개\)</.test(o11.html), /data-mk-opt-bulk-stock-apply/.test(o11.html)], [1, 2, true, true])
   eq('11번가 섹션: KC 기본값 없음(네 그룹 모두 "선택" · 인증번호 칸 없음) · 원산지 기본 해외·중국(1287) · 고시 기본 기타 재화 · 금액 칸 빈칸 · 관리자 아니면 테스트 판매중지 없음', [
     ['01', '02', '03', '04'].every(g => sel11(a.html, 'data-mk-11st-kc-group="' + g + '"', '')), /data-mk-11st-kc-key/.test(a.html), sel11(a.html, 'data-mk-11st-origin-kind', '02'), sel11(a.html, 'data-mk-11st-origin-code', '1287'),
     sel11(a.html, 'data-mk-11st-notice-type', '891045'), /data-mk-11st-price[^>]*value="\d/.test(a.html), /data-mk-11st-teststop/.test(a.html),
