@@ -30,6 +30,10 @@ export const PATHS = {
   brandSearch: '/v2/providers/seller_api/apis/api/v1/marketplace/brands/search', // 문서 58230017410841 — POST · 본문 { brandName, countPerPage, page }
   product: id => `/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/${id}`,
   histories: id => `/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/${id}/histories`,
+  // 승인 완료 상품의 옵션별 가격·재고·정가 변경 (승인 없음 — 근거 api/_marketUpdate.js 머리 주석). PUT · 본문 없음
+  itemPrice: (vendorItemId, price) => `/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/${vendorItemId}/prices/${price}`,
+  itemQuantity: (vendorItemId, quantity) => `/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/${vendorItemId}/quantities/${quantity}`,
+  itemOriginalPrice: (vendorItemId, price) => `/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/${vendorItemId}/original-prices/${price}`,
 }
 
 /** yyMMdd'T'HHmmss'Z' (UTC) */

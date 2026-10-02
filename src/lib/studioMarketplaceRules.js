@@ -1,8 +1,9 @@
 /**
  * 판매처 연동 — 화면 규칙 (순수 함수 → scripts/test-marketplace.mjs가 그대로 부른다)
- * import는 서버와 같이 쓰는 순수 파일(api/_elevenstFields.js — 11번가 공개 스위치) 하나뿐
+ * import는 서버와 같이 쓰는 순수 파일뿐 (api/_elevenstFields.js — 11번가 공개 스위치 · api/_marketUpdate.js — 다시 보내기 = 수정 규칙)
  */
 import { ELEVENST_SEND_PUBLIC } from '../../api/_elevenstFields.js'
+import { REAPPROVAL_MARKETS, LIVE_SEND_STATUSES } from '../../api/_marketUpdate.js'
 
 // 우리 쪽 준비 문제 — 고객에게는 "지금은 연결할 수 없어요…" 한 줄만, 빨간 경고로 띄우지 않는다 (원인은 서버 로그)
 export const NOT_READY_CODES = ['marketplace_sql_missing', 'enc_not_ready', 'relay_not_configured', 'relay_unreachable', 'relay_denied', 'cafe24_not_ready']
@@ -197,7 +198,7 @@ export const SEND_BADGE_CLASS = { sending: 'st-badge', approval_pending: 'st-bad
 /**
  * 처음 체크할 판매처 — 특정 판매처 버튼([카페24로 보내기])으로 열었으면 그곳만, 다시 보내기면 쿠팡만, 아니면 연결된 곳 모두(defaultChecked)
  * sent = 이 상품을 이미 보낸 판매처(alreadySent) — [일괄 전송]·판매처 없이 열면 처음 체크에서 뺀다(2026-10-01 중복 등록 방지).
- *   특정 판매처 버튼([○○로 보내기])으로 열었으면 이미 보냈어도 그 판매처를 체크한다 — 창이 중복 확인 문구를 처음부터 펼치고 확인 전에는 전송 버튼이 꺼진다(2026-10-02).
+ *   특정 판매처 버튼([○○로 보내기])으로 열었으면 이미 보냈어도 그 판매처를 체크한다 — 보내면 판매처에 있는 상품을 수정한다(2026-10-02 existingNote).
  *   다시 보내기(resend)에는 쓰지 않는다
  */
 export function initialChecked(rows, { market = '', resend = false, sent = {} } = {}) {
@@ -205,18 +206,26 @@ export function initialChecked(rows, { market = '', resend = false, sent = {} } 
   if (only) return Object.fromEntries((Array.isArray(rows) ? rows : []).map(r => [r.key, r.key === only && r.state === 'connected']))
   return Object.fromEntries(Object.entries(defaultChecked(rows)).map(([k, v]) => [k, v && !sent?.[k]]))
 }
-/**
- * 중복 확인 문구를 펼칠 판매처 — 체크됐고 이미 전송됐고 [중복 등록]을 아직 안 눌렀고 이번 창에서 등록하지 않은 곳.
- * 이 목록이 비어 있지 않으면 창의 빠짐 목록에 올라 전송 버튼이 꺼진다
- * @param {string[]} picked 체크된 판매처 · @param {object} sent alreadySent · @param {object} ok [중복 등록]을 누른 곳 · @param {string[]} doneKeys 이번 창에서 등록된 곳
- */
-export const duplicateConfirmKeys = (picked, sent, ok = {}, doneKeys = []) => (Array.isArray(picked) ? picked : []).filter(k => sent?.[k] && !ok?.[k] && !doneKeys.includes(k))
-/** 중복 확인 문구 — 승인 대기 · 전송 중 · 그 밖(등록 완료·승인 완료) (2026-10-02) */
-export function sentConfirmText(status) {
-  if (status === 'approval_pending') return '승인 대기 중인 상품입니다. 중복 등록하시겠습니까?'
-  if (status === 'sending') return '전송 중인 상품입니다. 중복 등록하시겠습니까?'
-  return '이 판매처에 등록 완료된 상품입니다. 중복 등록하시겠습니까?'
+// ── 다시 보내기 = 판매처에 있는 상품 수정 (2026-10-02 — 예전 "중복 등록하시겠습니까?" 확인을 걷어냄) ──
+// 판매처마다 이미 있는 상품 = 서버 send_prepare.existing (규칙 api/_marketUpdate.js updatePlan — 서버가 보낼 때 같은 규칙으로 수정 대상을 고른다)
+//   mode 'modify' = 판매처에 있는 상품을 수정(새 상품을 만들지 않음) · 'manual' = 수정 API가 없는 판매처 → 판매처에서 직접 수정, 보내기 막음
+export const UPDATE_NOTE = '판매처에 있는 상품을 수정합니다'
+/** 수정하면 승인을 다시 받는 판매처(REAPPROVAL_MARKETS)의 한 줄 — 판매처 이름은 MARKETS에서 */
+export const reapprovalNote = key => `수정 후 ${MARKETS.find(m => m.key === key)?.name || key} 승인을 다시 받습니다`
+export const manualEditNote = no => `판매처에 등록된 상품이 있습니다${no ? `(상품번호 ${no})` : ''}. 판매처에서 직접 수정하세요.`
+/** 빠짐 목록 한 줄 — 수정 API가 없는 판매처에 이미 상품이 있어 보낼 수 없음 */
+export const manualEditMissing = name => `${name} 판매처에서 직접 수정 (이미 등록된 상품)`
+export const UPDATE_SEND_LABEL = '변경사항 전송'
+/** 창 안 판매처 줄 안내 { mode, lines:[] } — 이미 있는 상품이 없으면 null */
+export function existingNote(key, existing) {
+  const e = existing?.[key]
+  if (!e) return null
+  if (e.mode === 'manual') return { mode: 'manual', lines: [manualEditNote(e.sellerProductId)] }
+  if (e.mode !== 'modify') return null
+  return { mode: 'modify', lines: [UPDATE_NOTE, ...(REAPPROVAL_MARKETS.includes(key) ? [reapprovalNote(key)] : [])] }
 }
+/** 체크했지만 보낼 수 없는 판매처(이미 상품이 있고 수정 API가 없음) — 이번 창에서 등록된 곳은 뺀다 */
+export const manualEditKeys = (picked, existing, doneKeys = []) => (Array.isArray(picked) ? picked : []).filter(k => existing?.[k]?.mode === 'manual' && !doneKeys.includes(k))
 /** "이미 보냄"으로 치는 상태 — 보내는 중·승인 대기·승인·등록됨. 반려·실패는 다시 보내도 중복이 아니다 */
 export const ALREADY_SENT_STATUSES = ['sending', 'approval_pending', 'approved', 'registered']
 /**
@@ -233,17 +242,21 @@ export function alreadySent(lastSends) {
   return out
 }
 /**
- * 내 상품 id → 판매처별 가장 최근 전송 (MARKETS 순서). 안 보낸 판매처는 목록에 없다.
+ * 내 상품 id → 판매처별 전송 1건 (MARKETS 순서). 안 보낸 판매처는 목록에 없다.
+ * 살아 있는 상품(등록 완료·승인 완료·승인 대기, 다른 계정 아님)이 있으면 그중 가장 최근 — 다시 보내면 서버가 수정하는 그 상품(2026-10-02, api/_marketUpdate.js).
+ * 없으면 가장 최근 전송 (보낸 상품 칩 studioSentList.groupSentProducts와 같은 규칙)
  * @returns {{ [exportId]: [send] }}
  */
 export function sendsByExport(sends) {
   const latest = {}
+  const live = s => LIVE_SEND_STATUSES.includes(s.status) && !s.accountMismatch
   for (const s of Array.isArray(sends) ? sends : []) {
     if (!s?.exportId) continue
     const market = s.market || 'coupang' // 예전 기록에는 판매처 칸이 응답에 없었다 — 그때는 쿠팡뿐
     const slot = (latest[s.exportId] ||= {})
     const cur = slot[market]
-    if (!cur || new Date(s.createdAt).getTime() > new Date(cur.createdAt).getTime()) slot[market] = { ...s, market }
+    const better = !cur || (live(s) && !live(cur)) || (live(s) === live(cur) && new Date(s.createdAt).getTime() > new Date(cur.createdAt).getTime())
+    if (better) slot[market] = { ...s, market }
   }
   const order = MARKETS.map(m => m.key)
   return Object.fromEntries(Object.entries(latest).map(([id, slot]) => [id, Object.values(slot).sort((a, b) => order.indexOf(a.market) - order.indexOf(b.market))]))
@@ -276,7 +289,13 @@ export function sendResultRows(keys, results = {}) {
  * @param {string[]} picked 체크된 판매처 · @param {string[]} failed 체크된 판매처 중 지난번에 실패한 곳(아직 등록 안 됨)
  */
 export const RETRY_FAILED_LABEL = '실패 건 재전송'
-export const bulkSendLabel = (picked, failed, resend) => (!resend && (picked?.length || 0) > 1 && (failed?.length || 0) > 0 ? RETRY_FAILED_LABEL : sendActionLabel(picked, resend))
+/** existing = send_prepare.existing — 보낼 판매처(체크됨·아직 안 보냄)가 모두 "판매처에 있는 상품 수정"이면 "변경사항 전송" */
+export function bulkSendLabel(picked, failed, resend, existing = null, doneKeys = []) {
+  if (!resend && (picked?.length || 0) > 1 && (failed?.length || 0) > 0) return RETRY_FAILED_LABEL
+  const left = (Array.isArray(picked) ? picked : []).filter(k => !doneKeys.includes(k))
+  if (!resend && left.length && left.every(k => existing?.[k]?.mode === 'modify')) return UPDATE_SEND_LABEL
+  return sendActionLabel(picked, resend)
+}
 
 /** 배지 툴팁 — 반려·실패일 때만, 판매처가 준 사유(기록된 reason) 그대로 */
 export const badgeReason = s => (s && ['rejected', 'failed'].includes(s.status) && typeof s.reason === 'string' ? s.reason.trim() : '')

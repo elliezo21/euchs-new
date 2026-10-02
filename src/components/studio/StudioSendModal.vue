@@ -19,18 +19,15 @@
             </template>
             <span v-else-if="r.state === 'linked'" class="st-badge st-badge-accent shrink-0" :data-mk-s-market-linked="r.key">연결됨</span>
             <span v-else-if="r.state === 'planned'" class="st-badge shrink-0" :data-mk-s-market-planned="r.key">{{ PLANNED_LABEL }}</span>
-            <!-- 이 상품이 이미 전송된 판매처 (2026-10-01 중복 등록 방지) — 막지 않고 상태만 표시. [일괄 전송]이면 처음 체크에서 빠지고,
-                 판매처 버튼([○○로 보내기])으로 열면 체크된 채 아래 확인 문구가 처음부터 펼쳐진다(2026-10-02) -->
+            <!-- 이 상품이 이미 전송된 판매처 — 상태만 표시. [일괄 전송]이면 처음 체크에서 빠지고, 판매처 버튼([○○로 보내기])으로 열면 체크된 채
+                 아래 "판매처에 있는 상품을 수정합니다" 안내가 보인다(2026-10-02 다시 보내기 = 수정) -->
             <span v-if="sentMap[r.key]" :class="SEND_BADGE_CLASS[sentMap[r.key].status] || 'st-badge'" class="shrink-0" :data-mk-s-market-sent="r.key">{{ sendStatusLabel(sentMap[r.key].status) }}</span>
           </li>
         </ul>
-        <!-- 이미 보낸 판매처를 체크했을 때 — 브라우저 확인창 대신 화면 안 문구·버튼. 확인 전에는 보내기 버튼이 꺼진다(빠짐 목록) -->
-        <div v-for="key in confirmKeys" :key="key" class="st-surface st-border rounded-[10px] p-3 space-y-2" :data-mk-s-sent-confirm="key">
-          <p class="text-[13px] st-ink break-keep" :data-mk-s-sent-text="key"><b>{{ nameOf(key) }}</b> · {{ sentConfirmText(sentMap[key].status) }}<template v-if="sentMap[key].sellerProductId"> (상품번호 {{ sentMap[key].sellerProductId }})</template></p>
-          <div class="flex flex-wrap gap-2">
-            <button type="button" class="st-btn" :data-mk-s-sent-ok="key" @click="sentOk = { ...sentOk, [key]: true }">중복 등록</button>
-            <button type="button" class="st-btn" :data-mk-s-sent-cancel="key" @click="checked[key] = false">선택 해제</button>
-          </div>
+        <!-- 이미 판매처에 있는 상품 (2026-10-02 — 예전 "중복 등록" 확인을 걷어냄): 체크한 판매처마다 한 줄.
+             수정 = 새 상품을 만들지 않고 그 상품을 수정 · 수정 API가 없는 판매처 = 판매처에서 직접 수정(빠짐 목록에 올라 보내기가 꺼진다) -->
+        <div v-for="n in existingNotes" :key="n.key" class="st-surface st-border rounded-[10px] p-3 space-y-0.5" :data-mk-s-existing="n.key" :data-mk-s-existing-mode="n.mode">
+          <p v-for="(line, i) in n.lines" :key="i" class="text-[13px] break-keep" :class="n.mode === 'manual' ? 'st-danger-text font-bold' : 'st-ink'"><template v-if="i === 0"><b>{{ nameOf(n.key) }}</b> · </template>{{ line }}<template v-if="i === 0 && n.mode === 'modify'"> (상품번호 {{ existing[n.key].sellerProductId }})</template></p>
         </div>
       </section>
 
@@ -100,7 +97,7 @@ import StudioSendSmartstore from '@/components/studio/StudioSendSmartstore.vue'
 import StudioSendElevenst from '@/components/studio/StudioSendElevenst.vue'
 import StudioSendCommon from '@/components/studio/StudioSendCommon.vue'
 import { COMMON_MARKETS, commonMarkets, commonActive, commonFromPrepare } from '@/lib/studioSendCommon'
-import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, bulkSendLabel, sendResultRows, alreadySent, duplicateConfirmKeys, sentConfirmText, sendStatusLabel, RESULT_WAIT_LABEL, RETRY_FAILED_LABEL, SEND_BADGE_CLASS, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
+import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, bulkSendLabel, sendResultRows, alreadySent, existingNote, manualEditKeys, manualEditMissing, sendStatusLabel, RESULT_WAIT_LABEL, RETRY_FAILED_LABEL, SEND_BADGE_CLASS, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { linkStates } from '@/lib/studioMarketLinks'
 import { isAdminOrStaff } from '@/lib/auth'
 
@@ -134,8 +131,11 @@ const mounted = computed(() => sectionKeys(rows.value, Object.keys(SECTIONS))) /
 const nameOf = key => MARKETS.find(m => m.key === key)?.name || key
 // 이미 보낸 판매처 — 다시 보내기 창에서는 쓰지 않는다(반려된 쿠팡 상품을 고치는 길)
 const sentMap = computed(() => (props.prepare?.resend ? {} : alreadySent(props.sent)))
-const sentOk = ref({}) // 체크한 이미 전송된 판매처 중 [중복 등록]을 누른 곳
-const confirmKeys = computed(() => duplicateConfirmKeys(picked.value, sentMap.value, sentOk.value, picked.value.filter(k => !!sections[k]?.done)))
+// 판매처에 이미 있는 상품 (서버 send_prepare.existing — 규칙 api/_marketUpdate.js). 다시 보내기 창(쿠팡 반려 고치기)은 자기 안내가 따로 있다
+const existing = computed(() => (props.prepare?.resend ? {} : props.prepare?.existing || {}))
+const doneKeys = computed(() => picked.value.filter(k => !!sections[k]?.done))
+const existingNotes = computed(() => picked.value.filter(k => !doneKeys.value.includes(k)).map(k => ({ key: k, ...existingNote(k, existing.value) })).filter(n => n.mode))
+const manualKeys = computed(() => manualEditKeys(picked.value, existing.value, doneKeys.value))
 // 공통 정보 — 창을 열 때(준비 데이터가 올 때) 새로 만든다. 스마트스토어·11번가를 함께 체크했고 다시 보내기가 아닐 때만 쓴다(commonActive)
 const common = ref(null)
 const useCommon = computed(() => !!common.value && commonActive(picked.value, { resend: !!props.prepare?.resend }))
@@ -152,7 +152,6 @@ function resetForPrepare() {
   sending.value = false
   results.value = {}
   runKeys.value = []
-  sentOk.value = {}
   common.value = props.prepare ? commonFromPrepare(props.prepare) : null
   for (const k of Object.keys(sections)) delete sections[k]
   checked.value = props.prepare ? initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend, sent: sentMap.value }) : {}
@@ -167,7 +166,7 @@ const missing = computed(() => {
     const list = sections[key]?.missing || []
     for (const m of list) out.push(picked.value.length > 1 ? `${nameOf(key)} · ${m}` : m)
   }
-  for (const key of confirmKeys.value) out.push(`${nameOf(key)} 중복 등록 확인 ([중복 등록] 또는 [선택 해제])`)
+  for (const key of manualKeys.value) out.push(manualEditMissing(nameOf(key)))
   return out
 })
 // 재발 방지 (2026-09-28 운영 버그: 섹션 setup이 죽었는데 [보내기]가 켜져 있었다)
@@ -186,7 +185,7 @@ const allDone = computed(() => picked.value.length > 0 && picked.value.every(key
 // 체크된 판매처 중 지난 [보내기]에서 실패하고 아직 등록 안 된 곳 → 버튼 [실패 건 재전송]
 const failedKeys = computed(() => picked.value.filter(k => results.value[k] && !results.value[k].ok && !sections[k]?.done))
 const resultRows = computed(() => (runKeys.value.length > 1 ? sendResultRows(runKeys.value, results.value) : []))
-const buttonLabel = computed(() => bulkSendLabel(picked.value, failedKeys.value, !!props.prepare?.resend))
+const buttonLabel = computed(() => bulkSendLabel(picked.value, failedKeys.value, !!props.prepare?.resend, existing.value, doneKeys.value))
 
 async function submit() {
   if (!canSend.value) return

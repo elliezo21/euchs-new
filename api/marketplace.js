@@ -48,6 +48,9 @@
  *   elevenst_send       { exportId, productName, brand?, categoryId, categoryName?, price, stock, repImageId, fit?, vat, minorOk?, origin, kc, kcCerts?, delivery(feeType 01·02·03 조건부 무료 + freeOver), asDetail, rtngExchDetail, notice(+ items), testStop?(관리자만) } → { sendId, productNo, status:'registered', stopped }
  *   smartstore_send   { exportId, productName, salePrice, stock, leafCategoryId, categoryName?, repImageId, fit?, display?('SUSPENSION' 기본|'ON'), delivery(+ shippingOverseas), afterService, origin, notice, customsTaxType?(해외 출고지면 필수) }
  *                     → 토큰 → marketplace_sends(smartstore, sending) → 이미지 업로드(대표 + 상세, 네이버 주소) → 상품 등록 → registered(원상품번호·채널상품번호) → { sendId, originProductNo, channelProductNo, status }
+ *   다시 보내기 = 판매처에 있는 상품 수정 (2026-10-02 — 규칙·근거 api/_marketUpdate.js): send·smartstore_send·elevenst_send는 같은 내 상품·같은 판매처·같은 계정으로
+ *     살아 있는 상품(등록 완료·승인 완료·승인 대기)이 있으면 새로 등록하지 않는다 — 쿠팡·스마트스토어 = 그 상품 수정(같은 기록, request_json.revisions) · 11번가 = 409 edit_in_market
+ *     응답에 updated:true(쿠팡은 way 'modify'|'price_stock'|'none'). send_prepare.existing = 판매처마다 이미 있는 상품
  * GET ?t={토큰}  (로그인 없음 — 쿠팡이 이미지를 내려받는 짧은 주소, _marketplaceCrypto 토큰 30분) → 파일 바이트 그대로 (302 아님)
  *
  * 비밀: 키는 MARKETPLACE_ENC_KEY로 암호화해 marketplace_accounts에만. 응답·로그·기록(request_json)에 키·서명을 넣지 않는다.
@@ -77,7 +80,7 @@ import {
 import { lastAddressesOf } from './_smartstoreFields.js'
 import {
   STATUS_CHECK_MARKETS, CHECK_STATUSES, CHECK_BATCH, SS_SINGLE_MAX, SS_SEARCH_PATH, ssOriginProductPath, smartstoreStatusOf, smartstoreSearchBody,
-  smartstoreSearchStatuses, isSsNotFound, STOP_CODES, DELETED, checkSince, LIST_PAGE, LIST_PAGES_MAX,
+  smartstoreSearchStatuses, isSsNotFound, STOP_CODES, DELETED, SS_STATUS_LABEL, checkSince, LIST_PAGE, LIST_PAGES_MAX,
   COUPANG_SINGLE_MAX, SINGLE_CHECK_STATUSES, COUPANG_DELETED_PAGES_MAX, coupangDeletedQuery, coupangListPage, SS_ACCOUNT_PATH, smartstoreAccountOf, accountJudge,
 } from './_marketStatus.js'
 import {
@@ -85,6 +88,11 @@ import {
   cafe24Api, accessNeedsRefresh, isWon, cleanProductName, isCategoryNo, buildCafe24Product, isDisplayFlag, buildCafe24ProductImage, productImagePath, productNoOf, normalizeCategories, uploadedPaths, responseShape, CATEGORY_PAGE, CATEGORY_MAX_PAGES, cafe24AdminProductUrl,
 } from './_cafe24.js'
 import { lookupCachedTranslations } from './_translationCache.js'
+import {
+  LIVE_SEND_STATUSES, UPDATE_MODES, updatePlan, coupangOwnerOf, smartstoreOwnerOf, isCoupangApproved, coupangContentKey, coupangPriceStockChanges, coupangPriceProblem,
+  coupangChangeOrder, coupangUpdateWay, mergeSmartstoreUpdate, SS_UPDATABLE_STATUS,
+} from './_marketUpdate.js'
+import crypto from 'crypto'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
 
 const MARKET = 'coupang'
@@ -746,6 +754,166 @@ async function sendInProgress(ctx, exportId, market) {
   return Array.isArray(rows) && rows.length > 0
 }
 
+// ── 다시 보내기 = 판매처에 있는 상품 수정 (2026-10-02) — 규칙·근거 api/_marketUpdate.js ──
+// 같은 내 상품·같은 판매처·같은 계정으로 살아 있는 상품(등록 완료·승인 완료·승인 대기)이 있으면 새로 등록하지 않고 그 상품을 수정한다
+const TARGET_SELECT = `${SEND_SELECT},market_account,result_json`
+const TARGET_CHECK_FAILED = '판매처에 있는 상품을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+/** 그 내 상품·그 판매처의 살아 있는 기록 (최근순) → updatePlan 재료 */
+async function liveSendRows(ctx, exportId, market) {
+  const rows = await sb(ctx.cfg, `marketplace_sends?select=${TARGET_SELECT}&user_id=eq.${ctx.userId}&export_id=eq.${exportId}&market=eq.${market}&status=in.(${LIVE_SEND_STATUSES.join(',')})&seller_product_id=not.is.null&order=created_at.desc`)
+  return (Array.isArray(rows) ? rows : []).map(r => ({ ...r, sellerProductId: r.seller_product_id, account: r.market_account, createdAt: r.created_at }))
+}
+/**
+ * 수정할 상품 고르기 — 후보를 최근순으로 판매처에 조회해 "지금 연결된 계정의 상품"(owner 'mine')인 첫 번째를 고른다.
+ * 계정 기록이 없던 예전 기록이 판매처 응답으로 이 계정 상품임이 확인되면 market_account를 채운다.
+ * 'other'(다른 계정)·'none'(판매처에 없음)은 건너뛴다(추측으로 삭제됨 처리하지 않는다). 'unknown'(판단 못 함)이면 새로 등록하지 않고 멈춘다
+ * @param {{ market, exportId, account, owner?:(s)=>Promise<{ who, current?, status?, code?, message? }> }} o  owner가 없으면(11번가) 확인 없이 계획 그대로
+ * @returns {Promise<null | { mode:'create' } | { mode:'manual', target, extra } | { mode:'modify', target, current, extra }>}  null = 응답을 이미 보냄
+ */
+async function findUpdateTarget(ctx, res, { market, exportId, account, owner }) {
+  let rows
+  try { rows = await liveSendRows(ctx, exportId, market) } catch (e) {
+    if (isNewColumnMissing(e)) { newSqlMissing(res, e, `${market} 보내기`); return null }
+    throw e
+  }
+  const plan = updatePlan(rows, market, account)
+  if (plan.mode !== 'modify') return plan.mode === 'manual' ? { mode: 'manual', target: plan.target, extra: plan.extra } : { mode: 'create' }
+  let skipped = 0
+  for (const s of plan.candidates) {
+    const r = await owner(s)
+    if (r.who === 'mine') {
+      if (account && s.account !== account) await recordSendAccount(ctx, s.id, account) // 예전 기록 — 판매처 응답으로 이 계정 상품임을 확인했다
+      return { mode: 'modify', target: s, current: r.current, extra: plan.candidates.length - 1 - skipped }
+    }
+    if (r.who === 'unknown') {
+      console.warn(`[marketplace] ${market} 수정 대상 확인 실패 ${ctx.userId} send=${s.id} product=${s.seller_product_id}: ${r.code || ''} ${r.raw || ''}`)
+      sendError(res, r.status || 502, r.code || 'market_check_failed', r.message || TARGET_CHECK_FAILED)
+      return null
+    }
+    skipped++
+    console.info(`[marketplace] ${market} 수정 대상에서 뺌(${r.who === 'other' ? '다른 계정 상품' : '판매처에 없음'}) ${ctx.userId} send=${s.id} product=${s.seller_product_id}`)
+  }
+  return { mode: 'create' }
+}
+/** 쿠팡 등록상품 조회로 주인 확인 — 조회 결과(current)는 상품 수정 본문의 옵션 id 재료 */
+async function coupangOwner(cred, s) {
+  try {
+    const j = await coupangCall(cred.call, { method: 'GET', path: PATHS.product(s.seller_product_id) })
+    const who = coupangOwnerOf({ ok: true, data: j?.data }, cred.row.vendor_id)
+    return who === 'unknown' ? { who, code: 'market_bad_json', raw: 'vendorId 없음' } : { who, current: j }
+  } catch (e) {
+    if (!(e instanceof CoupangError)) throw e
+    const who = coupangOwnerOf({ ok: false, raw: e.raw }, cred.row.vendor_id)
+    return { who, status: e.status === 429 ? 429 : 502, code: e.code, message: who === 'unknown' ? e.message : '', raw: e.raw }
+  }
+}
+/** 스마트스토어 원상품 조회로 주인 확인 — 조회 결과(current)는 원상품 수정 본문의 바탕 */
+async function smartstoreOwner(cred, s) {
+  try {
+    const r = await smartstoreApi(cred, { method: 'GET', path: ssOriginProductPath(s.seller_product_id) })
+    const who = smartstoreOwnerOf({ ok: true, json: r.json })
+    return who === 'unknown' ? { who, code: 'market_bad_json', raw: 'originProduct 없음' } : { who, current: r.json }
+  } catch (e) {
+    if (!(e instanceof SmartstoreError)) throw e
+    const who = smartstoreOwnerOf({ ok: false, status: e.status, raw: e.raw })
+    return { who, status: e.status === 429 ? 429 : 502, code: e.code, message: who === 'unknown' ? e.message : '', raw: e.raw }
+  }
+}
+const sha16 = buf => crypto.createHash('sha256').update(buf).digest('hex').slice(0, 32)
+const EDIT_IN_MARKET_MESSAGE = no => `판매처에 등록된 상품이 있습니다(상품번호 ${no}). 판매처에서 직접 수정하세요.`
+
+/**
+ * 스마트스토어 이미지 준비·업로드 — 대표(정사각형 JPG) + 내 상품 파일. 한 장이 중계 본문 제한을 넘으면 JPG 품질만 낮춘다.
+ * 묶음마다 한 요청(10장·본문 상한), 한 번에 한 요청씩 (문서: 스토어당 동시 요청 금지)
+ * @returns {{ ok:true, urls } | { ok:false, status, code, message, extra? } | { ok:false, error:SmartstoreError, step }}
+ */
+async function uploadSmartstoreImages(ctx, cred, ex, rep, tag) {
+  const images = [{ buf: rep.buf, mime: 'image/jpeg' }]
+  for (const f of ex.files) {
+    const dl = await storageDownload(ctx.cfg, BUCKET, f.path)
+    if (!dl.found) {
+      console.error('[marketplace] 스마트스토어 상세 이미지 원본이 Storage에 없음:', f.path)
+      return { ok: false, status: 404, code: 'not_found', message: '내 상품 파일을 찾을 수 없습니다. 작업을 다시 저장한 뒤 보내세요.' }
+    }
+    let buf = dl.buf, mime = imageMime(buf)
+    if (!mime) return { ok: false, status: 400, code: 'invalid_input', message: '내 상품 파일 형식을 읽지 못했습니다. 작업을 다시 저장한 뒤 보내세요.' }
+    if (buf.length > UPLOAD_IMAGE_MAX) {
+      const out = await shrinkBytes(buf, { maxBytes: UPLOAD_IMAGE_MAX })
+      if (out.tooBig) {
+        console.error(`[marketplace] 스마트스토어 상세 이미지가 품질 ${out.quality}에서도 ${UPLOAD_IMAGE_MAX}바이트를 넘음: ${f.path} ${out.buf.length}`)
+        return { ok: false, status: 400, code: 'invalid_input', message: '상세 이미지 한 장이 너무 큽니다. 섹션별 여러 장으로 다시 저장하세요.' }
+      }
+      buf = out.buf
+      mime = out.mime
+    }
+    images.push({ buf, mime })
+  }
+  const urls = []
+  for (const group of planUploads(images.map(im => im.buf.length))) {
+    const mp = buildImageMultipart(group.map(i => images[i]))
+    let r
+    try { r = await smartstoreApi(cred, { method: 'POST', path: SS_PATHS.imageUpload, multipart: mp }) } catch (e) {
+      if (!(e instanceof SmartstoreError)) throw e
+      return { ok: false, error: e, step: 'upload' }
+    }
+    const got = uploadedImageUrls(r.json, group.length)
+    if (!got) {
+      const shape = { keys: r.json && typeof r.json === 'object' ? Object.keys(r.json).slice(0, 10) : typeof r.json, len: Array.isArray(r.json?.images) ? r.json.images.length : null, sent: group.length }
+      console.error(`[marketplace] 스마트스토어 이미지 업로드 응답 모양이 다름 ${tag}:`, JSON.stringify(shape))
+      return { ok: false, status: 502, code: 'market_bad_json', message: '판매처가 이미지 주소를 주지 않았습니다. 잠시 후 다시 시도해 주세요.', extra: { result_json: { code: 'market_bad_json', step: 'upload', shape } } }
+    }
+    urls.push(...got)
+  }
+  return { ok: true, urls }
+}
+/**
+ * 스마트스토어 다시 보내기 = 원상품 수정 (2026-10-02) — 새 기록·새 상품을 만들지 않는다. 같은 기록(같은 원상품번호)에 회차 이력(request_json.revisions)
+ *   원상품 조회(found.current — findUpdateTarget이 이미 받음) → 이미지 업로드 → 우리 등록 본문 → 조회한 상품 위에 우리 칸만 덮기(mergeSmartstoreUpdate) → PUT 원상품 수정
+ *   실패하면 기록은 그대로 (판매처의 상품도 그대로)
+ */
+async function smartstoreUpdate(ctx, res, { cred, input, ex, rep, body, found }) {
+  const t = found.target
+  const no = String(t.seller_product_id)
+  const st = found.current?.originProduct?.statusType
+  if (!SS_UPDATABLE_STATUS.includes(st)) {
+    console.warn(`[marketplace] 스마트스토어 수정 불가 상태 ${ctx.userId} send=${t.id} origin=${no} statusType=${st}`)
+    return sendError(res, 409, 'market_state', `판매처 상품 상태가 '${SS_STATUS_LABEL[st] || st || '알 수 없음'}'이라 수정할 수 없습니다. 스마트스토어센터에서 상품 상태를 확인하세요.`)
+  }
+  const ssErr = (e, step) => {
+    if (NOT_READY_CODES.includes(e.code)) console.error(`[marketplace] 스마트스토어 ${step} 중계 문제 ${e.code} (HTTP ${e.status}): ${e.raw}`)
+    else console.warn(`[marketplace] 스마트스토어 ${step} 실패 ${e.code} (HTTP ${e.status}) send=${t.id}: ${e.raw}`)
+    return sendError(res, e.status === 429 ? 429 : 502, e.code, e.message)
+  }
+  const up = await uploadSmartstoreImages(ctx, cred, ex, rep, `update send=${t.id}`)
+  if (!up.ok) return up.error ? ssErr(up.error, 'update/upload') : sendError(res, up.status, up.code, up.message)
+  const built = buildSmartstoreProduct({ ...input, repUrl: up.urls[0], detailUrls: up.urls.slice(1) })
+  if (!built.ok) return sendError(res, 400, 'invalid_input', built.message)
+  const m = mergeSmartstoreUpdate(found.current, built.body)
+  if (!m.ok) {
+    console.error(`[marketplace] 스마트스토어 수정 본문을 만들지 못함 send=${t.id}: ${m.code}`)
+    return sendError(res, 502, m.code, m.message || TARGET_CHECK_FAILED)
+  }
+  let r
+  try { r = await smartstoreApi(cred, { method: 'PUT', path: ssOriginProductPath(no), json: m.body, what: '수정' }) } catch (e) {
+    if (!(e instanceof SmartstoreError)) throw e
+    return ssErr(e, 'update/product')
+  }
+  const nos = productNosOf(r.text)
+  const before = t.result_json?.channelProductNo || null
+  const channel = nos.channelProductNo || before
+  if (before && nos.channelProductNo && before !== nos.channelProductNo) console.warn(`[marketplace] 스마트스토어 수정 뒤 채널상품번호가 바뀜 send=${t.id} ${before} → ${nos.channelProductNo}`)
+  const revisions = revisionsOf(t)
+  const rev = { n: revisions.length + 1, at: new Date().toISOString(), via: 'modify', previousStatus: t.market_status || null, channelProductNo: channel, optionIds: m.optionIds }
+  // 목록에 보이는 전시 상태 = 판매처 값 그대로 (다시 보내기로 고객이 판매처에서 바꾼 전시를 덮지 않는다)
+  const sentBody = { ...built.body, smartstoreChannelProduct: { ...built.body.smartstoreChannelProduct, channelProductDisplayStatusType: m.display } }
+  const requestJson = {
+    ...(t.request_json || {}), body: sentBody, files: Object.fromEntries(ex.files.map(f => [f.key, f.path])), revisions: [...revisions, rev],
+    categoryName: typeof body.categoryName === 'string' ? body.categoryName.slice(0, 300) : (t.request_json?.categoryName ?? null),
+  }
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${t.id}&user_id=eq.${ctx.userId}`, { method: 'PATCH', prefer: 'return=minimal', body: { request_json: requestJson, result_json: { ...(t.result_json || {}), originProductNo: no, channelProductNo: channel, display: m.display, step: 'update' } } })
+  console.info(`[marketplace] 스마트스토어 상품 수정 ${ctx.userId} send=${t.id} origin=${no} channel=${channel} 회차=${rev.n} 더 있는 상품=${found.extra}`)
+  return res.status(200).json({ sendId: t.id, originProductNo: no, channelProductNo: channel, sellerProductId: no, status: t.status, display: m.display, updated: true, revision: rev.n, extra: found.extra })
+}
 async function smartstoreSend(ctx, body, res) {
   const ex = await loadOwnedExport(ctx, body, res)
   if (!ex) return
@@ -759,6 +927,11 @@ async function smartstoreSend(ctx, body, res) {
   if (await sendInProgress(ctx, ex.id, SMARTSTORE)) return sendError(res, 409, 'send_in_progress', SEND_IN_PROGRESS_MESSAGE) // 토큰 받기 전 — 막히면 네이버 호출 없음
   const cred = await smartstoreCredentials(ctx, res)
   if (!cred) return
+  // 다시 보내기 — 이 스토어에 살아 있는 같은 상품이 있으면 새로 등록하지 않고 그 상품을 수정한다 (원상품 조회 → 우리 칸만 덮기 → 수정)
+  const account = await smartstoreAccountKey(ctx, cred)
+  const found = await findUpdateTarget(ctx, res, { market: SMARTSTORE, exportId: ex.id, account, owner: s => smartstoreOwner(cred, s) })
+  if (!found) return
+  if (found.mode === 'modify') return await smartstoreUpdate(ctx, res, { cred, input, ex, rep, body, found })
 
   let created
   try {
@@ -783,41 +956,13 @@ async function smartstoreSend(ctx, body, res) {
     return fail(e.status === 429 ? 429 : 502, e.code, e.message, { result_json: { code: e.code, status: e.status, step, raw: e.raw } })
   }
 
-  // ① 이미지 준비 — 대표(정사각형 JPG) + 내 상품 파일. 한 장이 중계 본문 제한을 넘으면 JPG 품질만 낮춘다
-  const images = [{ buf: rep.buf, mime: 'image/jpeg' }]
-  for (const f of ex.files) {
-    const dl = await storageDownload(ctx.cfg, BUCKET, f.path)
-    if (!dl.found) {
-      console.error('[marketplace] 스마트스토어 상세 이미지 원본이 Storage에 없음:', f.path)
-      return fail(404, 'not_found', '내 상품 파일을 찾을 수 없습니다. 작업을 다시 저장한 뒤 보내세요.')
-    }
-    let buf = dl.buf, mime = imageMime(buf)
-    if (!mime) return fail(400, 'invalid_input', '내 상품 파일 형식을 읽지 못했습니다. 작업을 다시 저장한 뒤 보내세요.')
-    if (buf.length > UPLOAD_IMAGE_MAX) {
-      const out = await shrinkBytes(buf, { maxBytes: UPLOAD_IMAGE_MAX })
-      if (out.tooBig) {
-        console.error(`[marketplace] 스마트스토어 상세 이미지가 품질 ${out.quality}에서도 ${UPLOAD_IMAGE_MAX}바이트를 넘음: ${f.path} ${out.buf.length}`)
-        return fail(400, 'invalid_input', '상세 이미지 한 장이 너무 큽니다. 섹션별 여러 장으로 다시 저장하세요.')
-      }
-      buf = out.buf
-      mime = out.mime
-    }
-    images.push({ buf, mime })
+  // ①② 이미지 준비·업로드 (수정과 같은 함수)
+  const up = await uploadSmartstoreImages(ctx, cred, ex, rep, `send=${sendId}`)
+  if (!up.ok) {
+    if (up.error) return ssFail(up.error, up.step)
+    return fail(up.status, up.code, up.message, up.extra)
   }
-  // ② 이미지 업로드 — 묶음마다 한 요청(10장·본문 상한), 한 번에 한 요청씩 (문서: 스토어당 동시 요청 금지)
-  const urls = []
-  for (const group of planUploads(images.map(im => im.buf.length))) {
-    const mp = buildImageMultipart(group.map(i => images[i]))
-    let r
-    try { r = await smartstoreApi(cred, { method: 'POST', path: SS_PATHS.imageUpload, multipart: mp }) } catch (e) { return ssFail(e, 'upload') }
-    const got = uploadedImageUrls(r.json, group.length)
-    if (!got) {
-      const shape = { keys: r.json && typeof r.json === 'object' ? Object.keys(r.json).slice(0, 10) : typeof r.json, len: Array.isArray(r.json?.images) ? r.json.images.length : null, sent: group.length }
-      console.error(`[marketplace] 스마트스토어 이미지 업로드 응답 모양이 다름 send=${sendId}:`, JSON.stringify(shape))
-      return fail(502, 'market_bad_json', '판매처가 이미지 주소를 주지 않았습니다. 잠시 후 다시 시도해 주세요.', { result_json: { code: 'market_bad_json', step: 'upload', shape } })
-    }
-    urls.push(...got)
-  }
+  const urls = up.urls
   // ③ 상품 등록
   const built = buildSmartstoreProduct({ ...input, repUrl: urls[0], detailUrls: urls.slice(1) })
   if (!built.ok) return fail(400, 'invalid_input', built.message)
@@ -939,6 +1084,13 @@ async function elevenstSend(ctx, body, res) {
   if (!pre.ok) return sendError(res, 400, 'invalid_input', pre.message)
   if (ex.files.length > DETAIL_IMAGE_MAX) return sendError(res, 400, 'invalid_input', `상세 이미지는 ${DETAIL_IMAGE_MAX}장까지 보낼 수 있습니다.`)
   const testStop = body.testStop === true && ctx.isAdmin === true // 등록 직후 판매중지 — 관리자·스태프 테스트용만 (고객이 보내도 무시)
+  // 다시 보내기 — 11번가 상품 수정 API 근거가 없어(api/_marketUpdate.js) 수정하지 않는다. 이미 등록된 상품이 있으면 새로 등록하지 않고 막는다
+  const found = await findUpdateTarget(ctx, res, { market: ELEVENST, exportId: ex.id, account: null })
+  if (!found) return
+  if (found.mode === 'manual') {
+    console.info(`[marketplace] 11번가 이미 등록된 상품 — 새로 등록하지 않음 ${ctx.userId} send=${found.target.id} prdNo=${found.target.seller_product_id}`)
+    return sendError(res, 409, 'edit_in_market', EDIT_IN_MARKET_MESSAGE(found.target.seller_product_id))
+  }
   const rep = await squareFromImage(ctx, ex, body.repImageId, body.fit)
   if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)
   if (await sendInProgress(ctx, ex.id, ELEVENST)) return sendError(res, 409, 'send_in_progress', SEND_IN_PROGRESS_MESSAGE)
@@ -1141,6 +1293,23 @@ async function loadRejectedSend(ctx, resendId, res) {
   return s
 }
 const revisionsOf = s => (Array.isArray(s?.request_json?.revisions) ? s.request_json.revisions : [])
+/**
+ * 보내기 창 — 판매처마다 이미 있는 상품 (판매처를 부르지 않는다 — DB 기록·저장된 계정 식별값만).
+ * 계정 기록이 없는 예전 기록도 "수정"으로 보이고, 보낼 때 서버가 판매처 조회로 확인한다(findUpdateTarget)
+ */
+async function existingInMarkets(ctx, exportId) {
+  const markets = Object.keys(UPDATE_MODES)
+  const rows = await sb(ctx.cfg, `marketplace_sends?select=id,market,status,seller_product_id,market_account,created_at&user_id=eq.${ctx.userId}&export_id=eq.${exportId}&market=in.(${markets.join(',')})&status=in.(${LIVE_SEND_STATUSES.join(',')})&seller_product_id=not.is.null`)
+  const list = (Array.isArray(rows) ? rows : []).map(r => ({ ...r, sellerProductId: r.seller_product_id, account: r.market_account, createdAt: r.created_at }))
+  if (!list.length) return {}
+  const accounts = await currentAccounts(ctx)
+  const out = {}
+  for (const m of markets) {
+    const plan = updatePlan(list.filter(r => r.market === m), m, accounts[m] ?? null)
+    if (plan.mode !== 'create') out[m] = { mode: plan.mode, sendId: plan.target.id, sellerProductId: String(plan.target.seller_product_id), status: plan.target.status, extra: plan.extra }
+  }
+  return out
+}
 async function sendPrepare(ctx, body, res) {
   let prev = null
   if (body.resendId != null) {
@@ -1161,7 +1330,13 @@ async function sendPrepare(ctx, body, res) {
   ])
   const source = await loadSource(ctx, projRows?.[0]?.offer_id)
   const connected = !!account && daysLeft(account.expires_at) >= 0
+  let existing
+  try { existing = await existingInMarkets(ctx, ex.id) } catch (e) {
+    if (isNewColumnMissing(e)) return newSqlMissing(res, e, 'send_prepare')
+    throw e
+  }
   return res.status(200).json({
+    existing, // 판매처마다 이미 있는 상품 (2026-10-02) — { [market]: { mode:'modify'|'manual', sendId, sellerProductId, status, extra } } · 없으면 새로 등록
     connected, markets: { [MARKET]: { connected } }, // 판매처마다 연결 여부 — 보내기 창 "보낼 판매처" 줄이 쓴다
     // projectTitle = 작업의 지금 이름 (내 상품을 만든 뒤 작업 이름을 한글로 고쳤을 수 있다 — 보내기 창의 상품명 기본값이 먼저 본다)
     export: { id: ex.id, title: ex.title || projRows?.[0]?.title || '', projectTitle: projRows?.[0]?.title || '', mode: ex.mode, format: ex.format, files: ex.files.map(f => ({ key: f.key, name: f.name, width: f.width, height: f.height })) },
@@ -1254,10 +1429,12 @@ async function send(ctx, body, res) {
   if (!cred) return
   const encKey = loadEncKey()
   // 고쳐서 다시 보내기 — 반려된 전송을 같은 쿠팡 상품 번호로 고친다(새 전송 기록·새 상품을 만들지 않는다)
-  let prev = null
+  // mode: 'create' 새로 등록 · 'resend' 반려 상품 고치기([수정 후 재전송]) · 'update' 살아 있는 상품 수정(같은 내 상품을 다시 보냄 — 2026-10-02)
+  let prev = null, mode = 'create', current = null, extra = 0
   if (body.resendId != null) {
     prev = await loadRejectedSend(ctx, body.resendId, res)
     if (!prev) return
+    mode = 'resend'
     body = { ...body, exportId: prev.export_id }
   }
   const ex = await loadOwnedExport(ctx, body, res)
@@ -1326,14 +1503,23 @@ async function send(ctx, body, res) {
     if (!brand) return sendError(res, 400, 'brand_not_found', BRAND_NOT_FOUND)
   }
 
-  // 전송 기록 먼저 (id가 이미지 토큰 재료) — 다시 보내기는 예전 기록을 그대로 쓴다
+  // 다시 보내기 — 같은 내 상품·같은 업체코드로 살아 있는 쿠팡 상품이 있으면 새로 등록하지 않고 그 상품을 수정한다 (등록상품 조회로 주인·옵션 id 확인)
+  if (!prev) {
+    const found = await findUpdateTarget(ctx, res, { market: MARKET, exportId: ex.id, account: cred.row.vendor_id, owner: s => coupangOwner(cred, s) })
+    if (!found) return
+    if (found.mode === 'modify') { prev = found.target; current = found.current; extra = found.extra; mode = 'update' }
+  }
+
+  // 전송 기록 먼저 (id가 이미지 토큰 재료) — 다시 보내기·수정은 예전 기록을 그대로 쓴다
   const created = prev ? [{ id: prev.id }] : await sb(ctx.cfg, 'marketplace_sends?select=id', { method: 'POST', body: { user_id: ctx.userId, export_id: ex.id, market: MARKET, status: 'sending', request_json: {} }, prefer: 'return=representation' })
   const sendId = created?.[0]?.id
   if (!sendId) throw new Error('marketplace_sends insert: id 없음')
   const fileTag = prev ? `${sendId}_${Date.now().toString(36)}` : sendId // 다시 보낼 때는 새 파일 이름 (예전 회차 파일을 덮지 않는다)
-  const fail = async (status, code, message, extra = {}) => {
-    if (prev) return sendError(res, status, code, message) // 다시 보내기가 실패해도 기록은 "반려" 그대로 — 고쳐서 또 보낼 수 있다
-    await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { status: 'failed', reason: message.slice(0, 2000), ...extra }, prefer: 'return=minimal' }).catch(e => console.error('[marketplace] 실패 기록도 못 남김:', sendId, e.message))
+  // 다시 보내기·수정이 실패하면 기록은 그대로("반려"·"승인 완료" 등) — 보내려던 본문(request_json)도 예전 것으로 되돌린다
+  const restore = () => (prev ? sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: prev.request_json || {} }, prefer: 'return=minimal' }).catch(e => console.error('[marketplace] 보내려던 본문 되돌리기 실패:', sendId, e.message)) : null)
+  const fail = async (status, code, message, extraPatch = {}) => {
+    if (prev) { await restore(); return sendError(res, status, code, message) }
+    await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { status: 'failed', reason: message.slice(0, 2000), ...extraPatch }, prefer: 'return=minimal' }).catch(e => console.error('[marketplace] 실패 기록도 못 남김:', sendId, e.message))
     return sendError(res, status, code, message)
   }
 
@@ -1371,9 +1557,11 @@ async function send(ctx, body, res) {
     detailUrls.push(urlOf(p.key))
   }
   // 다시 보내기 — 쿠팡에 있는 그 상품의 옵션 id를 읽어 온다 (상품 수정 본문에 넣는다). 상태는 이력에 적기만 하고 방법을 나누지 않는다
-  let current = null, plan = null
+  let plan = null
   if (prev) {
-    try { current = await coupangCall(cred.call, { method: 'GET', path: PATHS.product(prev.seller_product_id) }) } catch (e) { return coupangFail(res, e, 'send/resend-get') }
+    if (!current) {
+      try { current = await coupangCall(cred.call, { method: 'GET', path: PATHS.product(prev.seller_product_id) }) } catch (e) { await restore(); return coupangFail(res, e, 'send/resend-get') }
+    }
     plan = { ...resendPlan(), statusName: String(current?.data?.statusName || '') }
   }
 
@@ -1390,9 +1578,12 @@ async function send(ctx, body, res) {
   })
   if (!built.ok) return fail(400, 'invalid_input', built.message)
   const revisions = revisionsOf(prev)
-  const requestJson = { body: built.body, files, pieces, categoryName: body.categoryName || null, revisions }
+  // 내용 표식 — 다음에 다시 보낼 때 "가격·재고만 바뀜"을 가린다 (이미지·서류는 원본 바이트 해시, 상세는 내 상품 파일 경로)
+  const sources = { rep: sha16(rep.buf), options: Object.fromEntries(optImgs.map(o => [o.key, sha16(o.buf)])), docs: Object.fromEntries(docs.map(d => [d.templateName, sha16(d.buf)])), detail: Object.fromEntries(ex.files.map(f => [f.key, f.path])) }
+  const contentKey = sha16(coupangContentKey(built.body, sources))
+  const requestJson = { body: built.body, files, pieces, categoryName: body.categoryName || null, revisions, contentKey }
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: requestJson }, prefer: 'return=minimal' })
-  if (prev) return await resend(ctx, res, { cred, prev, sendId, requestJson, plan })
+  if (prev) return await updateCoupang(ctx, res, { cred, prev, sendId, requestJson, plan, current, mode, extra, restore })
 
   let r
   try { r = await coupangCall(cred.call, { method: 'POST', path: PATHS.products, body: built.body, extendedTimeout: true }) } catch (e) {
@@ -1409,29 +1600,71 @@ async function send(ctx, body, res) {
 }
 
 /**
- * 반려 상품 다시 승인 요청 — 상품 수정(PUT seller-products · 같은 sellerProductId · requested true) 한 번. 승인 요청 API는 부르지 않는다 (resendPlan)
- *   쿠팡이 수정을 거절하면 그 문구를 그대로 돌려준다. 기록은 "반려" 그대로
- * 회차 이력: request_json.revisions[] = { n, at, previousReason, previousStatus, coupangStatus(보내기 직전 쿠팡 상태), via('modify'), approval }
+ * 쿠팡에 있는 상품 수정 — 새 기록·새 상품을 만들지 않는다 (같은 기록 · 같은 sellerProductId). 근거 api/_marketUpdate.js
+ *   mode 'resend' = 반려 상품 [수정 후 재전송] · 'update' = 살아 있는 상품(승인 대기·승인 완료)을 같은 내 상품으로 다시 보냄
+ *   방법(coupangUpdateWay):
+ *     'modify'      상품 수정 PUT(같은 sellerProductId · 옵션 id · requested true = 다시 승인 요청) → "승인 대기"
+ *                   승인 완료 상품이면 가격·재고는 상품 수정으로 바뀌지 않으므로(문서) 바뀐 옵션만 옵션별 API를 이어서 부른다
+ *     'price_stock' 승인 완료 + 내용은 지난번과 같고 가격·재고만 바뀜 → 옵션별 가격·정가·재고 API만 (다시 승인 없음 · 상태 그대로)
+ *     'none'        바뀐 것 없음 → 아무것도 부르지 않음
+ *   승인 요청 API는 부르지 않는다 (resendPlan). 쿠팡이 거절하면 그 문구를 그대로 돌려주고 기록은 그대로(보내려던 본문도 되돌림)
+ * 회차 이력: request_json.revisions[] = { n, at, previousReason, previousStatus, coupangStatus(보내기 직전 쿠팡 상태), via('modify'|'price_stock'), approval, changes? }
  *   (예전 회차에는 via 'approval'·approval false가 남아 있을 수 있다 — 승인 요청 API를 부르던 때의 기록)
  */
-async function resend(ctx, res, { cred, prev, sendId, requestJson, plan }) {
+async function updateCoupang(ctx, res, { cred, prev, sendId, requestJson, plan, current, mode, extra, restore }) {
   const pid = prev.seller_product_id
-  const rev = { n: requestJson.revisions.length + 1, at: new Date().toISOString(), previousReason: prev.reason || null, previousStatus: prev.market_status || null, coupangStatus: plan.statusName || null, via: plan.via, approval: false }
+  const statusName = plan.statusName
+  const approved = mode === 'update' && isCoupangApproved(statusName)
+  const changes = approved ? coupangPriceStockChanges(requestJson.body.items, current?.data?.items) : []
+  const prevKey = String(prev.request_json?.contentKey || '')
+  const way = mode === 'resend' ? 'modify' : coupangUpdateWay({ approved, sameContent: !!prevKey && prevKey === requestJson.contentKey, changes })
+  const rev = { n: requestJson.revisions.length + 1, at: new Date().toISOString(), previousReason: prev.reason || null, previousStatus: prev.market_status || null, coupangStatus: statusName || null, via: way === 'price_stock' ? 'price_stock' : plan.via, approval: false }
   const save = patch => sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' })
-  let r
-  try { r = await coupangCall(cred.call, { method: 'PUT', path: PATHS.products, body: requestJson.body, extendedTimeout: true }) } catch (e) {
-    if (!(e instanceof CoupangError)) throw e
-    console.warn(`[marketplace] 상품 수정 실패 ${e.code} (HTTP ${e.status}) product=${pid}: ${e.raw}`)
-    return sendError(res, e.status === 429 ? 429 : 502, e.code, e.message)
+  const base = { sendId, sellerProductId: pid, updated: mode === 'update', resend: mode === 'resend', extra }
+  if (way === 'none') {
+    await restore()
+    console.info(`[marketplace] 쿠팡 다시 보내기 — 바뀐 것 없음 ${ctx.userId} send=${sendId} product=${pid}`)
+    return res.status(200).json({ ...base, status: prev.status, way, unchanged: true })
   }
+  const problem = coupangPriceProblem(changes)
+  if (problem) { await restore(); return sendError(res, 400, 'invalid_input', problem) }
+  let r = null
+  if (way === 'modify') {
+    try { r = await coupangCall(cred.call, { method: 'PUT', path: PATHS.products, body: requestJson.body, extendedTimeout: true }) } catch (e) {
+      if (!(e instanceof CoupangError)) throw e
+      console.warn(`[marketplace] 상품 수정 실패 ${e.code} (HTTP ${e.status}) product=${pid}: ${e.raw}`)
+      await restore()
+      return sendError(res, e.status === 429 ? 429 : 502, e.code, e.message)
+    }
+  }
+  // 승인 완료 옵션의 가격·정가·재고 — 옵션마다 순서(coupangChangeOrder)대로. 하나라도 실패하면 거기서 멈추고 바꾼 것까지만 기록
+  const applied = []
+  let psError = null
+  outer: for (const c of changes) {
+    for (const k of coupangChangeOrder(c)) {
+      const path = k === 'salePrice' ? PATHS.itemPrice(c.vendorItemId, c.salePrice) : k === 'originalPrice' ? PATHS.itemOriginalPrice(c.vendorItemId, c.originalPrice) : PATHS.itemQuantity(c.vendorItemId, c.stock)
+      try {
+        await coupangCall(cred.call, { method: 'PUT', path })
+        applied.push({ vendorItemId: c.vendorItemId, itemName: c.itemName, field: k, value: k === 'stock' ? c.stock : c[k] })
+      } catch (e) {
+        if (!(e instanceof CoupangError)) throw e
+        console.warn(`[marketplace] 쿠팡 옵션 ${k} 변경 실패 ${e.code} (HTTP ${e.status}) product=${pid} vendorItem=${c.vendorItemId}: ${e.raw}`)
+        psError = { code: e.code, status: e.status, message: `옵션 "${c.itemName}"의 ${k === 'stock' ? '재고' : k === 'salePrice' ? '판매가' : '정가'} 변경 실패: ${e.message}` }
+        break outer
+      }
+    }
+  }
+  if (way === 'price_stock' && !applied.length) { await restore(); return sendError(res, psError.status === 429 ? 429 : 502, psError.code, psError.message) }
+  const done = { ...rev, approval: way === 'modify', ...(changes.length ? { changes: applied } : {}) }
   await save({
-    status: 'approval_pending', market_status: null, reason: null, approval_requested_at: new Date().toISOString(),
-    request_json: { ...requestJson, revisions: [...requestJson.revisions, { ...rev, approval: true }] },
-    result_json: { code: r?.code, message: r?.message, data: r?.data, step: 'resend' },
+    ...(way === 'modify' ? { status: 'approval_pending', market_status: null, reason: null, approval_requested_at: new Date().toISOString() } : {}),
+    request_json: { ...requestJson, revisions: [...requestJson.revisions, done] },
+    result_json: { ...(r ? { code: r?.code, message: r?.message, data: r?.data } : {}), step: mode, way, ...(psError ? { priceStockError: psError.message } : {}) },
   })
   await recordSendAccount(ctx, sendId, cred.row.vendor_id)
-  console.info(`[marketplace] 쿠팡 상품 수정 + 승인 요청 ${ctx.userId} send=${sendId} product=${pid} 회차=${rev.n} 쿠팡 상태="${plan.statusName}" 방법=${rev.via}`)
-  return res.status(200).json({ sendId, sellerProductId: pid, status: 'approval_pending', resend: true, revision: rev.n })
+  const status = way === 'modify' ? 'approval_pending' : prev.status
+  console.info(`[marketplace] 쿠팡 상품 ${mode === 'resend' ? '수정 + 승인 요청' : '수정'} ${ctx.userId} send=${sendId} product=${pid} 회차=${done.n} 쿠팡 상태="${statusName}" 방법=${way} 옵션 변경=${applied.length}/${changes.length}`)
+  return res.status(200).json({ ...base, status, way, revision: done.n, priceStockError: psError ? psError.message : null })
 }
 
 // ── 처리현황 ──
@@ -1590,7 +1823,8 @@ async function touchSynced(ctx, ids) {
  * 쿠팡 (2026-10-02 호출 줄이기) — 계정(vendorId)이 다른 기록은 부르지 않는다
  *   승인 대기·전송 중·반려 = 하나씩 등록상품 조회(COUPANG_SINGLE_MAX까지, 반려로 바뀌었거나 사유가 비었을 때만 histories 1번 더)
  *   승인 완료(같은 계정) = 상품 목록 페이징 조회 status=DELETED를 쪽마다 훑어 한꺼번에 — 목록에 있으면 삭제됨
- *   승인 완료(계정 기록 없음) = 삭제 판정을 하지 않으니 부르지 않는다
+ *   계정 기록이 없는 예전 기록(2026-10-02 계정 채우기) = 하나씩 등록상품 조회 — 응답 data.vendorId가 지금 업체코드와 같으면 market_account를 채우고 정상 판정.
+ *     "다른 업체…조회할 수 없습니다"·"…의 데이터가 없습니다"(지운 상품인지 다른 계정 상품인지 모름)는 채우지 않고 판정도 하지 않는다 (근거 api/_marketUpdate.js coupangOwnerOf)
  * @returns {'done'|'partial'|'stopped'}  partial = 하나씩 조회할 것이 남음(다음 요청에서)
  */
 async function checkCoupang(ctx, rows, errors) {
@@ -1598,18 +1832,23 @@ async function checkCoupang(ctx, rows, errors) {
   const cred = await withCredentials(ctx, sink)
   if (!cred) { errors.push({ market: MARKET, ...sink.error }); return 'stopped' }
   const vendor = cred.row.vendor_id
-  const judge = s => accountJudge(s.market_account, vendor)
+  const filled = new Set() // 이번 확인에서 판매처 응답으로 계정을 채운 기록
+  const judge = s => (filled.has(s.id) ? 'same' : accountJudge(s.market_account, vendor))
   const quiet = [], singles = [], live = []
   for (const s of rows) {
     if (judge(s) === 'other') quiet.push(s.id) // 다른 계정으로 보낸 기록 — 지금 연결로는 조회되지 않는다(확인 시각만)
-    else if (SINGLE_CHECK_STATUSES.includes(s.status)) singles.push(s)
-    else if (judge(s) === 'same') live.push(s)
-    else quiet.push(s.id)
+    else if (SINGLE_CHECK_STATUSES.includes(s.status) || judge(s) === 'unknown') singles.push(s) // 계정 기록 없음 = 하나씩 조회해 계정부터 확인
+    else live.push(s)
   }
   const partial = singles.length > COUPANG_SINGLE_MAX
   for (const s of singles.slice(0, COUPANG_SINGLE_MAX)) {
     try {
       const r = await coupangCall(cred.call, { method: 'GET', path: PATHS.product(s.seller_product_id) })
+      if (judge(s) === 'unknown') {
+        if (coupangOwnerOf({ ok: true, data: r?.data }, vendor) !== 'mine') { console.warn('[marketplace] 쿠팡 계정 채우기: 응답 업체코드가 다름·없음 (판정 안 함):', s.seller_product_id); quiet.push(s.id); continue }
+        await recordSendAccount(ctx, s.id, vendor)
+        filled.add(s.id)
+      }
       const statusName = r?.data?.statusName || ''
       const next = mapCoupangStatus(statusName)
       if (next === DELETED && judge(s) !== 'same') { quiet.push(s.id); continue } // 계정 기록이 없으면 삭제 판정을 하지 않는다
@@ -1627,6 +1866,8 @@ async function checkCoupang(ctx, rows, errors) {
       else await patchSend(ctx, s.id, patch)
     } catch (e) {
       if (!(e instanceof CoupangError)) throw e
+      // 계정 기록이 없는 기록 — "다른 업체"·"데이터가 없습니다"는 이 계정 상품인지 모른다: 채우지 않고 판정도 하지 않는다(오류로도 세지 않음)
+      if (judge(s) === 'unknown' && ['other', 'none'].includes(coupangOwnerOf({ ok: false, raw: e.raw }, vendor))) { quiet.push(s.id); continue }
       console.warn('[marketplace] 쿠팡 상태 조회 실패:', s.seller_product_id, e.code, e.raw)
       errors.push({ market: MARKET, id: s.id, code: e.code, message: e.message })
       if (STOP_CODES.includes(e.code)) { await touchSynced(ctx, quiet); return 'stopped' }
@@ -1688,8 +1929,11 @@ async function checkSmartstore(ctx, rows, errors) {
   }
   let singles = 0, partial = false
   for (const s of mine) {
-    const same = judge(s) === 'same'
     let statusType = found.get(String(s.seller_product_id))
+    // 계정 기록이 없는 예전 기록(2026-10-02) — 상품 목록 조회는 이 스토어 토큰(type SELF)으로 부르므로 결과에 있으면 이 스토어 상품 → 계정을 채운다.
+    // 결과에 없으면(지운 상품인지 다른 스토어 상품인지 모름) 채우지 않고 판정도 하지 않는다
+    if (statusType != null && account && judge(s) === 'unknown') { await recordSendAccount(ctx, s.id, account); s.market_account = account }
+    const same = judge(s) === 'same'
     if (statusType == null) {
       if (!same) { quiet.push(s.id); continue } // 계정 기록이 없으면 "없음"으로 삭제를 판정하지 않는다 — 부르지 않는다
       if (singles >= SS_SINGLE_MAX) { partial = true; continue } // 다음 요청에서 (확인 시각을 남기지 않는다)

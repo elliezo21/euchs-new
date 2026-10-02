@@ -2,13 +2,14 @@
  * 판매처 > [보낸 상품] 목록 규칙 (2026-10-02 카드형 → 목록형) — 순수 함수 (scripts/test-marketplace.mjs가 그대로 부른다)
  *
  * 재료 = 서버 sends_list 응답(api/marketplace.js publicSend — 전송 기록 1건 = 1줄, created_at 최근순 · 2026-10-02부터 한도 없이 전부).
- *   쿠팡 다시 승인 요청은 같은 기록을 고친다(revision) · 스마트스토어·11번가·카페24는 보낼 때마다 새 기록.
- * 상품 1개 = 내 상품(exportId) 1개. 판매처 현황 칩·상태 분류는 판매처마다 가장 최근 기록 1건만 본다(sendsByExport와 같은 규칙).
+ *   다시 보내기 = 판매처에 있는 상품 수정(2026-10-02 — 쿠팡·스마트스토어는 같은 기록을 고친다(revision), 11번가는 이미 있으면 막음) — 새 기록은 살아 있는 상품이 없을 때만.
+ * 상품 1개 = 내 상품(exportId) 1개. 판매처 현황 칩·상태 분류는 판매처마다 기록 1건만 본다 — 살아 있는 상품(서버가 수정하는 그 상품)이 있으면 그것, 없으면 가장 최근 기록.
  * 상태 문구는 studioMarketplaceRules.sendStatusLabel 한 곳 — 여기에는 문구 표를 두지 않는다(묶음 이름만).
  * import는 상대 경로(node 테스트가 그대로 부른다)
  */
 import { MARKETS, marketsFor, canResend, sendStatusLabel, badgeReason, isNotReady } from './studioMarketplaceRules.js'
 import { STATUS_CHECK_MARKETS, CHECK_STATUSES, AUTO_CHECK_MS } from '../../api/_marketStatus.js'
+import { LIVE_SEND_STATUSES } from '../../api/_marketUpdate.js'
 
 // 판매처 이름·순서·필터 선택지는 판매처 목록 한 곳(studioMarketplaceRules.MARKETS · 보이는 범위 marketsFor)에서만 읽는다 —
 // 목록에 판매처가 늘면 칩·필터에 그대로 나온다. 판매처마다 표 칸을 만들지 않는다 (2026-10-02)
@@ -56,15 +57,20 @@ export function chipTone(status) {
  * 순서: 실패·반려 → 승인 대기·전송 중 → 완료 → 판매처에서 삭제됨 → 그 밖, 같은 묶음 안은 판매처 목록 순서
  * max개까지 다 보이고, 넘치면 (max−1)개 + "+N" 칩 — title = 나머지 "판매처 이름 상태"를 줄마다
  * @returns {{ chips:[{ id, market, status, tone, name, label, title, live }], more: null | { count, label, title } }}
- *   label = "판매처 이름 + sendStatusLabel(status)" (+ " N건" — 완료 칩이고 그 판매처에 살아 있는 상품이 2개 이상일 때 · liveCount)
- *   label의 상태 = sendStatusLabel 짧은 표기(삭제됨) · title = 실패·반려 사유(badgeReason) + 다른 계정이면 ACCOUNT_MISMATCH_NOTE + 자동 확인을 지원하지 않는 판매처면 UNCHECKED_NOTE (줄바꿈으로)
+ *   label = "판매처 이름 + sendStatusLabel(status)" — 판매처마다 칩 1개 (2026-10-02 "N건" 표기 없앰 — 예전 중복 등록은 title 안내로)
+ *   label의 상태 = sendStatusLabel 짧은 표기(삭제됨) · title = 실패·반려 사유(badgeReason) + 같은 상품이 판매처에 더 있으면 sameProductNote
+ *     + 다른 계정이면 ACCOUNT_MISMATCH_NOTE + 자동 확인을 지원하지 않는 판매처면 UNCHECKED_NOTE (줄바꿈으로) · more = 그 판매처에 더 있는 살아 있는 상품 수(extraCount)
  */
 export const CHIP_MAX = 5
 const TONE_ORDER = ['bad', 'wait', 'ok', 'gone', '']
-/** 살아 있는 상품 = 등록 완료·승인 완료 (판매처에서 삭제됨·실패·반려·대기는 아님) */
-export const LIVE_STATUSES = ['registered', 'approved']
-/** 같은 작업으로 이 판매처에 살아 있는 상품 수 — 그 판매처의 모든 기록 중 LIVE_STATUSES */
-export const liveCount = (p, market) => (Array.isArray(p?.history) ? p.history : []).filter(s => s.market === market && LIVE_STATUSES.includes(s.status)).length
+/** 살아 있는 상품 = 등록 완료·승인 완료·승인 대기 (서버 수정 대상과 같은 규칙 — api/_marketUpdate.js LIVE_SEND_STATUSES) */
+export const LIVE_STATUSES = LIVE_SEND_STATUSES
+const isLive = s => !!s && LIVE_STATUSES.includes(s.status) && !s.accountMismatch
+/** 같은 작업으로 이 판매처에 살아 있는 상품 수 — 그 판매처의 모든 기록 중 살아 있고 지금 계정과 다르지 않은 것 */
+export const liveCount = (p, market) => (Array.isArray(p?.history) ? p.history : []).filter(s => s.market === market && isLive(s)).length
+/** 칩에 보이는 상품 말고 그 판매처에 더 있는 살아 있는 상품 수 (예전 중복 등록 — 다시 보내기는 칩에 보이는 상품만 수정한다) */
+export const extraCount = (p, market) => Math.max(0, liveCount(p, market) - (isLive(p?.byMarket?.[market]) ? 1 : 0))
+export const sameProductNote = n => `같은 상품이 판매처에 ${n}개 더 있습니다. 판매처에서 정리해 주세요`
 /** 상태 자동 확인을 지원하는 판매처인지 (api/_marketStatus.js STATUS_CHECK_MARKETS 한 곳) */
 export const statusCheckable = market => STATUS_CHECK_MARKETS.includes(market)
 export const UNCHECKED_NOTE = '이 판매처는 상태 자동 확인을 지원하지 않습니다'
@@ -74,10 +80,10 @@ export function marketChips(p, { max = CHIP_MAX } = {}) {
   const all = Object.values(p?.byMarket || {}).map(s => {
     const name = sentMarketName(s.market)
     const tone = chipTone(s.status)
-    const live = liveCount(p, s.market)
-    const label = `${name} ${sendStatusLabel(s.status, { short: true })}${tone === 'ok' && live >= 2 ? ` ${live}건` : ''}`
-    const title = [badgeReason(s), s.accountMismatch ? ACCOUNT_MISMATCH_NOTE : '', statusCheckable(s.market) ? '' : UNCHECKED_NOTE].filter(Boolean).join('\n')
-    return { id: s.id, market: s.market, status: s.status, tone, name, label, title, live }
+    const more = extraCount(p, s.market)
+    const label = `${name} ${sendStatusLabel(s.status, { short: true })}`
+    const title = [badgeReason(s), more ? sameProductNote(more) : '', s.accountMismatch ? ACCOUNT_MISMATCH_NOTE : '', statusCheckable(s.market) ? '' : UNCHECKED_NOTE].filter(Boolean).join('\n')
+    return { id: s.id, market: s.market, status: s.status, tone, name, label, title, more }
   }).sort((a, b) => TONE_ORDER.indexOf(a.tone) - TONE_ORDER.indexOf(b.tone) || marketRank(a.market) - marketRank(b.market) || String(a.market).localeCompare(String(b.market)))
   if (all.length <= max) return { chips: all, more: null }
   const rest = all.slice(max - 1)
@@ -96,7 +102,8 @@ const marketOf = s => s.market || 'coupang' // 예전 기록에는 판매처 칸
  * @returns {[{ key, exportId, productName, latestAt, history:[send], byMarket:{ [market]: send } }]}
  *   key = 내 상품 id (내 상품 id가 없는 기록은 기록 하나가 상품 하나 — 'send:<id>')
  *   productName = 이력 중 상품명이 있는 가장 최근 기록의 productName (보내다 실패한 기록은 상품명이 비어 있을 수 있다)
- *   history = 그 상품의 모든 기록(최근순) · byMarket = 판매처마다 가장 최근 기록
+ *   history = 그 상품의 모든 기록(최근순) · byMarket = 판매처마다 기록 1건 — 살아 있는 상품(다른 계정 아님) 중 가장 최근, 없으면 가장 최근 기록
+ *     (서버가 다시 보낼 때 수정하는 상품과 같다 — api/_marketUpdate.js updatePlan)
  */
 export function groupSentProducts(sends) {
   const map = new Map()
@@ -111,6 +118,7 @@ export function groupSentProducts(sends) {
   for (const p of map.values()) {
     p.history.sort((a, b) => timeOf(b.createdAt) - timeOf(a.createdAt))
     const byMarket = {}
+    for (const s of p.history) if (isLive(s) && !byMarket[s.market]) byMarket[s.market] = s
     for (const s of p.history) if (!byMarket[s.market]) byMarket[s.market] = s
     const named = p.history.find(s => typeof s.productName === 'string' && s.productName.trim())
     out.push({ ...p, byMarket, productName: named ? named.productName.trim() : '', latestAt: p.history[0]?.createdAt || null })

@@ -261,7 +261,12 @@
 
       <p v-if="sendError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-error>등록에 실패했습니다. (사유: {{ sendError }})</p>
       <p v-if="done && done.resend" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>수정 후 승인 요청되었습니다. 상품번호 {{ done.sellerProductId }} · 진행 상태는 [보낸 상품]에서 확인합니다.</p>
-      <p v-else-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>등록 및 승인 요청되었습니다.{{ done.sellerProductId ? ` 상품번호 ${done.sellerProductId}` : '' }} · 진행 상태는 [보낸 상품]에서 확인합니다.</p>
+      <!-- 판매처에 있는 상품 수정 (2026-10-02) — 서버 way: modify(수정 + 다시 승인 요청) · price_stock(승인 완료 상품의 가격·재고만 — 승인 없음) · none(바뀐 것 없음) -->
+      <p v-else-if="done && done.updated && done.way === 'price_stock'" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done data-mk-s-done-way="price_stock">판매처에 있는 상품의 가격·재고를 변경했습니다. 상품번호 {{ done.sellerProductId }} · 승인 없이 반영됩니다.</p>
+      <p v-else-if="done && done.updated && done.way === 'none'" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done data-mk-s-done-way="none">변경된 내용이 없어 판매처에 전송하지 않았습니다. 상품번호 {{ done.sellerProductId }}</p>
+      <p v-else-if="done && done.updated" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done data-mk-s-done-way="modify">판매처에 있는 상품을 수정하고 승인 요청했습니다. 상품번호 {{ done.sellerProductId }} · 진행 상태는 [보낸 상품]에서 확인합니다.</p>
+      <p v-if="done?.priceStockError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-price-error>{{ done.priceStockError }}</p>
+      <p v-else-if="done && !done.updated && !done.resend" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>등록 및 승인 요청되었습니다.{{ done.sellerProductId ? ` 상품번호 ${done.sellerProductId}` : '' }} · 진행 상태는 [보낸 상품]에서 확인합니다.</p>
     </div>
 </template>
 

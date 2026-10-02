@@ -220,7 +220,7 @@
       </div>
     </section>
 
-    <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-ss-done>등록되었습니다. 원상품번호 {{ done.originProductNo }}<template v-if="done.channelProductNo"> · 채널상품번호 {{ done.channelProductNo }}</template> · {{ DISPLAY_LABEL[done.display] || DISPLAY_LABEL[f.display] }}</p>
+    <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-ss-done>{{ done.updated ? '판매처에 있는 상품을 수정했습니다.' : '등록되었습니다.' }} 원상품번호 {{ done.originProductNo }}<template v-if="done.channelProductNo"> · 채널상품번호 {{ done.channelProductNo }}</template> · {{ DISPLAY_LABEL[done.display] || DISPLAY_LABEL[f.display] }}</p>
   </div>
 </template>
 
