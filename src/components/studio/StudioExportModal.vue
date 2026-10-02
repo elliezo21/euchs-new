@@ -167,7 +167,7 @@ import { ref, computed, watch } from 'vue'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import { exportPlan, exportFileName, fileBaseName, EXPORT_FORMATS, EXPORT_SCALES, SLICE_MAX_PX } from '@/lib/studioExport'
 import { summarizeNotes } from '@/lib/studioPreview' // 같은 알림은 한 줄로 (review-1)
-import { beginArchive, archiveFile, archiveThumb, makeThumb, archiveKey, commitSave } from '@/lib/studioExportArchive'
+import { beginArchive, archiveFile, archiveThumb, makeThumb, archiveKey, commitSave, ARCHIVE_POOL } from '@/lib/studioExportArchive'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -204,7 +204,8 @@ let timing = { t0: 0, render: 0, archive: 0 }
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
 function logTiming(files) {
   const t = timing
-  console.info(`[StudioExportModal] ${props.saveOnly ? '작업 저장' : '다운로드'} ${doneCount.value}/${files.length}장 · 전체 ${Math.round(now() - t.t0)}ms · 그리기 ${Math.round(t.render)}ms · 보관 ${Math.round(t.archive)}ms`)
+  // 보관 = 장마다 걸린 시간의 합 (동시에 올리므로 전체보다 클 수 있다 — 비교는 "전체"로)
+  console.info(`[StudioExportModal] ${props.saveOnly ? '작업 저장' : '다운로드'} ${doneCount.value}/${files.length}장 · 전체 ${Math.round(now() - t.t0)}ms · 그리기 ${Math.round(t.render)}ms · 보관 ${Math.round(t.archive)}ms · 동시 ${ARCHIVE_POOL}장`)
 }
 
 const orderedPicked = computed(() => props.page.sections.filter(s => picked.value.has(s.id)).map(s => s.id))
@@ -276,7 +277,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
 // state: idle | saving | saved | soon(표 설정 전) | failed(한 장이라도 못 함)
 const archive = ref({ state: 'idle', saved: 0, failed: 0, message: '' })
 let archiveId = null
-let thumbDone = false
+// 미리보기(thumb) = 이번에 처음 만든 장 — 보관을 동시에 올리므로 끝나는 순서와 상관없이 그 장으로. 그 장이 실패하면 다음에 보관된 장
+let thumbState = 'wait' // wait(첫 장 기다림) | free(첫 장 실패 — 다음에 보관된 장) | done
 const archiveLine = computed(() => {
   const a = archive.value
   if (a.state === 'saved') return `내 상품에 ${a.saved}장 보관했어요 · 작업 홈 [내 상품]에서 다시 받을 수 있어요`
@@ -286,7 +288,7 @@ const archiveLine = computed(() => {
 })
 async function startArchive(r) {
   archiveId = null
-  thumbDone = false
+  thumbState = 'wait'
   archive.value = { state: 'idle', saved: 0, failed: 0, message: '' }
   if (!props.projectId) return
   archive.value = { ...archive.value, state: 'saving' }
@@ -297,7 +299,7 @@ async function startArchive(r) {
     archive.value = { state: e.code === 'export_sql_missing' ? 'soon' : 'failed', saved: 0, failed: r.files.length, message: e.message }
   }
 }
-async function archiveOne(file, blob, name) {
+async function archiveOne(file, blob, name, first = false) {
   if (!archiveId) return
   try {
     await archiveFile(archiveId, { key: archiveKey(file.no), name, blob })
@@ -305,10 +307,11 @@ async function archiveOne(file, blob, name) {
   } catch (e) {
     console.error('[StudioExportModal] 내 상품 보관 실패:', name, e.code, e)
     archive.value = { ...archive.value, failed: archive.value.failed + 1, message: e.message }
+    if (first && thumbState === 'wait') thumbState = 'free'
     return
   }
-  if (thumbDone) return
-  thumbDone = true
+  if (thumbState === 'done' || (thumbState === 'wait' && !first)) return
+  thumbState = 'done'
   try {
     await archiveThumb(archiveId, await makeThumb(blob))
   } catch (e) {
@@ -342,6 +345,9 @@ async function run(from) {
   phase.value = 'running'
   stopAsked.value = false
   const { files, format: fmt, scale: sc, base } = runPlan
+  // 보관(내 상품 업로드)은 동시에 ARCHIVE_POOL장까지 — 그리기·내려받기는 예전처럼 한 장씩 순서대로. 확인은 studioExportArchive가 한 줄로 세운다
+  const inflight = new Set()
+  const settle = async () => { await Promise.all(inflight) }
   for (let i = from; i < files.length; i++) {
     if (stopAsked.value || !props.open) break
     const file = files[i]
@@ -359,8 +365,9 @@ async function run(from) {
       if (!props.saveOnly) download(out.blob, name)
       doneCount.value++
       const ta = now()
-      await archiveOne(file, out.blob, name)
-      timing.archive += now() - ta
+      const job = archiveOne(file, out.blob, name, i === from).then(() => { timing.archive += now() - ta; inflight.delete(job) })
+      inflight.add(job)
+      if (inflight.size >= ARCHIVE_POOL) await Promise.race(inflight)
       if (!props.saveOnly && i < files.length - 1) await sleep(400) // 여러 파일을 한꺼번에 내려받지 않게 조금씩 띄운다
     } catch (e) {
       console.error('[StudioExportModal] 이미지 만들기 실패:', file, e)
@@ -370,11 +377,13 @@ async function run(from) {
         message: `${e?.message || String(e)}${e?.kind === 'tooLarge' ? ' — [여러 장으로 나눠서]나 1배로 받아 주세요.' : ''}`,
         fileIndex: i,
       }
+      await settle() // 이미 올리던 장은 끝까지 (보관 숫자가 맞게)
       phase.value = 'error'
       finishArchive()
       return
     }
   }
+  await settle()
   finishArchive()
   logTiming(files)
   if (props.saveOnly) return finishSave(files.length)

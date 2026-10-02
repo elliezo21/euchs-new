@@ -6,6 +6,7 @@
  */
 import { supabase } from '@/lib/supabase'
 import { callStudioApi, studioErrorMessage } from '@/lib/studioApi'
+import { serializeByKey } from '@/lib/studioSerial'
 
 export const ARCHIVE_MAX_BYTES = 20 * 1024 * 1024 // 버킷 file_size_limit 20971520 · 서버 _studioExports.EXPORT_MAX_BYTES와 같은 값
 export const THUMB_W = 360                         // 목록 미리보기 폭
@@ -32,6 +33,10 @@ export async function beginArchive({ projectId, title, format, scale, mode, coun
   return r.data.exportId
 }
 
+export const ARCHIVE_POOL = 4 // [작업 저장]·[다운로드] 보관을 동시에 올리는 장 수 (2026-10-02 — 19장 112초 중 보관 111초, 한 장씩 차례로였음)
+// 같은 내 상품의 확인(export_file_confirm)은 한 번에 하나씩(serializeByKey) — 서버가 studio_exports.files(JSON 칸)를 읽고 고쳐 쓰므로(upsertExportFile)
+// 동시에 확인하면 서로의 기록을 덮어 한 장이 빠질 수 있다. 준비(prepare)·업로드는 동시에 해도 된다(파일 경로가 key마다 따로)
+
 async function putFile(exportId, key, blob, name, contentType) {
   const prep = await callStudioApi('studio-upload', { action: 'export_file_prepare', exportId, key, size: blob.size })
   if (!prep.ok) throw apiError(prep)
@@ -45,7 +50,7 @@ async function putFile(exportId, key, blob, name, contentType) {
       throw err
     }
   }
-  const conf = await callStudioApi('studio-upload', { action: 'export_file_confirm', exportId, key, path, name })
+  const conf = await serializeByKey(exportId, () => callStudioApi('studio-upload', { action: 'export_file_confirm', exportId, key, path, name }))
   if (!conf.ok) throw apiError(conf)
   return conf.data
 }

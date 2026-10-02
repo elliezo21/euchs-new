@@ -255,5 +255,27 @@ const quiet = async fn => { const o = [console.error, console.warn, console.info
   eq('칸 없음: 저장 마무리 → 503', (await quiet(() => call({ action: 'export_save_commit', exportId: d.body.exportId }))).code, 503)
 }
 
+// ── 보관을 동시에 올리기 (2026-10-02 — 19장 · 전체 112981ms 중 보관 111725ms, 한 장씩 차례로였음) ──
+{
+  const fs = await import('node:fs')
+  const { serializeByKey, pendingKeys } = await import('../src/lib/studioSerial.js')
+  const log = []
+  const wait = ms => new Promise(r => setTimeout(r, ms))
+  const job = (name, ms, fail = false) => async () => { log.push(`${name}+`); await wait(ms); log.push(`${name}-`); if (fail) throw new Error(name); return name }
+  const rs = await Promise.allSettled([serializeByKey('ex1', job('a', 30)), serializeByKey('ex1', job('b', 5, true)), serializeByKey('ex1', job('c', 1)), serializeByKey('ex2', job('z', 1))])
+  eq('같은 내 상품의 확인은 한 번에 하나씩(겹치지 않음) · 다른 내 상품은 따로 · 앞이 실패해도 다음은 함 · 실패는 그 호출자만', [
+    log.filter(x => x[0] !== 'z'), log.indexOf('z-') < log.indexOf('a-'), rs.map(r => r.status), rs[2].value,
+  ], [['a+', 'a-', 'b+', 'b-', 'c+', 'c-'], true, ['fulfilled', 'rejected', 'fulfilled', 'fulfilled'], 'c'])
+  await wait(5)
+  eq('끝나면 대기 줄이 비워짐', pendingKeys(), 0)
+  const ar = fs.readFileSync(new URL('../src/lib/studioExportArchive.js', import.meta.url), 'utf8')
+  const md = fs.readFileSync(new URL('../src/components/studio/StudioExportModal.vue', import.meta.url), 'utf8')
+  eq('배선: 확인만 serializeByKey(내 상품 id) · 동시 4장 · 창은 보관을 기다리지 않고 다음 장을 그림 · 끝·실패 전에 남은 보관을 기다림 · 시간 로그 유지', [
+    ar.includes("serializeByKey(exportId, () => callStudioApi('studio-upload', { action: 'export_file_confirm'"), /export const ARCHIVE_POOL = 4\b/.test(ar),
+    md.includes('if (inflight.size >= ARCHIVE_POOL) await Promise.race(inflight)') && !md.includes('      await archiveOne(file, out.blob, name)'),
+    (md.match(/await settle\(\)/g) || []).length, md.includes('· 전체 ${Math.round(now() - t.t0)}ms · 그리기 ${Math.round(t.render)}ms · 보관 ${Math.round(t.archive)}ms'),
+  ], [true, true, true, 2, true])
+}
+
 console.log(`\n${pass} 통과 · ${fail} 실패`)
 process.exit(fail ? 1 : 0)
