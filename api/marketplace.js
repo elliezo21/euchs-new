@@ -1371,7 +1371,7 @@ function zigzagInput(body) {
     essentialFields: (Array.isArray(body.essentialFields) ? body.essentialFields : []).slice(0, 60).filter(f => typeof f?.key === 'string' && typeof f?.name === 'string').map(f => ({ key: f.key.slice(0, 100), name: f.name.slice(0, 200) })),
     essentials: Object.fromEntries(Object.entries(ess).slice(0, 60).filter(([, v]) => typeof v === 'string').map(([k, v]) => [k.slice(0, 100), v.slice(0, 1000)])),
     display: body.display,
-    delivery: { feeType: d.feeType, baseFee: num(d.baseFee), freeOver: num(d.freeOver), jejuFee: num(d.jejuFee), isolatedFee: num(d.isolatedFee), returnFee: num(d.returnFee), exchangeFee: num(d.exchangeFee), shippingDays: num(d.shippingDays), bundle: d.bundle, returnId: d.returnId },
+    delivery: { feeType: d.feeType, baseFee: num(d.baseFee), freeOver: num(d.freeOver), jejuFee: num(d.jejuFee), isolatedFee: num(d.isolatedFee), returnFee: num(d.returnFee), partialReturnFee: num(d.partialReturnFee), exchangeFee: num(d.exchangeFee), shippingDays: num(d.shippingDays), bundle: d.bundle, returnId: d.returnId },
     taxType: body.taxType, parallel: body.parallel, overseas: body.overseas === true, brandId: body.brandId,
   }
 }

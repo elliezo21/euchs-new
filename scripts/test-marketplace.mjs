@@ -3548,7 +3548,7 @@ function elevenstRelay(u, method, opts) {
       options: { groupNames: ['색상', '사이즈'], rows: [{ values: ['블랙', 'S'], addPrice: 0, stock: 3 }, { values: ['블랙', 'M'], addPrice: 1000, stock: 0 }] },
       essentialCode: 'FASHION', essentialFields: FIELDS, essentials: { material: '폴리', date_of_production: '2026-10-02', country_of_manufacturer: '중국', phone_number: '010-1234-5678' },
       display: 'HIDDEN', repImageId: UIMG, fit: 'contain',
-      delivery: { feeType: 'FREE', baseFee: 0, freeOver: null, jejuFee: 3000, isolatedFee: 5000, returnFee: 3000, exchangeFee: 6000, shippingDays: 3, bundle: 'CONSOLIDATED', returnId: '12528' },
+      delivery: { feeType: 'FREE', baseFee: 0, freeOver: null, jejuFee: 3000, isolatedFee: 5000, returnFee: 3000, partialReturnFee: 2500, exchangeFee: 6000, shippingDays: 3, bundle: 'CONSOLIDATED', returnId: '12528' },
       taxType: 'TAX', parallel: 'NOT_PARALLEL_IMPORTED', overseas: false, brandId: null,
     }
     zz.calls = []
@@ -3557,11 +3557,24 @@ function elevenstRelay(u, method, opts) {
     eq('지그재그 새 등록: 200 registered · 상품 ID · 호출 순서(상품 기록 없음 → createProduct) · 기록 1개(상품번호·계정 = 스토어 ID)', [z1.statusCode, z1.body.status, z1.body.productId, zzOps(), zzRows().length, zzRows()[0].seller_product_id, zzRows()[0].market_account],
       [200, 'registered', '100129206', ['createProduct'], 1, '100129206', '777'])
     eq('생성 입력 = 스키마 칸만(지어낸 칸·deprecated 칸 없음) · 필수(!) 칸 모두 있음 (중첩 input까지)', schemaProblems(cin, 'CreateProductInput'), [])
-    eq('생성 입력 값: 옵션 2종 · 품목 = 조합(가격 = 판매가 + 추가금액 · 재고 0 = 품절) · 대표 이미지 MAIN = 공개 창고 주소 · 상세 = 공개 주소 <img> · 무료배송 base_fee 0·partial 없음 · 스토어배송·일반배송 · 반송지 · 관리코드 = 내 상품 id · solution 칸 없음', [
+    eq('생성 입력 값: 옵션 2종 · 품목 = 조합(가격 = 판매가 + 추가금액 · 재고 0 = 품절) · 대표 이미지 MAIN = 공개 창고 주소 · 상세 = 공개 주소 <img> · 무료배송 base_fee 0·부분 반품비 partial · 스토어배송·일반배송 · 반송지 · 관리코드 = 내 상품 id · solution 칸 없음', [
       cin.option_list, cin.item_list.map(it => [it.attribute_list.map(a => a.value).join('/'), it.site_list[0].original_price, it.inventory.quantity, it.sales_status]), /\/market-images\/[0-9a-f]{32}\/rep\.jpg$/.test(cin.image_list[0].origin_url),
       (cin.description.match(/<img src="[^"]*\/market-images\/[0-9a-f]{32}\/\d+\.jpg"/g) || []).length, cin.site_list[0].shipping_fee, [cin.fulfillment_type, cin.shipping_type, cin.shipping_days, cin.address, cin.bundle_type], cin.external_code, 'solution' in cin, cin.site_list[0].original_price,
     ], [[{ name: '색상', value_list: [{ value: '블랙' }] }, { name: '사이즈', value_list: [{ value: 'S' }, { value: 'M' }] }], [['블랙/S', 59000, 3, 'ON_SALE'], ['블랙/M', 60000, 0, 'SOLD_OUT']], true, db.studio_exports.find(e => e.id === UEID).files.length,
-      { fee_type: 'FREE', base_fee: 0, area_fee: { jeju: 3000, isolated: 5000 }, return_fee: { total: 3000 }, exchange_fee: 6000 }, ['MERCHANT', 'GENERAL', 3, { return_id: '12528' }, 'CONSOLIDATED'], UEID, false, 59000])
+      { fee_type: 'FREE', base_fee: 0, area_fee: { jeju: 3000, isolated: 5000 }, return_fee: { total: 3000, partial: 2500 }, exchange_fee: 6000 }, ['MERCHANT', 'GENERAL', 3, { return_id: '12528' }, 'CONSOLIDATED'], UEID, false, 59000])
+    // 부분 반품 배송비 (2026-10-02 운영: 무료배송에 partial이 없으면 지그재그가 거절)
+    const zzD = d => ZF.buildZigzagProduct({ ...ZZU, delivery: { ...ZZU.delivery, ...d }, repUrl: 'u', detailUrls: ['u'] })
+    eq('부분 반품비: 무료·조건부 무료 = 필수(없으면 거절) · 보내면 return_fee.partial · 고정 배송비 = partial 칸 없음(예전 그대로)', [
+      zzD({ partialReturnFee: NaN }).ok, zzD({ partialReturnFee: NaN }).message, zzD({ feeType: 'CONDITIONAL_FREE', baseFee: 3000, freeOver: 50000, partialReturnFee: undefined }).ok,
+      zzD({ feeType: 'CONDITIONAL_FREE', baseFee: 3000, freeOver: 50000 }).input.site_list[0].shipping_fee.return_fee, zzD({ feeType: 'CHARGED', baseFee: 3000, partialReturnFee: NaN }).input.site_list[0].shipping_fee.return_fee,
+      zzD({ partialReturnFee: 0 }).input.site_list[0].shipping_fee.return_fee,
+    ], [false, '부분 반품 배송비를 입력하세요.', false, { total: 3000, partial: 2500 }, { total: 3000 }, { total: 3000, partial: 0 }])
+    const zzv = read('src/components/studio/StudioSendZigzag.vue')
+    eq('부분 반품비 화면: 무료·조건부 무료일 때 반품 배송비 옆 칸 · 기본값 = 반품 배송비(직접 고치기 전까지 따라감) · 빠짐 목록 · 보낼 값', [
+      zzv.includes('<label v-if="needsPartialReturn(f.feeType)" class="block"><span class="st-desc-sm block mb-1">부분 반품 배송비'), zzv.indexOf('data-mk-zz-partial-return-fee') > zzv.indexOf('data-mk-zz-return-fee') && zzv.indexOf('data-mk-zz-partial-return-fee') < zzv.indexOf('data-mk-zz-exchange-fee'),
+      zzv.includes('watch(() => f.value.returnFee, v => { if (!partialTouched.value) f.value.partialReturnFee = v })'), zzv.includes("out.push('부분 반품 배송비')"), zzv.includes('partialReturnFee: v.partialReturnFee'),
+      read('api/marketplace.js').includes('partialReturnFee: num(d.partialReturnFee)'),
+    ], [true, true, true, true, true, true])
     eq('auditor: 셀러 로그인 아이디(이메일)를 넘기면 입력에 들어감 · 비면 칸 없음', [ZF.buildZigzagProduct({ ...ZZU, repUrl: 'u', detailUrls: ['u'], auditor: 'seller@test.local' }).input.auditor, 'auditor' in ZF.buildZigzagProduct({ ...ZZU, repUrl: 'u', detailUrls: ['u'], auditor: '' }).input], ['seller@test.local', false])
 
     // 다시 보내기 — 판매처에 있는 상품 갱신 (id 짝짓기)

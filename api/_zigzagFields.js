@@ -31,6 +31,10 @@ export const ITEM_MAX = 200 // 문서: item_list 최대 200개
 export const SHIPPING_DAYS_MIN = 1
 export const SHIPPING_DAYS_MAX = 7 // 문서: 일반배송(GENERAL) 1~7일
 export const FEE_TYPES = [{ code: 'FREE', name: '무료' }, { code: 'CHARGED', name: '고정 배송비' }, { code: 'CONDITIONAL_FREE', name: '조건부 무료' }]
+// 부분 반품 배송비 (2026-10-02) — 스키마 CatalogProductShippingReturnFeeInput { total: Int!, partial: Int } · 문서(api-product) "partial - 무료배송으로 구매한 상품 중 일부만 반품할 때 구매자가 부담해야 하는 반품비용"
+//   운영 실측(2026-10-02 지그재그 알파 가게): 무료배송에 partial이 없으면 "무료배송은 부분반품비가 필수 입력되어야 합니다." 로 거절
+//   조건부 무료도 조건을 채우면 무료배송 구매가 되므로 같이 보낸다(문서 설명 기준) · 고정 배송비는 보내지 않는다(예전 그대로)
+export const needsPartialReturn = feeType => feeType === 'FREE' || feeType === 'CONDITIONAL_FREE'
 export const DISPLAY_STATUSES = [{ code: 'HIDDEN', name: '숨김' }, { code: 'VISIBLE', name: '노출' }]
 export const BUNDLE_TYPES = [{ code: 'CONSOLIDATED', name: '묶음배송 가능' }, { code: 'SEPARATED', name: '묶음배송 불가' }]
 export const TAX_TYPES = [{ code: 'TAX', name: '과세' }, { code: 'FREE', name: '면세' }]
@@ -146,7 +150,7 @@ export const zigzagDescription = (urls, name) => `<html>${(Array.isArray(urls) ?
 /**
  * CreateProductInput (갱신은 mergeZigzagUpdate가 id를 붙인다). 화면 값만 — 금액은 바꾸지 않는다(반올림·임의 숫자 없음)
  * @param {{ productName, price, listPrice?, stock?, options?, categoryId, essentialCode, essentials:{ [key]: value }, essentialFields:[{ key, name }],
- *           display, delivery:{ feeType, baseFee?, freeOver?, jejuFee, isolatedFee, returnFee, exchangeFee, shippingDays, bundle, returnId },
+ *           display, delivery:{ feeType, baseFee?, freeOver?, jejuFee, isolatedFee, returnFee, partialReturnFee?(무료·조건부 무료 필수), exchangeFee, shippingDays, bundle, returnId },
  *           taxType, parallel, overseas?, brandId?, repUrl, detailUrls, exportId?, auditor? }} p
  * @returns {{ ok:true, input, summary } | { ok:false, message }}
  */
@@ -173,6 +177,8 @@ export function buildZigzagProduct(p) {
   if (d.feeType === 'CONDITIONAL_FREE' && !isWon(d.freeOver, 1)) return { ok: false, message: '무료배송 조건 금액을 입력하세요.' }
   if (!isWon(d.jejuFee) || !isWon(d.isolatedFee)) return { ok: false, message: '제주·도서산간 추가 배송비를 입력하세요.' }
   if (!isWon(d.returnFee) || !isWon(d.exchangeFee)) return { ok: false, message: '반품·교환 배송비를 입력하세요.' }
+  const partial = needsPartialReturn(d.feeType)
+  if (partial && !isWon(d.partialReturnFee)) return { ok: false, message: '부분 반품 배송비를 입력하세요.' }
   if (!Number.isInteger(d.shippingDays) || d.shippingDays < SHIPPING_DAYS_MIN || d.shippingDays > SHIPPING_DAYS_MAX) return { ok: false, message: `발송소요일은 ${SHIPPING_DAYS_MIN}~${SHIPPING_DAYS_MAX}일 중에서 입력하세요.` }
   if (!BUNDLE_TYPES.some(b => b.code === d.bundle)) return { ok: false, message: '묶음배송 여부를 선택하세요.' }
   if (!/^\d{1,20}$/.test(String(d.returnId ?? ''))) return { ok: false, message: '반송지를 선택하세요.' }
@@ -192,7 +198,7 @@ export function buildZigzagProduct(p) {
       shipping_fee: {
         fee_type: d.feeType, base_fee: baseFee, area_fee: { jeju: d.jejuFee, isolated: d.isolatedFee },
         ...(d.feeType === 'CONDITIONAL_FREE' ? { conditional_amount: d.freeOver } : {}), // 문서: 조건부 무료배송이 아닌 경우는 비워 두세요
-        return_fee: { total: d.returnFee }, exchange_fee: d.exchangeFee,
+        return_fee: { total: d.returnFee, ...(partial ? { partial: d.partialReturnFee } : {}) }, exchange_fee: d.exchangeFee,
       },
     }],
     ...(brandId ? { brand_id: brandId } : {}),

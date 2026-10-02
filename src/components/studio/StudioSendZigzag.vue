@@ -100,6 +100,8 @@
           <label class="block"><span class="st-desc-sm block mb-1">도서산간 추가</span><input v-model.number="f.isolatedFee" type="number" min="0" step="1" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-zz-isolated /></label>
         </div>
         <label class="block"><span class="st-desc-sm block mb-1">반품 배송비</span><input v-model.number="f.returnFee" type="number" min="0" step="1" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-zz-return-fee /></label>
+        <!-- 부분 반품 배송비 — 무료·조건부 무료일 때 필수(지그재그 return_fee.partial). 처음에는 반품 배송비를 따라가고, 직접 고치면 그 값 그대로 -->
+        <label v-if="needsPartialReturn(f.feeType)" class="block"><span class="st-desc-sm block mb-1">부분 반품 배송비 (무료배송 상품 일부 반품)</span><input v-model.number="f.partialReturnFee" type="number" min="0" step="1" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-zz-partial-return-fee @input="partialTouched = true" /></label>
         <label class="block"><span class="st-desc-sm block mb-1">교환 배송비 (왕복)</span><input v-model.number="f.exchangeFee" type="number" min="0" step="1" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-zz-exchange-fee /></label>
         <label class="block"><span class="st-desc-sm block mb-1">발송소요일 ({{ SHIPPING_DAYS_MIN }}~{{ SHIPPING_DAYS_MAX }}일)</span><input v-model.number="f.shippingDays" type="number" :min="SHIPPING_DAYS_MIN" :max="SHIPPING_DAYS_MAX" step="1" class="st-input w-full" placeholder="일" :disabled="!!done" data-mk-zz-days /></label>
         <label class="block"><span class="st-desc-sm block mb-1">묶음배송</span>
@@ -186,7 +188,7 @@ import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
 import {
   FEE_TYPES, DISPLAY_STATUSES, BUNDLE_TYPES, TAX_TYPES, PARALLEL_TYPES, SHIPPING_DAYS_MIN, SHIPPING_DAYS_MAX, ITEM_MAX,
-  ESSENTIAL_DEFAULT, ESSENTIAL_COUNTRY_DEFAULT, essentialDefaults, zigzagOptionRows, buildZigzagProduct, DISPLAY_LABEL,
+  ESSENTIAL_DEFAULT, ESSENTIAL_COUNTRY_DEFAULT, essentialDefaults, zigzagOptionRows, buildZigzagProduct, DISPLAY_LABEL, needsPartialReturn,
 } from '../../../api/_zigzagFields.js'
 import { optionsPayload } from '../../../api/_marketOptions.js'
 import { optionEditorFromSource } from '@/lib/studioOptionEditor'
@@ -213,10 +215,13 @@ const catQuery = ref('')
 const f = ref({
   productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
   categoryId: null, price: null, listPrice: null, stock: null, repImageId: props.prepare?.images?.[0]?.id ?? null, fit: 'contain',
-  display: 'HIDDEN', feeType: 'FREE', baseFee: null, freeOver: null, jejuFee: null, isolatedFee: null, returnFee: null, exchangeFee: null, shippingDays: null,
+  display: 'HIDDEN', feeType: 'FREE', baseFee: null, freeOver: null, jejuFee: null, isolatedFee: null, returnFee: null, partialReturnFee: null, exchangeFee: null, shippingDays: null,
   bundle: 'CONSOLIDATED', returnId: null, taxType: 'TAX', parallel: 'NOT_PARALLEL_IMPORTED', overseas: false, brandId: '',
   essentialCode: '', essentials: {},
 })
+// 부분 반품 배송비 기본값 = 반품 배송비 (고객이 직접 고치기 전까지 따라간다)
+const partialTouched = ref(false)
+watch(() => f.value.returnFee, v => { if (!partialTouched.value) f.value.partialReturnFee = v })
 const opts = ref(optionEditorFromSource(props.prepare?.source?.skus))
 const useOptions = computed(() => opts.value.enabled)
 const optionsOut = computed(() => (useOptions.value ? optionsPayload(opts.value) : null))
@@ -256,7 +261,7 @@ const payload = computed(() => {
     categoryId: v.categoryId, categoryName: category.value?.wholeName || '', essentialCode: v.essentialCode,
     essentialFields: essentialFields.value.map(fd => ({ key: fd.key, name: fd.name })), essentials: { ...v.essentials },
     display: v.display, repImageId: v.repImageId, fit: v.fit,
-    delivery: { feeType: v.feeType, baseFee: v.feeType === 'FREE' ? 0 : v.baseFee, freeOver: v.feeType === 'CONDITIONAL_FREE' ? v.freeOver : null, jejuFee: v.jejuFee, isolatedFee: v.isolatedFee, returnFee: v.returnFee, exchangeFee: v.exchangeFee, shippingDays: v.shippingDays, bundle: v.bundle, returnId: v.returnId },
+    delivery: { feeType: v.feeType, baseFee: v.feeType === 'FREE' ? 0 : v.baseFee, freeOver: v.feeType === 'CONDITIONAL_FREE' ? v.freeOver : null, jejuFee: v.jejuFee, isolatedFee: v.isolatedFee, returnFee: v.returnFee, ...(needsPartialReturn(v.feeType) ? { partialReturnFee: v.partialReturnFee } : {}), exchangeFee: v.exchangeFee, shippingDays: v.shippingDays, bundle: v.bundle, returnId: v.returnId },
     taxType: v.taxType, parallel: v.parallel, overseas: v.overseas === true, brandId: v.brandId || null,
   }
 })
@@ -277,6 +282,7 @@ const missing = computed(() => {
   if (v.feeType === 'CONDITIONAL_FREE' && !isWon(v.freeOver, 1)) out.push('무료배송 조건 금액')
   if (!isWon(v.jejuFee) || !isWon(v.isolatedFee)) out.push('제주·도서산간 추가 배송비')
   if (!isWon(v.returnFee) || !isWon(v.exchangeFee)) out.push('반품·교환 배송비')
+  if (needsPartialReturn(v.feeType) && !isWon(v.partialReturnFee)) out.push('부분 반품 배송비')
   if (!Number.isInteger(v.shippingDays) || v.shippingDays < SHIPPING_DAYS_MIN || v.shippingDays > SHIPPING_DAYS_MAX) out.push(`발송소요일 (${SHIPPING_DAYS_MIN}~${SHIPPING_DAYS_MAX}일)`)
   if (!v.returnId) out.push('반송지')
   if (!v.essentialCode || !essentialFields.value.length) out.push('상품정보제공고시 종류')
@@ -303,6 +309,7 @@ const preview = computed(() => {
     { label: '상세 이미지', value: `상세 이미지 ${props.prepare.export.files.length}장` },
     { label: '노출 상태', value: DISPLAY_LABEL[v.display] || '' },
     { label: '배송비', value: v.feeType === 'FREE' ? '무료' : v.feeType === 'CHARGED' ? won(v.baseFee) : (isWon(v.baseFee, 1) && isWon(v.freeOver, 1) ? `${won(v.baseFee)} · ${won(v.freeOver)} 이상 무료` : '') },
+    ...(needsPartialReturn(v.feeType) ? [{ label: '부분 반품 배송비', value: isWon(v.partialReturnFee) ? won(v.partialReturnFee) : '' }] : []),
     { label: '발송소요일', value: Number.isInteger(v.shippingDays) ? `${v.shippingDays}일` : '' },
     { label: '반송지', value: addresses.value.find(a => a.id === v.returnId)?.name || '' },
     { label: '상품정보제공고시', value: essentialChoices.value.find(t => t.code === v.essentialCode)?.name || '' },
