@@ -45,9 +45,13 @@ export const EXPORT_MODES = ['sections', 'long'] // 여러 장으로 나눠서(�
  *   기준 길이 근거 (보고서 docs/reports/2026-10-02-*-detail-slices.md):
  *     쿠팡 상세(DETAIL) 한 변 최대 5000px·최소 500px·10MB (쿠팡 반려 사유 2026-09-28 — api/_coupangFields.js DETAIL_MAX) = 확인한 값 중 가장 엄격한 상한
  *     세로 3000px 넘으면 나누기 권장 = 판매처 공식 문서가 아니라 여러 판매 안내 글의 공통 권장값 (미확인 — 공식 문서로 확인 못 함)
- *   → 3000: 쿠팡 상한 5000 안쪽 + 한 장 용량이 작아 업로드가 가볍다. 값을 바꾸려면 이 줄만
+ *   → 2500 (2026-10-02 해성 결정 — 3000에서 낮춤, 여유 확보): 쿠팡 상한 5000 안쪽 + 한 장 용량이 작아 업로드가 가볍다. 값을 바꾸려면 이 줄만
  */
-export const SLICE_MAX_PX = 3000
+export const SLICE_MAX_PX = 2500
+// 나눈 한 장(JPG) 용량 상한 (2026-10-02 해성 결정 — 확인된 판매처 규정이 아니라 여유값. 쿠팡 대표 이미지 3MB와 같은 값)
+//   넘으면 JPG 품질을 JPG_QUALITY_STEPS 순서로 낮춰 다시 만든다(canvasToBlobUnder). PNG는 품질을 낮출 수 없어 그대로
+export const SLICE_MAX_BYTES = 3 * 1024 * 1024
+export const JPG_QUALITY_STEPS = [0.92, 0.85, 0.78, 0.7, 0.6, 0.5]
 export const SLICE_MIN_PX = 500 // 쿠팡 DETAIL 최소 500px — 이보다 짧은 조각은 쿠팡에서 흰 여백을 붙여야 한다
 export const GAP_COLOR = '#ffffff'
 /**
@@ -755,10 +759,26 @@ function freeCacheEntry(cache) {
   cache.entry = null
 }
 
-/** 캔버스 → 파일 (toBlob이 비면 = 캔버스를 만들지 못함·오염) */
-export function canvasToBlob(canvas, format) {
+/** 캔버스 → 파일 (toBlob이 비면 = 캔버스를 만들지 못함·오염). quality = JPG 품질을 바꿀 때만 (기본 = 형식의 품질) */
+export function canvasToBlob(canvas, format, quality = EXPORT_FORMATS[format].quality) {
   const f = EXPORT_FORMATS[format]
   return new Promise((resolve, reject) => {
-    canvas.toBlob(b => (b ? resolve(b) : reject(new ExportError('이미지 파일을 만들지 못했어요 (너무 크거나 브라우저 메모리가 부족해요)', { kind: 'encode' }))), f.mime, f.quality)
+    canvas.toBlob(b => (b ? resolve(b) : reject(new ExportError('이미지 파일을 만들지 못했어요 (너무 크거나 브라우저 메모리가 부족해요)', { kind: 'encode' }))), f.mime, quality)
   })
+}
+/**
+ * 캔버스 → 파일, JPG면 maxBytes 이하가 될 때까지 품질을 낮춘다 (나눈 한 장용 — SLICE_MAX_BYTES).
+ * 가장 낮은 품질로도 넘으면 그 파일을 쓰고 console.warn (숫자를 지어내지 않는다 — 판매처 쪽 검사가 다시 막는다)
+ * @returns {Promise<{ blob, quality }>}
+ */
+export async function canvasToBlobUnder(canvas, format, maxBytes = SLICE_MAX_BYTES) {
+  if (format !== 'jpg') return { blob: await canvasToBlob(canvas, format), quality: null }
+  let blob = null, quality = null
+  for (const q of JPG_QUALITY_STEPS) {
+    blob = await canvasToBlob(canvas, format, q)
+    quality = q
+    if (blob.size <= maxBytes) return { blob, quality }
+  }
+  console.warn(`[studioExport] 가장 낮은 품질(${quality})로도 ${blob.size}바이트 — ${maxBytes}바이트를 넘은 채로 씀 (${canvas.width}×${canvas.height})`)
+  return { blob, quality }
 }

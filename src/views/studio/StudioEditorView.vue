@@ -584,7 +584,7 @@ import StudioExportModal from '@/components/studio/StudioExportModal.vue'
 import StudioPreview from '@/components/studio/StudioPreview.vue'
 import StudioCropScreen from '@/components/studio/StudioCropScreen.vue'
 import StudioBgRefineScreen from '@/components/studio/StudioBgRefineScreen.vue'
-import { renderSection, renderPage, renderSlice, canvasToBlob } from '@/lib/studioExport'
+import { renderSection, renderPage, renderSlice, canvasToBlob, canvasToBlobUnder } from '@/lib/studioExport'
 import { loadWithResign } from '@/lib/studioImageCache'
 import { geometryOf, drawGeometry, shapeMark, readShape } from '@/lib/studioCrop'
 import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
@@ -2222,7 +2222,9 @@ async function exportRender(file, { format, scale, onStep }) {
       ? await renderSection(page.value, file.sectionIds[0], exportDeps, { scale })
       : await renderPage(page.value, file.sectionIds, exportDeps, { scale, onStep })
   try {
-    return { blob: await canvasToBlob(out.canvas, format), notes: out.notes }
+    // 나눈 한 장(JPG)은 3MB 이하로 (품질을 낮춰 다시 — studioExport.canvasToBlobUnder). 한 장으로 길게·미리보기는 예전 그대로
+    const blob = file.range ? (await canvasToBlobUnder(out.canvas, format)).blob : await canvasToBlob(out.canvas, format)
+    return { blob, notes: out.notes }
   } finally {
     out.canvas.width = 0 // 큰 캔버스 메모리를 바로 돌려준다
     out.canvas.height = 0
