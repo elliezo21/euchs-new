@@ -78,6 +78,7 @@ import { lastAddressesOf } from './_smartstoreFields.js'
 import {
   STATUS_CHECK_MARKETS, CHECK_STATUSES, CHECK_BATCH, SS_SINGLE_MAX, SS_SEARCH_PATH, ssOriginProductPath, smartstoreStatusOf, smartstoreSearchBody,
   smartstoreSearchStatuses, isSsNotFound, STOP_CODES, DELETED, checkSince, LIST_PAGE, LIST_PAGES_MAX,
+  COUPANG_SINGLE_MAX, SINGLE_CHECK_STATUSES, COUPANG_DELETED_PAGES_MAX, coupangDeletedQuery, coupangListPage, SS_ACCOUNT_PATH, smartstoreAccountOf, accountJudge,
 } from './_marketStatus.js'
 import {
   Cafe24Error, authorizeUrl, makeState, verifyState, verifyLaunch, exchangeCode, refreshAccess, missingScopes, needsRefresh, isMallId, normalizeMallId, appCredentials, redirectKeyFor, CAFE24_REDIRECT_URIS,
@@ -100,7 +101,7 @@ const DOC_TYPES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 
 const OFFER_ID_RE = /^\d{9,16}$/
 const ACCOUNT_PUBLIC = 'id,seller_login_id,vendor_id,key_last4,expires_at,status,last_checked_at,last_error,created_at,updated_at'
 const TEMPLATE_SELECT = 'id,name,delivery_charge_type,delivery_charge,free_ship_over_amount,delivery_charge_on_return,return_charge,exchange_charge,outbound_shipping_time_day,delivery_company_code,outbound_place_code,return_center_code,remote_area_deliverable,is_default,created_at,updated_at'
-const SEND_SELECT = 'id,export_id,market,seller_product_id,status,coupang_status,reason,approval_requested_at,last_synced_at,created_at,updated_at,request_json'
+const SEND_SELECT = 'id,export_id,market,seller_product_id,status,market_status,reason,approval_requested_at,last_synced_at,created_at,updated_at,request_json'
 
 function marketConfig() {
   return {
@@ -636,6 +637,7 @@ async function connectSmartstore(ctx, body, res) {
     }
     throw e
   }
+  await resetSmartstoreAccountKey(ctx) // 다른 스토어로 바꿔 연결했을 수 있다 — 계정 식별값은 다음 보내기·확인 때 다시 읽는다
   console.info(`[marketplace] 스마트스토어 연결 ${ctx.userId}`)
   return marketStatus(ctx, body, res)
 }
@@ -831,6 +833,7 @@ async function smartstoreSend(ctx, body, res) {
   }
   const display = built.body.smartstoreChannelProduct.channelProductDisplayStatusType
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { seller_product_id: nos.originProductNo, status: 'registered', result_json: { originProductNo: nos.originProductNo, channelProductNo: nos.channelProductNo, display } }, prefer: 'return=minimal' })
+  await recordSmartstoreAccount(ctx, sendId, cred)
   console.info(`[marketplace] 스마트스토어 상품 등록 ${ctx.userId} send=${sendId} origin=${nos.originProductNo} channel=${nos.channelProductNo} images=${urls.length} display=${display}`)
   return res.status(200).json({ sendId, originProductNo: nos.originProductNo, channelProductNo: nos.channelProductNo, sellerProductId: nos.originProductNo, status: 'registered', display })
 }
@@ -1400,6 +1403,7 @@ async function send(ctx, body, res) {
   const sellerProductId = r?.data != null ? String(r.data) : null
   const patch = { seller_product_id: sellerProductId && /^\d{1,20}$/.test(sellerProductId) ? sellerProductId : null, status: 'approval_pending', approval_requested_at: new Date().toISOString(), result_json: { code: r?.code, message: r?.message, data: r?.data } }
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' })
+  await recordSendAccount(ctx, sendId, cred.row.vendor_id) // 보낸 계정(업체코드) — 상태 확인 때 지금 연결된 계정과 비교
   console.info(`[marketplace] 쿠팡 상품 생성 ${ctx.userId} send=${sendId} product=${patch.seller_product_id}`)
   return res.status(200).json({ sendId, sellerProductId: patch.seller_product_id, status: 'approval_pending' })
 }
@@ -1412,7 +1416,7 @@ async function send(ctx, body, res) {
  */
 async function resend(ctx, res, { cred, prev, sendId, requestJson, plan }) {
   const pid = prev.seller_product_id
-  const rev = { n: requestJson.revisions.length + 1, at: new Date().toISOString(), previousReason: prev.reason || null, previousStatus: prev.coupang_status || null, coupangStatus: plan.statusName || null, via: plan.via, approval: false }
+  const rev = { n: requestJson.revisions.length + 1, at: new Date().toISOString(), previousReason: prev.reason || null, previousStatus: prev.market_status || null, coupangStatus: plan.statusName || null, via: plan.via, approval: false }
   const save = patch => sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' })
   let r
   try { r = await coupangCall(cred.call, { method: 'PUT', path: PATHS.products, body: requestJson.body, extendedTimeout: true }) } catch (e) {
@@ -1421,10 +1425,11 @@ async function resend(ctx, res, { cred, prev, sendId, requestJson, plan }) {
     return sendError(res, e.status === 429 ? 429 : 502, e.code, e.message)
   }
   await save({
-    status: 'approval_pending', coupang_status: null, reason: null, approval_requested_at: new Date().toISOString(),
+    status: 'approval_pending', market_status: null, reason: null, approval_requested_at: new Date().toISOString(),
     request_json: { ...requestJson, revisions: [...requestJson.revisions, { ...rev, approval: true }] },
     result_json: { code: r?.code, message: r?.message, data: r?.data, step: 'resend' },
   })
+  await recordSendAccount(ctx, sendId, cred.row.vendor_id)
   console.info(`[marketplace] 쿠팡 상품 수정 + 승인 요청 ${ctx.userId} send=${sendId} product=${pid} 회차=${rev.n} 쿠팡 상태="${plan.statusName}" 방법=${rev.via}`)
   return res.status(200).json({ sendId, sellerProductId: pid, status: 'approval_pending', resend: true, revision: rev.n })
 }
@@ -1432,7 +1437,7 @@ async function resend(ctx, res, { cred, prev, sendId, requestJson, plan }) {
 // ── 처리현황 ──
 // 목록에 필요한 칸만 (2026-10-02 — request_json 원문은 보낸 본문이라 크다: 기록 수천 건이면 응답이 수십 MB가 된다). 판매처마다 상품명 위치가 다르다
 const LIST_SELECT = [
-  'id', 'export_id', 'market', 'seller_product_id', 'status', 'coupang_status', 'reason', 'approval_requested_at', 'last_synced_at', 'created_at', 'updated_at',
+  'id', 'export_id', 'market', 'seller_product_id', 'status', 'market_status', 'market_account', 'reason', 'approval_requested_at', 'last_synced_at', 'created_at', 'updated_at',
   'nm_coupang:request_json->body->>sellerProductName', 'nm_cafe24:request_json->body->request->>product_name',
   'nm_smartstore:request_json->body->originProduct->>name', 'nm_11st:request_json->summary->>prdNm',
   'category_name:request_json->>categoryName', 'revisions:request_json->revisions', 'mall_id:request_json->>mallId',
@@ -1440,13 +1445,16 @@ const LIST_SELECT = [
   'channel_product_no:result_json->>channelProductNo',
 ].join(',')
 const NAME_COL = { [MARKET]: 'nm_coupang', [CAFE24]: 'nm_cafe24', [SMARTSTORE]: 'nm_smartstore', [ELEVENST]: 'nm_11st' }
-function publicSend(s) {
+/** @param {object} s 목록 줄 · @param {object} accounts 판매처 → 지금 연결된 계정 식별값 (accountJudge 'other'면 accountMismatch) */
+function publicSend(s, accounts = {}) {
   const market = s.market || MARKET
   const c24 = market === CAFE24
   const ss = market === SMARTSTORE
   return {
-    // coupangStatus = 판매처가 준 상태 원문 (칸 이름은 예전 그대로 — 2026-10-02부터 스마트스토어 상태(판매 중·판매 중지·삭제 …)도 여기에)
-    id: s.id, exportId: s.export_id, market, sellerProductId: s.seller_product_id, status: s.status, coupangStatus: s.coupang_status, reason: s.reason,
+    // marketStatus = 판매처가 준 상태 원문 (쿠팡 statusName · 스마트스토어 판매 중·판매 중지·삭제 … — 칸 market_status 하나)
+    // accountMismatch = 지금 연결된 계정과 다른 계정으로 보낸 기록 → 상태를 확인하지 않는다 (화면 칩 안내)
+    id: s.id, exportId: s.export_id, market, sellerProductId: s.seller_product_id, status: s.status, marketStatus: s.market_status, reason: s.reason,
+    accountMismatch: accountJudge(s.market_account, accounts[market]) === 'other',
     productName: s[NAME_COL[market]] || null, categoryName: s.category_name || null, revision: Array.isArray(s.revisions) ? s.revisions.length : 0,
     adminUrl: c24 ? cafe24AdminProductUrl(s.mall_id, s.seller_product_id) : null, // 카페24 = 관리자 상품 화면
     display: c24 ? (s.c24_display === 'T' ? 'T' : 'F') : null, // 카페24 진열상태(보낸 값 — 관리자에서 바꾼 뒤는 모름)
@@ -1461,23 +1469,99 @@ function publicSend(s) {
 async function loadSends(ctx) {
   // 카페24 기록은 관리자·스태프에게만 (2026-10-01 카페24 고객에게 숨김 — 기록은 DB에 그대로)
   const markets = cafe24Allowed(ctx) ? `${MARKET},${CAFE24},${SMARTSTORE},${ELEVENST}` : `${MARKET},${SMARTSTORE},${ELEVENST}`
+  const accounts = await currentAccounts(ctx)
   const byId = new Map()
   for (let page = 0; page < LIST_PAGES_MAX; page++) {
     const rows = await sb(ctx.cfg, `marketplace_sends?select=${LIST_SELECT}&user_id=eq.${ctx.userId}&market=in.(${markets})&order=created_at.desc,id.desc&limit=${LIST_PAGE}&offset=${page * LIST_PAGE}`)
     const list = Array.isArray(rows) ? rows : []
     for (const r of list) if (!byId.has(r.id)) byId.set(r.id, r)
-    if (list.length < LIST_PAGE) return [...byId.values()].map(publicSend)
+    if (list.length < LIST_PAGE) return [...byId.values()].map(r => publicSend(r, accounts))
   }
   console.error(`[marketplace] 보낸 상품 기록이 ${LIST_PAGE * LIST_PAGES_MAX}건을 넘음 — 최근 것만 보냄 ${ctx.userId}`)
-  return [...byId.values()].map(publicSend)
+  return [...byId.values()].map(r => publicSend(r, accounts))
+}
+/** 판매처 → 지금 연결된 계정 식별값 (쿠팡 = vendor_id · 스마트스토어 = market_account(계정 정보 조회 accountUid) — 근거 api/_marketStatus.js). 없으면 그 판매처 칸이 없다 */
+async function currentAccounts(ctx) {
+  const rows = await sb(ctx.cfg, `marketplace_accounts?select=market,vendor_id,market_account&user_id=eq.${ctx.userId}&market=in.(${STATUS_CHECK_MARKETS.join(',')})`)
+  const out = {}
+  for (const r of Array.isArray(rows) ? rows : []) out[r.market] = r.market === MARKET ? r.vendor_id : r.market_account
+  return out
+}
+/** 칸 이름 변경·계정 칸 SQL(docs/sql/2026-10-02-marketplace-sends-deleted.sql) 실행 전 — PostgREST가 모르는 칸이라고 거절 */
+const isNewColumnMissing = e => e?.status === 400 && /market_status|market_account/.test(String(e?.message || ''))
+function newSqlMissing(res, e, where) {
+  console.error(`[marketplace] ${where}: market_status·market_account 칸 없음 — docs/sql/2026-10-02-marketplace-sends-deleted.sql 실행 필요:`, e.message)
+  return sendError(res, 503, 'marketplace_sql_missing', NOT_READY_MESSAGE)
 }
 async function sendsList(ctx, body, res) {
-  return res.status(200).json({ sends: await loadSends(ctx) })
+  try {
+    return res.status(200).json({ sends: await loadSends(ctx) })
+  } catch (e) {
+    if (isNewColumnMissing(e)) return newSqlMissing(res, e, 'sends_list')
+    throw e
+  }
+}
+/**
+ * 보낸 기록에 계정 식별값 남기기 — 칸이 아직 없으면(SQL 실행 전) 기록 없이 넘어간다(보내기는 그대로 성공). 값이 없으면 남기지 않는다
+ */
+async function recordSendAccount(ctx, sendId, account) {
+  if (!account) return
+  try {
+    await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}&user_id=eq.${ctx.userId}`, { method: 'PATCH', body: { market_account: account }, prefer: 'return=minimal' })
+  } catch (e) {
+    if (!isNewColumnMissing(e)) throw e
+    console.error('[marketplace] 보낸 계정을 기록하지 못함 — docs/sql/2026-10-02-marketplace-sends-deleted.sql 실행 필요:', sendId, e.message)
+  }
+}
+/**
+ * 스마트스토어 지금 연결된 계정 식별값(accountUid) — 저장된 값(marketplace_accounts.market_account)이 있으면 그것, 없으면 계정 정보 조회 1번 후 저장.
+ * 못 읽으면 null (보내기·확인은 그대로 — 그 기록은 "삭제됨" 판정을 하지 않는다)
+ */
+async function smartstoreAccountKey(ctx, cred) {
+  let saved = null
+  try {
+    const rows = await sb(ctx.cfg, `marketplace_accounts?select=market_account&user_id=eq.${ctx.userId}&market=eq.${SMARTSTORE}`)
+    saved = Array.isArray(rows) && rows[0] ? rows[0].market_account : null
+  } catch (e) {
+    if (!isNewColumnMissing(e)) throw e
+    console.error('[marketplace] 스마트스토어 계정 식별값 칸 없음 — docs/sql/2026-10-02-marketplace-sends-deleted.sql 실행 필요:', e.message)
+    return null
+  }
+  if (saved) return saved
+  let uid = null
+  try {
+    const r = await smartstoreApi(cred, { method: 'GET', path: SS_ACCOUNT_PATH })
+    uid = smartstoreAccountOf(r.json)
+  } catch (e) {
+    if (!(e instanceof SmartstoreError)) throw e
+    console.warn('[marketplace] 스마트스토어 계정 정보 조회 실패 (계정 판정 없이 계속):', e.code, e.status, e.raw)
+    return null
+  }
+  if (!uid) { console.error('[marketplace] 스마트스토어 계정 정보 응답에 accountUid 없음 (계정 판정 없이 계속)'); return null }
+  await sb(ctx.cfg, `marketplace_accounts?user_id=eq.${ctx.userId}&market=eq.${SMARTSTORE}`, { method: 'PATCH', body: { market_account: uid }, prefer: 'return=minimal' })
+  return uid
+}
+/** 스마트스토어 등록 성공 뒤 보낸 계정 기록 — 상품은 이미 등록됐으므로 여기서 무엇이 실패해도 보내기 응답은 성공 그대로(원인 로그, 그 기록은 계정 판정 없음) */
+async function recordSmartstoreAccount(ctx, sendId, cred) {
+  try {
+    await recordSendAccount(ctx, sendId, await smartstoreAccountKey(ctx, cred))
+  } catch (e) {
+    console.error('[marketplace] 스마트스토어 보낸 계정 기록 실패 (보내기는 성공):', sendId, e.message)
+  }
+}
+/** 스마트스토어를 (다시) 연결하면 저장해 둔 계정 식별값을 비운다 — 다른 스토어로 바꿔 연결했을 수 있다. 다음 보내기·확인 때 계정 정보 조회로 다시 채운다 */
+async function resetSmartstoreAccountKey(ctx) {
+  try {
+    await sb(ctx.cfg, `marketplace_accounts?user_id=eq.${ctx.userId}&market=eq.${SMARTSTORE}`, { method: 'PATCH', body: { market_account: null }, prefer: 'return=minimal' })
+  } catch (e) {
+    if (!isNewColumnMissing(e)) throw e
+    console.error('[marketplace] 스마트스토어 계정 식별값 칸 없음 — docs/sql/2026-10-02-marketplace-sends-deleted.sql 실행 필요:', e.message)
+  }
 }
 
 // ── 판매처 상태 확인 (2026-10-02) — 조회만. 판매처 공통 흐름 = sync → 판매처마다 checkMarket → CHECKERS[판매처] ──
 // 규칙·근거·한도는 api/_marketStatus.js. 확인 대상 = 판매처 상품번호가 있고 CHECK_STATUSES인 기록(같은 작업을 여러 번 보낸 옛 기록도 — 칩의 "N건"이 맞도록)
-const CHECK_SELECT = 'id,market,seller_product_id,status,coupang_status,reason,last_synced_at'
+const CHECK_SELECT = 'id,market,seller_product_id,status,market_status,market_account,reason,last_synced_at'
 /** 연결 함수(withCredentials·smartstoreCredentials)는 실패하면 res에 오류를 보낸다 — 판매처마다 따로 확인할 때는 응답 대신 오류만 받는다 */
 function errorSink() {
   const sink = { error: null, code: 0, status(c) { sink.code = c; return sink }, json(b) { sink.error = { code: b?.code || 'unknown', message: b?.message || '' }; return sink } }
@@ -1502,19 +1586,35 @@ async function touchSynced(ctx, ids) {
     await sb(ctx.cfg, `marketplace_sends?id=in.(${ids.slice(i, i + 100).join(',')})&user_id=eq.${ctx.userId}`, { method: 'PATCH', body: { last_synced_at: at }, prefer: 'return=minimal' })
   }
 }
-/** 쿠팡 — 상품마다 등록상품 조회 1번(반려로 바뀌었거나 사유가 비었을 때만 histories 1번 더). @returns {'done'|'stopped'} */
+/**
+ * 쿠팡 (2026-10-02 호출 줄이기) — 계정(vendorId)이 다른 기록은 부르지 않는다
+ *   승인 대기·전송 중·반려 = 하나씩 등록상품 조회(COUPANG_SINGLE_MAX까지, 반려로 바뀌었거나 사유가 비었을 때만 histories 1번 더)
+ *   승인 완료(같은 계정) = 상품 목록 페이징 조회 status=DELETED를 쪽마다 훑어 한꺼번에 — 목록에 있으면 삭제됨
+ *   승인 완료(계정 기록 없음) = 삭제 판정을 하지 않으니 부르지 않는다
+ * @returns {'done'|'partial'|'stopped'}  partial = 하나씩 조회할 것이 남음(다음 요청에서)
+ */
 async function checkCoupang(ctx, rows, errors) {
   const sink = errorSink()
   const cred = await withCredentials(ctx, sink)
   if (!cred) { errors.push({ market: MARKET, ...sink.error }); return 'stopped' }
-  const quiet = []
+  const vendor = cred.row.vendor_id
+  const judge = s => accountJudge(s.market_account, vendor)
+  const quiet = [], singles = [], live = []
   for (const s of rows) {
+    if (judge(s) === 'other') quiet.push(s.id) // 다른 계정으로 보낸 기록 — 지금 연결로는 조회되지 않는다(확인 시각만)
+    else if (SINGLE_CHECK_STATUSES.includes(s.status)) singles.push(s)
+    else if (judge(s) === 'same') live.push(s)
+    else quiet.push(s.id)
+  }
+  const partial = singles.length > COUPANG_SINGLE_MAX
+  for (const s of singles.slice(0, COUPANG_SINGLE_MAX)) {
     try {
       const r = await coupangCall(cred.call, { method: 'GET', path: PATHS.product(s.seller_product_id) })
       const statusName = r?.data?.statusName || ''
       const next = mapCoupangStatus(statusName)
+      if (next === DELETED && judge(s) !== 'same') { quiet.push(s.id); continue } // 계정 기록이 없으면 삭제 판정을 하지 않는다
       const raw = statusName.slice(0, 40) || null
-      const patch = { status: next, coupang_status: raw, last_synced_at: new Date().toISOString() }
+      const patch = { status: next, market_status: raw, last_synced_at: new Date().toISOString() }
       if (next === 'rejected' && (s.status !== 'rejected' || !s.reason)) {
         try {
           const h = await coupangCall(cred.call, { method: 'GET', path: PATHS.histories(s.seller_product_id) })
@@ -1523,7 +1623,7 @@ async function checkCoupang(ctx, rows, errors) {
           if (rej?.comment) patch.reason = String(rej.comment).slice(0, 2000)
         } catch (e) { console.warn('[marketplace] 반려 사유 조회 실패:', s.seller_product_id, e.code || e.message) }
       }
-      if (next === s.status && raw === s.coupang_status && !('reason' in patch)) quiet.push(s.id)
+      if (next === s.status && raw === s.market_status && !('reason' in patch)) quiet.push(s.id)
       else await patchSend(ctx, s.id, patch)
     } catch (e) {
       if (!(e instanceof CoupangError)) throw e
@@ -1533,32 +1633,65 @@ async function checkCoupang(ctx, rows, errors) {
       quiet.push(s.id) // 이 기록만의 오류 — 확인 시각을 남겨 다음 묶음이 다른 기록으로 넘어가게
     }
   }
+  if (live.length) {
+    const deleted = new Set()
+    let token = '', complete = false
+    try {
+      for (let page = 0; page < COUPANG_DELETED_PAGES_MAX; page++) {
+        const r = await coupangCall(cred.call, { method: 'GET', path: PATHS.products, query: coupangDeletedQuery(vendor, token) })
+        const pg = coupangListPage(r)
+        pg.ids.forEach(id => deleted.add(id))
+        if (!pg.next) { complete = true; break }
+        token = pg.next
+      }
+    } catch (e) {
+      if (!(e instanceof CoupangError)) throw e
+      console.warn('[marketplace] 쿠팡 삭제 상품 목록 조회 실패:', e.code, e.raw)
+      errors.push({ market: MARKET, code: e.code, message: e.message })
+      await touchSynced(ctx, quiet)
+      return 'stopped'
+    }
+    if (!complete) console.warn(`[marketplace] 쿠팡 삭제 상품 목록이 ${COUPANG_DELETED_PAGES_MAX}쪽을 넘음 — 앞쪽만 봄(못 본 삭제는 "삭제됨"으로 바꾸지 않음) ${ctx.userId}`)
+    for (const s of live) {
+      if (deleted.has(String(s.seller_product_id))) await patchSend(ctx, s.id, { status: DELETED, market_status: '상품삭제', last_synced_at: new Date().toISOString() })
+      else quiet.push(s.id)
+    }
+  }
   await touchSynced(ctx, quiet)
-  return 'done'
+  return partial ? 'partial' : 'done'
 }
 /**
- * 스마트스토어 — 토큰 1번 + 상품 목록 조회 1번(원상품번호 최대 500개). 검색 결과에 없는 상품은 원상품 조회로 하나씩(SS_SINGLE_MAX까지 — 404 NOT_FOUND = 삭제)
+ * 스마트스토어 — 토큰 1번 + (계정 식별값이 없으면 계정 정보 조회 1번) + 상품 목록 조회 1번(원상품번호 최대 500개).
+ * 계정이 다른 기록은 조회하지 않는다. 검색 결과에 없는 상품은 같은 계정일 때만 원상품 조회로 하나씩(SS_SINGLE_MAX까지 — 404 NOT_FOUND = 삭제)
+ * DELETE·404로 "삭제됨"을 판정하는 것은 같은 계정일 때만 — 계정 기록이 없는 예전 기록은 상태 그대로
  * @returns {'done'|'partial'|'stopped'}  partial = 하나씩 조회할 것이 남음(다음 요청에서)
  */
 async function checkSmartstore(ctx, rows, errors) {
   const sink = errorSink()
   const cred = await smartstoreCredentials(ctx, sink)
   if (!cred) { errors.push({ market: SMARTSTORE, ...sink.error }); return 'stopped' }
+  const account = await smartstoreAccountKey(ctx, cred)
+  const judge = s => accountJudge(s.market_account, account)
+  const quiet = rows.filter(s => judge(s) === 'other').map(s => s.id)
+  const mine = rows.filter(s => judge(s) !== 'other')
+  if (!mine.length) { await touchSynced(ctx, quiet); return 'done' }
   let found
   try {
-    const r = await smartstoreApi(cred, { method: 'POST', path: SS_SEARCH_PATH, json: smartstoreSearchBody(rows.map(s => s.seller_product_id)) })
+    const r = await smartstoreApi(cred, { method: 'POST', path: SS_SEARCH_PATH, json: smartstoreSearchBody(mine.map(s => s.seller_product_id)) })
     found = smartstoreSearchStatuses(r.json)
   } catch (e) {
     if (!(e instanceof SmartstoreError)) throw e
     console.warn('[marketplace] 스마트스토어 상품 목록 조회 실패:', e.code, e.status, e.raw)
     errors.push({ market: SMARTSTORE, code: e.code, message: e.message })
+    await touchSynced(ctx, quiet)
     return 'stopped'
   }
-  const quiet = []
   let singles = 0, partial = false
-  for (const s of rows) {
+  for (const s of mine) {
+    const same = judge(s) === 'same'
     let statusType = found.get(String(s.seller_product_id))
     if (statusType == null) {
+      if (!same) { quiet.push(s.id); continue } // 계정 기록이 없으면 "없음"으로 삭제를 판정하지 않는다 — 부르지 않는다
       if (singles >= SS_SINGLE_MAX) { partial = true; continue } // 다음 요청에서 (확인 시각을 남기지 않는다)
       singles++
       try {
@@ -1578,8 +1711,9 @@ async function checkSmartstore(ctx, rows, errors) {
     }
     const next = smartstoreStatusOf(statusType)
     if (!next) { console.warn('[marketplace] 스마트스토어 상태 값을 모름 (기록 그대로):', s.seller_product_id, statusType); quiet.push(s.id); continue }
-    if (next.status === s.status && next.raw === s.coupang_status) quiet.push(s.id)
-    else await patchSend(ctx, s.id, { status: next.status, coupang_status: next.raw, last_synced_at: new Date().toISOString() })
+    if (next.status === DELETED && !same) { quiet.push(s.id); continue }
+    if (next.status === s.status && next.raw === s.market_status) quiet.push(s.id)
+    else await patchSend(ctx, s.id, { status: next.status, market_status: next.raw, last_synced_at: new Date().toISOString() })
   }
   await touchSynced(ctx, quiet)
   return partial ? 'partial' : 'done'
@@ -1598,11 +1732,16 @@ async function sync(ctx, body, res) {
   const since = checkSince(body?.since)
   const errors = []
   let more = false
-  for (const market of STATUS_CHECK_MARKETS) {
-    if (await checkMarket(ctx, market, since, errors)) more = true
+  try {
+    for (const market of STATUS_CHECK_MARKETS) {
+      if (await checkMarket(ctx, market, since, errors)) more = true
+    }
+    // 남은 것이 있으면 목록을 보내지 않는다 — 화면이 같은 since로 다시 부르고, 끝날 때 한 번만 받는다
+    return res.status(200).json(more ? { errors, more } : { errors, more, sends: await loadSends(ctx) })
+  } catch (e) {
+    if (isNewColumnMissing(e)) return newSqlMissing(res, e, 'sync')
+    throw e
   }
-  // 남은 것이 있으면 목록을 보내지 않는다 — 화면이 같은 since로 다시 부르고, 끝날 때 한 번만 받는다
-  return res.status(200).json(more ? { errors, more } : { errors, more, sends: await loadSends(ctx) })
 }
 
 // ── GET: 쿠팡이 내려받는 이미지 (로그인 없음 · 토큰만) ──

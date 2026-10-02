@@ -112,7 +112,7 @@
                           <td class="whitespace-nowrap">{{ sentMarketName(s.market) }}</td>
                           <td>
                             <span class="sl-chip" :class="`is-${chipTone(s.status)}`">{{ sendStatusLabel(s.status) }}</span>
-                            <div v-if="s.coupangStatus" class="st-desc-sm mt-0.5" :data-sl-market-status="s.id">판매처 상태: {{ s.coupangStatus }}</div>
+                            <div v-if="s.marketStatus" class="st-desc-sm mt-0.5" :data-sl-market-status="s.id">판매처 상태: {{ s.marketStatus }}</div>
                             <div v-if="s.revision" class="st-desc-sm mt-0.5" :data-mk-send-revision="s.id">다시 보낸 횟수 {{ s.revision }}</div>
                             <!-- 카페24 = 등록 완료 → 진열상태(보낸 값) (2026-09-30) -->
                             <div v-if="s.market === 'cafe24' && s.status === 'registered'" class="st-desc-sm mt-0.5 break-keep" :data-mk-send-display="s.id">진열상태: {{ s.display === 'T' ? '진열함' : '진열안함' }}</div>

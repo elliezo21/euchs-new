@@ -57,7 +57,7 @@ export function chipTone(status) {
  * max개까지 다 보이고, 넘치면 (max−1)개 + "+N" 칩 — title = 나머지 "판매처 이름 상태"를 줄마다
  * @returns {{ chips:[{ id, market, status, tone, name, label, title, live }], more: null | { count, label, title } }}
  *   label = "판매처 이름 + sendStatusLabel(status)" (+ " N건" — 완료 칩이고 그 판매처에 살아 있는 상품이 2개 이상일 때 · liveCount)
- *   title = 실패·반려 사유(badgeReason) + 상태 자동 확인을 지원하지 않는 판매처면 UNCHECKED_NOTE (줄바꿈으로)
+ *   label의 상태 = sendStatusLabel 짧은 표기(삭제됨) · title = 실패·반려 사유(badgeReason) + 다른 계정이면 ACCOUNT_MISMATCH_NOTE + 자동 확인을 지원하지 않는 판매처면 UNCHECKED_NOTE (줄바꿈으로)
  */
 export const CHIP_MAX = 5
 const TONE_ORDER = ['bad', 'wait', 'ok', 'gone', '']
@@ -68,13 +68,15 @@ export const liveCount = (p, market) => (Array.isArray(p?.history) ? p.history :
 /** 상태 자동 확인을 지원하는 판매처인지 (api/_marketStatus.js STATUS_CHECK_MARKETS 한 곳) */
 export const statusCheckable = market => STATUS_CHECK_MARKETS.includes(market)
 export const UNCHECKED_NOTE = '이 판매처는 상태 자동 확인을 지원하지 않습니다'
+/** 서버 publicSend.accountMismatch — 보낸 계정 ≠ 지금 연결된 계정 (상태를 확인하지 않는다) */
+export const ACCOUNT_MISMATCH_NOTE = '지금 연결된 계정과 다른 계정으로 보낸 상품이라 상태를 확인할 수 없습니다'
 export function marketChips(p, { max = CHIP_MAX } = {}) {
   const all = Object.values(p?.byMarket || {}).map(s => {
     const name = sentMarketName(s.market)
     const tone = chipTone(s.status)
     const live = liveCount(p, s.market)
-    const label = `${name} ${sendStatusLabel(s.status)}${tone === 'ok' && live >= 2 ? ` ${live}건` : ''}`
-    const title = [badgeReason(s), statusCheckable(s.market) ? '' : UNCHECKED_NOTE].filter(Boolean).join('\n')
+    const label = `${name} ${sendStatusLabel(s.status, { short: true })}${tone === 'ok' && live >= 2 ? ` ${live}건` : ''}`
+    const title = [badgeReason(s), s.accountMismatch ? ACCOUNT_MISMATCH_NOTE : '', statusCheckable(s.market) ? '' : UNCHECKED_NOTE].filter(Boolean).join('\n')
     return { id: s.id, market: s.market, status: s.status, tone, name, label, title, live }
   }).sort((a, b) => TONE_ORDER.indexOf(a.tone) - TONE_ORDER.indexOf(b.tone) || marketRank(a.market) - marketRank(b.market) || String(a.market).localeCompare(String(b.market)))
   if (all.length <= max) return { chips: all, more: null }
@@ -188,7 +190,7 @@ export { AUTO_CHECK_MS }
 export const CHECK_ROUNDS_MAX = 40
 export const CHECK_ROUND_GAP_MS = 1500
 /** 확인 대상 기록 — 자동 확인 판매처 + 판매처 상품번호 + 확인할 상태 (서버 checkMarket과 같은 조건) */
-export const isCheckTarget = s => !!s && statusCheckable(s.market || 'coupang') && CHECK_STATUSES.includes(s.status) && /^\d{1,20}$/.test(String(s.sellerProductId || ''))
+export const isCheckTarget = s => !!s && !s.accountMismatch && statusCheckable(s.market || 'coupang') && CHECK_STATUSES.includes(s.status) && /^\d{1,20}$/.test(String(s.sellerProductId || ''))
 /** 화면의 "판매처 상태 마지막 확인" — 기록들의 lastSyncedAt 중 가장 최근 (없으면 null) */
 export function lastCheckedAt(sends) {
   let best = 0

@@ -176,8 +176,13 @@ export const optionTableNeed = ({ flexCols = 2, hasCny = false } = {}) => OPTION
 // 상태 값(DB marketplace_sends.status)은 그대로, 문구만. registered = 카페24·스마트스토어·11번가(승인 절차 없음 — 등록 즉시 끝)
 // deleted = 판매처에서 상품이 지워진 것을 상태 확인으로 알게 됨 (2026-10-02 — api/_marketStatus.js DELETED)
 export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료', rejected: '반려', failed: '실패', deleted: '판매처에서 삭제됨' }
-/** 상태 → 문구. 목록에 없는 값은 원래 값 그대로(예전 화면과 같음) */
-export const sendStatusLabel = status => SEND_STATUS_LABEL[status] || String(status ?? '')
+/** 짧은 표기 — 판매처 이름과 붙여 쓰는 칩("스마트스토어 삭제됨")용. 없는 상태는 긴 표기와 같다 */
+export const SEND_STATUS_SHORT = { deleted: '삭제됨' }
+/**
+ * 상태 → 문구 (짧은·긴 표기 모두 여기 한 곳). 목록에 없는 값은 원래 값 그대로(예전 화면과 같음)
+ * @param {{ short?: boolean }} o  short = 판매처 이름 + 상태 칩 · 기본(긴 표기) = 이력 표 상태 칸·필터 선택지·배지
+ */
+export const sendStatusLabel = (status, { short = false } = {}) => (short && SEND_STATUS_SHORT[status]) || SEND_STATUS_LABEL[status] || String(status ?? '')
 // 상태 배지 — 색: 전송 중·승인 대기·판매처에서 삭제됨 = 회색, 승인 완료·등록 완료 = 초록, 반려·실패 = 빨강
 export const SEND_BADGE_CLASS = { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', registered: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger', deleted: 'st-badge' }
 /**

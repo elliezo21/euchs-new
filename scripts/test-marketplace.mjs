@@ -245,6 +245,13 @@ globalThis.fetch = async (url, opts = {}) => {
     if (p === C.PATHS.categoryMeta('56137')) return json({ code: 'SUCCESS', ...META })
     if (p === C.PATHS.categoryMeta('77777')) return json({ code: 'SUCCESS', ...META2 })
     if (p === C.PATHS.products && method === 'POST') return json({ code: 'SUCCESS', message: '', data: 1234567890 })
+    // 상품 목록 페이징 조회 (2026-10-02 삭제 확인) — relay.deletedIds를 2쪽으로 나눠 준다 (첫 쪽 nextToken '2')
+    if (p === C.PATHS.products && method === 'GET') {
+      const q = new URLSearchParams(u.search), ids = relay.deletedIds || [], half = Math.ceil(ids.length / 2)
+      relay.listQueries = [...(relay.listQueries || []), u.search]
+      const page = q.get('nextToken') === '2' ? ids.slice(half) : ids.slice(0, half)
+      return json({ code: 'SUCCESS', message: '', nextToken: q.get('nextToken') === '2' || ids.length < 2 ? '' : '2', data: page.map(id => ({ sellerProductId: Number(id), sellerProductName: 'x', statusName: '상품삭제' })) })
+    }
     if (p === C.PATHS.products && method === 'PUT') return relay.mode === 'put-fail' ? json({ code: 'ERROR', message: '필수 속성 누락' }, 400) : json({ code: '200', message: '', data: { code: 'SUCCESS', message: '', data: 1234567890 } })
     if (p === C.PATHS.approval('1234567890') && method === 'PUT' && (relay.status || '승인대기중') !== '임시저장') return json({ code: 'ERROR', message: "'임시저장' 상태의 상품만 승인 요청 가능합니다." }, 400)
     if (p === C.PATHS.approval('1234567890') && method === 'PUT') return relay.mode === 'approval-fail' ? json({ code: 'ERROR', message: '상품 정보가 등록 또는 수정되고 있습니다. 잠시 후 다시 조회해 주시기 바랍니다.' }, 400) : json({ code: 'SUCCESS', message: '1234567890 승인 요청되었습니다.', data: '1234567890' })
@@ -450,7 +457,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   relay.status = '승인반려'
   const sy = await post('sync')
   const rejected = sy.body.sends.find(s => s.sellerProductId === '1234567890')
-  eq('동기화: 승인반려 + 사유(histories.comment 원문)', [rejected.status, rejected.coupangStatus, rejected.reason], ['rejected', '승인반려', '대표 이미지에 글자가 있습니다'])
+  eq('동기화: 승인반려 + 사유(histories.comment 원문)', [rejected.status, rejected.marketStatus, rejected.reason], ['rejected', '승인반려', '대표 이미지에 글자가 있습니다'])
   relay.status = '승인완료'
   eq('동기화: 승인완료', (await post('sync')).body.sends.find(s => s.sellerProductId === '1234567890').status, 'approved')
   eq('처리현황 응답에 request_json 원문 없음', 'request_json' in (await post('sends_list')).body.sends[0], false)
@@ -500,7 +507,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
       const SEND2 = { ...SEND, exportId: undefined, productName: '매일 쓰는 머그 (고침)' }
       base.status = 'approval_pending'
       eq('반려가 아닌 전송은 다시 보낼 수 없음 → 409 not_rejected', [(await post('send_prepare', { resendId: base.id })).body.code, (await post('send', { ...SEND2, resendId: base.id })).body.code], ['not_rejected', 'not_rejected'])
-      base.status = 'rejected'; base.reason = '도서산간배송 출고지에 등록된 택배사만 선택할 수 있습니다.'; base.coupang_status = '승인반려'
+      base.status = 'rejected'; base.reason = '도서산간배송 출고지에 등록된 택배사만 선택할 수 있습니다.'; base.market_status = '승인반려'
       const pre = await post('send_prepare', { resendId: base.id })
       eq('send_prepare(resendId): 그 전송의 값으로 채울 재료 · 같은 내 상품', [pre.statusCode, pre.body.resend.sendId, pre.body.resend.sellerProductId, pre.body.resend.reason, pre.body.resend.form.productName, pre.body.export.id === base.export_id], [200, base.id, '1234567890', base.reason, '매일 쓰는 머그', true])
       eq('남의 전송·없는 전송 → 404', (await post('send_prepare', { resendId: '99999999-9999-4999-8999-999999999999' })).statusCode, 404)
@@ -509,7 +516,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
       const REASON = base.reason
       const productCalls = () => relay.calls.map(c => [c.method, c.path.replace(/^\/coupang/, '')]).filter(c => c[1].includes('/seller-products'))
       const putOf = () => relay.calls.find(c => c.method === 'PUT' && c.path.endsWith('/seller-products'))
-      const reject = () => { base.status = 'rejected'; base.reason = REASON; base.coupang_status = '승인반려' }
+      const reject = () => { base.status = 'rejected'; base.reason = REASON; base.market_status = '승인반려' }
 
       // 쿠팡 상태 = 승인반려 (운영에서 거절된 경우) → 상품 수정 한 번(requested true), 승인 요청 API는 부르지 않는다
       relay.status = '승인반려'
@@ -1589,6 +1596,8 @@ function smartstoreRelay(u, method, opts) {
     // int64 — JS 안전 정수를 넘는 번호도 글자 그대로 읽는지
     return new Response('{"originProductNo":9007199254740993,"smartstoreChannelProductNo":12345678901,"originProduct":{"statusType":"SALE"}}', { status: 200, headers: { 'Content-Type': 'application/json;charset=UTF-8' } })
   }
+  // 계정 정보 조회 (2026-10-02 계정 식별값) — accountUid = ssRelay.accountUid (기본 'uid-A')
+  if (p === '/external/v1/seller/account' && method === 'GET') return json({ accountId: 'mystore', accountUid: ssRelay.accountUid || 'uid-A', grade: 'BIG_POWER' })
   // 상태 확인 (2026-10-02) — ssRelay.products = { 원상품번호: statusType | 'GONE'(원상품 조회 404 NOT_FOUND) }. 목록 조회는 GONE·HIDDEN을 돌려주지 않는다
   if (p === '/external/v1/products/search' && method === 'POST') {
     const b = JSON.parse(opts.body), map = ssRelay.products || {}
@@ -1818,7 +1827,8 @@ function smartstoreRelay(u, method, opts) {
   const ups = relay.calls.filter(c => c.path.endsWith('/product-images/upload')), prod = relay.calls.find(c => c.path.endsWith('/external/v2/products'))
   eq('보내기 성공: 200 registered · 원상품번호(int64 글자 그대로)·채널상품번호 · 기본 전시중지', [ok.statusCode, ok.body.status, ok.body.originProductNo, ok.body.channelProductNo, ok.body.display], [200, 'registered', '9007199254740993', '12345678901', 'SUSPENSION'])
   eq('기록: market smartstore · registered · seller_product_id = 원상품번호 · result_json = 두 번호 + 전시상태', [rec.market, rec.status, rec.seller_product_id, rec.result_json], ['smartstore', 'registered', '9007199254740993', { originProductNo: '9007199254740993', channelProductNo: '12345678901', display: 'SUSPENSION' }])
-  eq('순서: 토큰 → 이미지 업로드 → 상품 등록 (다른 호출 없음)', relay.calls.map(c => c.path.replace('/smartstore/external', '')), ['/v1/oauth2/token', '/v1/product-images/upload', '/v2/products'])
+  // 2026-10-02: 등록 성공 뒤 보낸 계정 기록 — 저장된 계정값이 없을 때만 계정 정보 조회 1번(조회만)
+  eq('순서: 토큰 → 이미지 업로드 → 상품 등록 → (첫 보내기만) 계정 정보 조회', relay.calls.map(c => c.path.replace('/smartstore/external', '')), ['/v1/oauth2/token', '/v1/product-images/upload', '/v2/products', '/v1/seller/account'])
   {
     const raw = ups[0].raw.toString('latin1')
     eq('이미지 업로드: multipart · 대표(JPG) + 상세 2장(JPG·PNG 실제 형식) = 한 요청 3장 · 본문 상한 이하', [/^multipart\/form-data; boundary=/.test(ups[0].headers['Content-Type']), (raw.match(/name="imageFiles"/g) || []).length, [...raw.matchAll(/Content-Type: (image\/\w+)/g)].map(m => m[1]), ups[0].raw.length <= S.UPLOAD_BODY_MAX], [true, 3, ['image/jpeg', 'image/jpeg', 'image/png'], true])
@@ -2821,7 +2831,12 @@ function elevenstRelay(u, method, opts) {
   const SL = await import('../src/lib/studioSentList.js')
   const R = await import('../src/lib/studioMarketplaceRules.js')
   // 순수 규칙
-  eq('상태 확인 판매처 = 공식 문서로 조회 API를 확인한 곳(쿠팡·스마트스토어) · 11번가·카페24 없음 · 대상 상태 · 삭제 값', [MS.STATUS_CHECK_MARKETS, MS.CHECK_STATUSES, MS.DELETED, MS.CHECK_BATCH, MS.AUTO_CHECK_MS], [['coupang', 'smartstore'], ['registered', 'approved', 'approval_pending', 'sending', 'rejected'], 'deleted', { coupang: 30, smartstore: 500 }, 600000])
+  eq('상태 확인 판매처 = 공식 문서로 조회 API를 확인한 곳(쿠팡·스마트스토어) · 11번가·카페24 없음 · 대상 상태 · 삭제 값', [MS.STATUS_CHECK_MARKETS, MS.CHECK_STATUSES, MS.DELETED, MS.CHECK_BATCH, MS.AUTO_CHECK_MS], [['coupang', 'smartstore'], ['registered', 'approved', 'approval_pending', 'sending', 'rejected'], 'deleted', { coupang: 500, smartstore: 500 }, 600000])
+  eq('쿠팡 호출 줄이기: 하나씩 = 승인 대기·전송 중·반려만(30까지) · 승인 완료 = 삭제 목록(100개씩·20쪽까지) · 목록 쿼리 · 응답 읽기 · 계정 판정', [
+    MS.COUPANG_SINGLE_MAX, MS.SINGLE_CHECK_STATUSES, MS.COUPANG_PAGE_SIZE, MS.COUPANG_DELETED_PAGES_MAX, MS.coupangDeletedQuery('A00012345'), MS.coupangDeletedQuery('A00012345', 'tok'),
+    (p => [[...p.ids], p.next])(MS.coupangListPage({ code: 'SUCCESS', nextToken: '', data: [{ sellerProductId: 11 }, { sellerProductId: 'x' }, { sellerProductId: 12 }] })), MS.coupangListPage({ nextToken: 5, data: [] }).next,
+    [MS.accountJudge('A1', 'A1'), MS.accountJudge('A1', 'B2'), MS.accountJudge(null, 'A1'), MS.accountJudge('A1', null), MS.accountJudge(' ', 'A1')], MS.smartstoreAccountOf({ accountId: 'x', accountUid: 'u-1' }), MS.smartstoreAccountOf({ accountId: 'x' }),
+  ], [30, ['approval_pending', 'sending', 'rejected'], 100, 20, 'vendorId=A00012345&status=DELETED&maxPerPage=100', 'vendorId=A00012345&status=DELETED&maxPerPage=100&nextToken=tok', [['11', '12'], ''], '5', ['same', 'other', 'unknown', 'unknown', 'unknown'], 'u-1', null])
   eq('스마트스토어 statusType → 기록: DELETE = 삭제됨 · 그 밖 문서 값 = 등록 완료 + 원문 · 모르는 값 = null', [MS.smartstoreStatusOf('DELETE'), MS.smartstoreStatusOf('SALE'), MS.smartstoreStatusOf('SUSPENSION'), MS.smartstoreStatusOf('WEIRD'), MS.smartstoreStatusOf(undefined)],
     [{ status: 'deleted', raw: '삭제' }, { status: 'registered', raw: '판매 중' }, { status: 'registered', raw: '판매 중지' }, null, null])
   eq('목록 조회 본문 = PRODUCT_NO + 원상품번호(안전한 정수만) + size = 개수(최대 500) · 응답 → 번호별 statusType(STOREFARM 먼저)', [
@@ -2868,40 +2883,69 @@ function elevenstRelay(u, method, opts) {
   relay.mode = 'ok'
   if (!db.marketplace_accounts.some(a => a.user_id === UID && a.market === 'coupang')) await post('connect', CONNECT) // 앞 묶음이 연결을 끊었다 — 출고지·반품지 조회로 키 확인(가짜 중계)
   const coupangOn = db.marketplace_accounts.some(a => a.user_id === UID && a.market === 'coupang')
-  if (!db.marketplace_accounts.some(a => a.user_id === UID && a.market === 'smartstore')) db.marketplace_accounts.push({ id: newId(), user_id: UID, market: 'smartstore', seller_login_id: '내 스토어 애플리케이션', vendor_id: null, access_key_enc: encryptSecret('ss-app-id-1', K), secret_key_enc: encryptSecret('$2a$10$abcdefghijklmnopqrstuv', K), key_last4: 'id-1', expires_at: null, status: 'connected' })
+  // 보낼 때 계정 기록 — 앞 묶음에서 실제로 보낸 기록(쿠팡 = 업체코드 · 스마트스토어 = 계정 정보 조회 accountUid)
+  eq('보낼 때 계정 기록: 쿠팡 = vendorId(업체코드) · 스마트스토어 = 계정 정보 조회 accountUid', [
+    keepSends.find(r => r.market === 'coupang' && r.seller_product_id)?.market_account, keepSends.find(r => r.market === 'smartstore' && r.status === 'registered')?.market_account,
+  ], ['A00012345', 'uid-A'])
+  const ssAcc = db.marketplace_accounts.find(a => a.user_id === UID && a.market === 'smartstore')
+  if (ssAcc) ssAcc.market_account = null // 저장된 계정값이 없을 때 → 계정 정보 조회 1번 후 저장
+  else db.marketplace_accounts.push({ id: newId(), user_id: UID, market: 'smartstore', seller_login_id: '내 스토어 애플리케이션', vendor_id: null, access_key_enc: encryptSecret('ss-app-id-1', K), secret_key_enc: encryptSecret('$2a$10$abcdefghijklmnopqrstuv', K), key_last4: 'id-1', expires_at: null, status: 'connected', market_account: null })
+  ssRelay.accountUid = 'uid-A'
   const at = m => new Date(Date.parse('2026-10-01T00:00:00Z') + m * 60000).toISOString()
-  const row = (id, market, status, pid, m, extra = {}) => ({ id, user_id: UID, export_id: 'E-SYNC', market, status, seller_product_id: pid, coupang_status: null, reason: null, last_synced_at: null, created_at: at(m), request_json: {}, ...extra })
+  const row = (id, market, status, pid, m, extra = {}) => ({ id, user_id: UID, export_id: 'E-SYNC', market, status, seller_product_id: pid, market_status: null, market_account: null, reason: null, last_synced_at: null, created_at: at(m), request_json: {}, ...extra })
+  const V = 'A00012345'
   db.marketplace_sends = [
-    row('k-c1', 'coupang', 'approved', '1234567890', 1, { request_json: { body: { sellerProductName: '쿠팡 상품' } } }),
-    row('k-s1', 'smartstore', 'registered', '5001', 2, { request_json: { body: { originProduct: { name: '스스 상품' } } } }),
-    row('k-s2', 'smartstore', 'registered', '5002', 3), row('k-s3', 'smartstore', 'registered', '5003', 4), row('k-s4', 'smartstore', 'registered', '5004', 5),
-    row('k-s5', 'smartstore', 'failed', null, 6), row('k-e1', '11st', 'registered', '7001', 7),
+    row('k-c1', 'coupang', 'approved', '1234567890', 1, { market_account: V, request_json: { body: { sellerProductName: '쿠팡 상품' } } }),
+    row('k-c2', 'coupang', 'approved', '1234567891', 2, { market_account: 'A00099999' }), // 다른 계정
+    row('k-c3', 'coupang', 'approved', '1234567892', 3), // 계정 기록 없음 (예전 기록) — 삭제 목록에 있어도 판정 안 함
+    row('k-c4', 'coupang', 'approval_pending', '1234567890', 4, { market_account: V }),
+    row('k-s1', 'smartstore', 'registered', '5001', 5, { market_account: 'uid-A', request_json: { body: { originProduct: { name: '스스 상품' } } } }),
+    row('k-s2', 'smartstore', 'registered', '5002', 6, { market_account: 'uid-A' }), row('k-s3', 'smartstore', 'registered', '5003', 7, { market_account: 'uid-A' }), row('k-s4', 'smartstore', 'registered', '5004', 8, { market_account: 'uid-A' }),
+    row('k-s6', 'smartstore', 'registered', '5006', 9), row('k-s7', 'smartstore', 'registered', '5007', 10), // 계정 기록 없음 — 404·DELETE여도 판정 안 함
+    row('k-s8', 'smartstore', 'registered', '5008', 11, { market_account: 'uid-B' }), // 다른 계정 — 조회하지 않음
+    row('k-s5', 'smartstore', 'failed', null, 12), row('k-e1', '11st', 'registered', '7001', 13),
   ]
-  relay.status = '상품삭제'
-  ssRelay.products = { 5001: 'SALE', 5002: 'SUSPENSION', 5003: 'GONE', 5004: 'DELETE' }
+  relay.status = '승인완료'
+  relay.deletedIds = ['1234567890', '1234567892', '999']
+  relay.listQueries = []
+  ssRelay.products = { 5001: 'SALE', 5002: 'SUSPENSION', 5003: 'GONE', 5004: 'DELETE', 5006: 'GONE', 5007: 'DELETE', 5008: 'GONE' }
   ssRelay.searchBodies = []
   relay.calls = []
   const sy = await post('sync', { since: new Date().toISOString() })
   const byId = Object.fromEntries(db.marketplace_sends.map(r => [r.id, r]))
+  const IDS = ['k-c1', 'k-c2', 'k-c3', 'k-c4', 'k-s1', 'k-s2', 'k-s3', 'k-s4', 'k-s6', 'k-s7', 'k-s8', 'k-s5', 'k-e1']
   const ssCalls = relay.calls.filter(c => c.path.startsWith('/smartstore/')).map(c => `${c.method} ${c.path.replace('/smartstore', '')}`)
-  const cpCalls = relay.calls.filter(c => c.path.startsWith('/coupang/')).map(c => c.method)
-  eq('sync(판매처 공통): 끝나면 목록 한 번(more false) · 쿠팡 상품삭제 = 삭제됨 · 스마트스토어 판매 중·판매 중지 = 등록 완료 + 원문 · 404 NOT_FOUND·DELETE = 삭제됨 · 실패·11번가는 그대로', [
-    coupangOn, sy.statusCode, sy.body.more, Array.isArray(sy.body.sends), sy.body.errors,
-    ['k-c1', 'k-s1', 'k-s2', 'k-s3', 'k-s4', 'k-s5', 'k-e1'].map(id => [byId[id].status, byId[id].coupang_status]),
-  ], [true, 200, false, true, [], [['deleted', '상품삭제'], ['registered', '판매 중'], ['registered', '판매 중지'], ['deleted', '삭제'], ['deleted', '삭제'], ['failed', null], ['registered', null]]])
-  eq('sync 호출: 스마트스토어 = 토큰 1 + 목록 조회 1(4개 번호) + 검색에 없는 1개만 원상품 조회 · 쿠팡 = GET만 · 등록·수정·삭제 호출 없음 · 확인 시각 = 확인한 기록만', [
-    ssCalls, ssRelay.searchBodies[0]?.originProductNos, cpCalls.every(m => m === 'GET'), relay.calls.some(c => ['PUT', 'DELETE', 'PATCH'].includes(c.method)),
-    ['k-c1', 'k-s1', 'k-s2', 'k-s3', 'k-s4', 'k-s5', 'k-e1'].map(id => !!byId[id].last_synced_at),
-  ], [['POST /external/v1/oauth2/token', 'POST /external/v1/products/search', 'GET /external/v2/products/origin-products/5003'], [5001, 5002, 5003, 5004], true, false, [true, true, true, true, true, false, false]])
-  eq('목록: 판매처 원문(coupangStatus) · 삭제됨 상태 그대로 · 상품명은 판매처별 위치에서 · request_json 없음', [sy.body.sends.find(s => s.id === 'k-s1').coupangStatus, sy.body.sends.find(s => s.id === 'k-c1').status, sy.body.sends.find(s => s.id === 'k-c1').productName, sy.body.sends.find(s => s.id === 'k-s1').productName, 'request_json' in sy.body.sends[0]], ['판매 중', 'deleted', '쿠팡 상품', '스스 상품', false])
+  const cpCalls = relay.calls.filter(c => c.path.startsWith('/coupang/')).map(c => `${c.method} ${c.path.replace('/coupang', '') === C.PATHS.products ? 'list' : 'product'}`)
+  eq('sync: 계정 같음 = 삭제 판정(쿠팡 삭제 목록·스마트스토어 404·DELETE) · 계정 다름 = 판정 안 함(상태 그대로) · 계정 기록 없음 = 판정 안 함 · 진행 중 쿠팡은 하나씩 · 실패·11번가 그대로', [
+    coupangOn, sy.statusCode, sy.body.more, Array.isArray(sy.body.sends), sy.body.errors, IDS.map(id => [byId[id].status, byId[id].market_status]),
+  ], [true, 200, false, true, [], [['deleted', '상품삭제'], ['approved', null], ['approved', null], ['approved', '승인완료'],
+    ['registered', '판매 중'], ['registered', '판매 중지'], ['deleted', '삭제'], ['deleted', '삭제'], ['registered', null], ['registered', null], ['registered', null], ['failed', null], ['registered', null]]])
+  eq('sync 호출: 쿠팡 = 진행 중 1개만 하나씩 + 삭제 목록 2쪽(vendorId·DELETED·100개씩) · 스마트스토어 = 토큰 + 계정 정보 1번 + 목록 조회 1(다른 계정 번호 뺌) + 같은 계정의 없는 상품만 원상품 조회 · 등록·수정·삭제 호출 없음', [
+    cpCalls, relay.listQueries.map(q => Object.fromEntries(new URLSearchParams(q))), ssCalls, ssRelay.searchBodies[0]?.originProductNos, relay.calls.some(c => ['PUT', 'DELETE', 'PATCH'].includes(c.method)),
+    db.marketplace_accounts.find(a => a.user_id === UID && a.market === 'smartstore').market_account,
+  ], [['GET product', 'GET list', 'GET list'], [{ vendorId: V, status: 'DELETED', maxPerPage: '100' }, { vendorId: V, status: 'DELETED', maxPerPage: '100', nextToken: '2' }],
+    ['POST /external/v1/oauth2/token', 'GET /external/v1/seller/account', 'POST /external/v1/products/search', 'GET /external/v2/products/origin-products/5003'], [5001, 5002, 5003, 5004, 5006, 5007], false, 'uid-A'])
+  eq('목록: 판매처 원문(marketStatus) · 다른 계정 = accountMismatch(쿠팡·스마트스토어) · 기록 없음은 아님 · 상품명은 판매처별 위치에서 · request_json 없음', [
+    sy.body.sends.find(s => s.id === 'k-s1').marketStatus, ['k-c1', 'k-c2', 'k-c3', 'k-s8', 'k-s6'].map(id => sy.body.sends.find(s => s.id === id).accountMismatch),
+    sy.body.sends.find(s => s.id === 'k-c1').productName, sy.body.sends.find(s => s.id === 'k-s1').productName, 'request_json' in sy.body.sends[0], 'coupangStatus' in sy.body.sends[0],
+  ], ['판매 중', [false, true, false, true, false], '쿠팡 상품', '스스 상품', false, false])
+  // 스마트스토어를 다시 연결하면 저장해 둔 계정값을 비운다 (다른 스토어일 수 있다)
+  eq('서버: 스마트스토어 (다시) 연결 = 계정값 비움 · 보내기 성공 뒤 계정 기록(실패해도 보내기는 성공)', [/await resetSmartstoreAccountKey\(ctx\)/.test(read('api/marketplace.js')), /await recordSmartstoreAccount\(ctx, sendId, cred\)/.test(read('api/marketplace.js')), (read('api/marketplace.js').match(/await recordSendAccount\(ctx, sendId, cred\.row\.vendor_id\)/g) || []).length], [true, true, 2])
   // DB에 'deleted'가 아직 없으면(SQL 실행 전) 상태는 그대로 · 원문·확인 시각만
-  db.marketplace_sends = [row('k-c9', 'coupang', 'approved', '1234567890', 1)]
+  db.marketplace_sends = [row('k-c9', 'coupang', 'approved', '1234567890', 1, { market_account: V })]
   const realFetch3 = globalThis.fetch
   globalThis.fetch = async (url, o = {}) => (new URL(url).pathname === '/rest/v1/marketplace_sends' && o.method === 'PATCH' && JSON.parse(o.body).status === 'deleted'
     ? json({ code: '23514', message: 'new row for relation "marketplace_sends" violates check constraint "marketplace_sends_status_check"' }, 400) : realFetch3(url, o))
   const sy2 = await post('sync', {})
   globalThis.fetch = realFetch3
-  eq('SQL 실행 전: deleted 저장이 막히면 상태는 그대로(승인 완료) + 원문 "상품삭제" + 확인 시각 · 오류로 끝나지 않음', [sy2.statusCode, db.marketplace_sends[0].status, db.marketplace_sends[0].coupang_status, !!db.marketplace_sends[0].last_synced_at], [200, 'approved', '상품삭제', true])
+  eq('SQL 실행 전: deleted 저장이 막히면 상태는 그대로(승인 완료) + 원문 "상품삭제" + 확인 시각 · 오류로 끝나지 않음', [sy2.statusCode, db.marketplace_sends[0].status, db.marketplace_sends[0].market_status, !!db.marketplace_sends[0].last_synced_at], [200, 'approved', '상품삭제', true])
+  // 칸 이름 SQL 실행 전 — 목록·상태 확인은 503 "잠시 후 다시"(원인 로그)
+  const realFetch5 = globalThis.fetch
+  globalThis.fetch = async (url, o = {}) => (new URL(url).pathname === '/rest/v1/marketplace_sends' && (o.method || 'GET') === 'GET' && /market_status/.test(decodeURIComponent(new URL(url).search))
+    ? json({ code: '42703', message: 'column marketplace_sends.market_status does not exist' }, 400) : realFetch5(url, o))
+  const pre = [await post('sends_list'), await post('sync', {})]
+  globalThis.fetch = realFetch5
+  eq('칸 이름 SQL 실행 전: 목록·상태 확인 = 503 marketplace_sql_missing', pre.map(r => [r.statusCode, r.body.code]), [[503, 'marketplace_sql_missing'], [503, 'marketplace_sql_missing']])
   // 묶음 나누기 — 한 번에 판매처마다 CHECK_BATCH까지, 남으면 more true + 목록 없음
   MS.CHECK_BATCH.coupang = 1
   relay.status = '승인완료'
@@ -2927,14 +2971,22 @@ function elevenstRelay(u, method, opts) {
   const shown = s => s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
   const NAMES = /쿠팡|스마트스토어|11번가|카페24|G마켓|옥션|에이블리|지그재그|메이크샵|고도몰/
   eq('화면: 판매처 전용 버튼·안내 없음(보이는 글자에 판매처 이름 없음) · "판매처 상태 마지막 확인" + [지금 확인] · 누르는 동안 "확인 중…" · 판매처 상태 원문 줄', [
-    NAMES.test(shown(sl) + shown(view)), /쿠팡 상태 새로고침/.test(sl), /판매처 상태 마지막 확인: \{\{ fmtCheckedAt\(checkedAt\) \}\}/.test(sl), /\{\{ syncing \? '확인 중…' : '지금 확인' \}\}/.test(sl), /판매처 상태: \{\{ s\.coupangStatus \}\}/.test(sl),
+    NAMES.test(shown(sl) + shown(view)), /쿠팡 상태 새로고침/.test(sl), /판매처 상태 마지막 확인: \{\{ fmtCheckedAt\(checkedAt\) \}\}/.test(sl), /\{\{ syncing \? '확인 중…' : '지금 확인' \}\}/.test(sl), /판매처 상태: \{\{ s\.marketStatus \}\}/.test(sl),
   ], [false, false, true, true, true])
   eq('화면: 탭을 열면 10분 규칙으로 자동 확인(화면당 10분에 한 번까지) · 묶음마다 같은 since · 멈출 오류면 그만 · 끝나면 목록 한 번 · 자동은 오류를 로그만 · 예약 실행 없음', [
     /if \(auto && needsAutoCheck\(sends\.value\) && Date\.now\(\) - autoAt > AUTO_CHECK_MS\)/.test(sl), /const since = new Date\(\)\.toISOString\(\)/.test(sl) && /await syncSends\(since\)/.test(sl), /if \(!r\.more \|\| checkShouldStop\(errs\)\) break/.test(sl),
     /if \(!listed\) await load\(\{ auto: false \}\)/.test(sl), /if \(manual && my === checkSeq\) syncErrors\.value = errs/.test(sl), /"crons"/.test(read('vercel.json')),
   ], [true, true, true, true, true, false])
   eq('SQL 파일: status에 deleted · 미실행 표시 · 새 표·GRANT 없음', (s => [/'registered', 'deleted'\)\)/.test(s), /상태: 미실행/.test(s), /create table|grant /i.test(s.replace(/GRANT·RLS/g, ''))])(read('docs/sql/2026-10-02-marketplace-sends-deleted.sql')), [true, true, false])
-  eq('상태 문구 한 곳: deleted = "판매처에서 삭제됨" · 이미 보냄에 안 들어감(다시 보낼 수 있음)', [R.sendStatusLabel('deleted'), R.ALREADY_SENT_STATUSES.includes('deleted')], ['판매처에서 삭제됨', false])
+  eq('상태 문구 한 곳: deleted = 긴 표기 "판매처에서 삭제됨"(이력 표·필터) / 짧은 표기 "삭제됨"(판매처 이름 칩) · 짧은 표기가 없는 상태는 같음 · 이미 보냄에 안 들어감', [
+    R.sendStatusLabel('deleted'), R.sendStatusLabel('deleted', { short: true }), R.sendStatusLabel('registered', { short: true }), ['registered', 'deleted'].map(R.sendStatusLabel), R.ALREADY_SENT_STATUSES.includes('deleted'),
+  ], ['판매처에서 삭제됨', '삭제됨', '등록 완료', ['등록 완료', '판매처에서 삭제됨'], false])
+  const del = SL.groupSentProducts([{ id: 'x1', exportId: 'Z', market: 'smartstore', status: 'deleted', productName: 'a', createdAt: '2026-10-01T00:00:00Z' }])[0]
+  const mis = SL.groupSentProducts([{ id: 'x2', exportId: 'Y', market: 'coupang', status: 'approved', sellerProductId: '123', accountMismatch: true, productName: 'a', createdAt: '2026-10-01T00:00:00Z' }])[0]
+  eq('칩: 삭제됨 = "스마트스토어 삭제됨" · 이력 표·필터 = 긴 표기 · 다른 계정 칩 title = 안내 · 다른 계정 기록은 자동 확인 대상 아님', [
+    SL.marketChips(del).chips[0].label, SL.STATUS_FILTERS.find(g => g.key === 'deleted').label, SL.marketChips(mis).chips[0].title, SL.isCheckTarget(mis.history[0]), SL.needsAutoCheck(mis.history, Date.now()),
+    /sendStatusLabel\(s\.status\)/.test(read('src/components/studio/StudioSendList.vue')),
+  ], ['스마트스토어 삭제됨', '판매처에서 삭제됨', '지금 연결된 계정과 다른 계정으로 보낸 상품이라 상태를 확인할 수 없습니다', false, false, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

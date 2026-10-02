@@ -3,8 +3,16 @@
  * 판매처에 상품을 등록·수정·삭제하는 호출은 없다 — 조회만.
  *
  * [확인한 판매처 — 공식 문서]
- *   쿠팡       GET 등록상품 조회 (PATHS.product — 예전 sync 그대로) · statusName '상품삭제' = 삭제
+ *   쿠팡       GET 등록상품 조회 (PATHS.product — 예전 sync 그대로) · statusName '상품삭제' = 삭제 — 승인 대기·전송 중·반려 기록만 하나씩(반려 사유 histories도)
+ *              GET 상품 목록 페이징 조회 (같은 경로 seller-products + 쿼리 — developers.coupang.com/hc/ko/articles/360033645034, 2026-10-02 확인)
+ *                vendorId 필수 · nextToken(첫 쪽은 비움) · maxPerPage 최대 100 · status = IN_REVIEW·SAVED·APPROVING·APPROVED·PARTIAL_APPROVED·DENIED·DELETED(상품삭제)
+ *                응답 code·message·nextToken·data[].sellerProductId·statusName. 상품번호 여러 개로 거르는 칸은 없다(sellerProductId 하나만)
+ *                → 승인 완료 기록의 삭제 확인 = status=DELETED 목록을 쪽마다 훑어 우리 상품번호와 맞춘다 (판매자의 삭제 상품 수 ÷ 100번)
  *              호출 한도: 문서 숫자 없음 — 429 = 잠시 후 / 403 "Access denied" = IP 10분 차단 → 5초 안 오류 20건이면 10분 멈춤(breakerFor, developers.coupang.com FAQ 권고)
+ *   계정 식별값(보낼 때 기록 · 확인 때 지금 연결된 계정과 비교 — 다르거나 기록이 없으면 "삭제됨"으로 바꾸지 않는다)
+ *              쿠팡 = 업체코드 vendorId (marketplace_accounts.vendor_id — 모든 쿠팡 호출의 X-Requested-By·목록 조회 필수값)
+ *              스마트스토어 = 계정 정보 조회 GET /external/v1/seller/account 응답 accountUid (문서 get-account-info-by-account-no-sellers:
+ *                "계정 정보를 조회하는 API입니다. 조회 대상 판매자 번호에 대한 인증 토큰이 필요합니다." 응답 accountId·accountUid·grade — API 그룹 "판매자정보")
  *   스마트스토어 POST /external/v1/products/search (상품 목록 조회 search-product) — searchKeywordType PRODUCT_NO + originProductNos, 페이지당 최대 500건(문서 size 설명)
  *              응답 contents[].originProductNo · channelProducts[].statusType (WAIT·SALE·OUTOFSTOCK·UNADMISSION·REJECTION·SUSPENSION·CLOSE·PROHIBITION·DELETE)
  *              검색 결과에 없는 상품 = GET /external/v2/products/origin-products/{originProductNo} (read-origin-product-product) — 404 code NOT_FOUND "데이터 없음" 또는 statusType DELETE = 삭제
@@ -18,10 +26,45 @@
 export const STATUS_CHECK_MARKETS = ['coupang', 'smartstore']
 /** 확인할 기록 상태 — 살아 있거나 판매처에서 진행 중인 것. 실패(failed)·삭제됨(deleted)은 다시 보지 않는다 */
 export const CHECK_STATUSES = ['registered', 'approved', 'approval_pending', 'sending', 'rejected']
-/** 판매처에서 지워진 상품 — 새 상태 값 (DB check는 docs/sql/2026-10-02-marketplace-sends-deleted.sql) */
+/** 판매처에서 지워진 상품 — 새 상태 값 (DB check·칸 이름은 docs/sql/2026-10-02-marketplace-sends-deleted.sql) */
 export const DELETED = 'deleted'
-/** 한 번 요청에 판매처마다 확인할 기록 수 — 쿠팡 = 상품마다 1번 호출(예전 SYNC_MAX 그대로) · 스마트스토어 = 목록 조회 1번(문서 최대 500) */
-export const CHECK_BATCH = { coupang: 30, smartstore: 500 }
+/** 한 번 요청에 판매처마다 꺼내 볼 기록 수 — 쿠팡 = 승인 완료는 삭제 목록 훑기로 한꺼번에(하나씩 조회는 COUPANG_SINGLE_MAX까지) · 스마트스토어 = 목록 조회 1번(문서 최대 500) */
+export const CHECK_BATCH = { coupang: 500, smartstore: 500 }
+/** 쿠팡에서 하나씩 조회하는 기록(승인 대기·전송 중·반려) — 한 번 요청에 최대 (예전 SYNC_MAX 그대로) */
+export const COUPANG_SINGLE_MAX = 30
+/** 하나씩 조회하는 상태 · 삭제 목록으로 확인하는 상태(살아 있는 상품) */
+export const SINGLE_CHECK_STATUSES = ['approval_pending', 'sending', 'rejected']
+export const LIVE_CHECK_STATUSES = ['approved', 'registered']
+/** 쿠팡 삭제 상품 목록 — 쪽당 100(문서 최대) · 한 번 요청에 최대 쪽 수(넘으면 못 본 쪽의 삭제는 다음 확인 때 — 찾지 못한 것은 "삭제됨"으로 바꾸지 않는다) */
+export const COUPANG_PAGE_SIZE = 100
+export const COUPANG_DELETED_PAGES_MAX = 20
+/** 상품 목록 페이징 조회 쿼리 (삭제 상품만) — vendorId 필수, 첫 쪽은 nextToken 없음 */
+export function coupangDeletedQuery(vendorId, nextToken = '') {
+  const q = new URLSearchParams({ vendorId: String(vendorId || ''), status: 'DELETED', maxPerPage: String(COUPANG_PAGE_SIZE) })
+  if (nextToken) q.set('nextToken', String(nextToken))
+  return q.toString()
+}
+/** 목록 응답 → { ids:Set(등록상품ID 글자), next:'' | 다음 쪽 키 } */
+export function coupangListPage(json) {
+  const ids = new Set()
+  for (const x of Array.isArray(json?.data) ? json.data : []) if (x?.sellerProductId != null && /^\d{1,20}$/.test(String(x.sellerProductId))) ids.add(String(x.sellerProductId))
+  const next = json?.nextToken != null && String(json.nextToken) !== '' ? String(json.nextToken) : ''
+  return { ids, next }
+}
+
+// ── 계정 ──
+export const SS_ACCOUNT_PATH = '/external/v1/seller/account'
+/** 계정 정보 조회 응답 → accountUid 글자(1~100자) 또는 null */
+export const smartstoreAccountOf = json => (typeof json?.accountUid === 'string' && json.accountUid.trim() && json.accountUid.length <= 100 ? json.accountUid.trim() : null)
+/**
+ * 보낸 계정 ↔ 지금 연결된 계정 — 'same'(둘 다 있고 같음) · 'other'(둘 다 있고 다름) · 'unknown'(어느 한쪽이 없음 — 예전 기록·계정값을 못 읽음)
+ * "삭제됨" 판정은 'same'일 때만. 'other'는 확인하지 않는다(다른 계정의 상품은 지금 연결로 조회되지 않는다)
+ */
+export function accountJudge(sentAccount, currentAccount) {
+  const a = typeof sentAccount === 'string' ? sentAccount.trim() : '', b = typeof currentAccount === 'string' ? currentAccount.trim() : ''
+  if (!a || !b) return 'unknown'
+  return a === b ? 'same' : 'other'
+}
 /** 스마트스토어 검색 결과에 없는 상품을 한 번 요청에서 하나씩 조회하는 최대 수 — 404가 서킷 브레이커(5초 20건)를 넘기지 않게 */
 export const SS_SINGLE_MAX = 10
 /** 화면 자동 확인 간격 — 마지막 확인이 이보다 오래됐으면 탭을 열 때 확인한다 */
