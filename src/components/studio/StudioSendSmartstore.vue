@@ -232,6 +232,7 @@
 // 카테고리·주소록은 창(StudioSendModal)이 화면이 떠 있는 동안 들고 있는 목록(sendCache)을 같이 쓴다 — 창을 다시 열어도 다시 받지 않는다
 // 등록 템플릿(2026-10-01): 11번가 섹션과 같은 공용 템플릿(api/_listingTemplates.js) — 이 섹션 칸 변환은 api/_smartstoreFields.js에서만. 택배사·출고지·반품지는 템플릿에 없다(주소록 + 마지막 사용 기억 그대로)
 import { ref, reactive, computed, watch, onMounted, inject, nextTick } from 'vue'
+import { matchCategory } from '@/lib/studioBulkSend'
 import { listSmartstoreCategories, listSmartstoreAddresses, sendSmartstoreProduct, isNotReady } from '@/lib/studioMarketplace'
 import { COMMON_GROUPS, commonPatch } from '@/lib/studioSendCommon'
 import { listListingTemplates, createListingTemplate } from '@/lib/studioListingTemplates'
@@ -513,6 +514,32 @@ async function saveTemplate(kind) {
   }
 }
 
+// ── 여러 상품 한 번에 보내기 (2026-10-02 StudioBulkSendModal) — 카테고리·등록 템플릿을 밖에서 정한다.
+//    목록(카테고리·템플릿)이 아직 없으면 기다렸다가 받은 뒤에 고른다. 보낸 뒤(done)는 바꾸지 않는다
+const pendingBulk = reactive({ category: null, listing: null })
+function setCategoryById(id) {
+  const hit = matchCategory(categories.value, id)
+  if (!hit) return false
+  f.value.leafCategoryId = hit.id
+  return true
+}
+function applyPendingBulk() {
+  if (done.value) return
+  if (pendingBulk.category != null && setCategoryById(pendingBulk.category)) pendingBulk.category = null
+  if (pendingBulk.listing && lt.ready) {
+    for (const k of TEMPLATE_KINDS) { const id = pendingBulk.listing[k.key]; if (id && lt.list.some(t => t.id === id && t.kind === k.key)) { lt.picked[k.key] = id; applyTemplate(k.key) } }
+    pendingBulk.listing = null
+  }
+}
+function applyPreset({ category = null, listing = null } = {}) {
+  if (done.value) return
+  if (category?.id != null) pendingBulk.category = category.id
+  if (listing) pendingBulk.listing = listing
+  applyPendingBulk()
+}
+watch([categories, () => lt.ready], applyPendingBulk)
+const pickedCategory = computed(() => { const c = categories.value.find(x => x.id === f.value.leafCategoryId); return c ? { id: String(c.id), name: c.wholeName || c.name || '' } : null })
+
 /** 창의 [보내기]가 부른다 — 성공하면 결과, 실패하면 null(이유는 이 섹션 안에) */
 async function submit() {
   if (busy.value || done.value || missing.value.length) return null
@@ -557,7 +584,7 @@ onMounted(() => {
   if (!sendCache?.smartstoreAddressesDone) loadAddresses()
   if (!sendCache?.listingTemplatesDone) loadTemplates()
 })
-defineExpose({ missing, busy, done, submit, sendError }) // sendError = 창의 결과 표가 실패 사유를 그대로 보인다 (2026-10-01)
+defineExpose({ missing, busy, done, submit, sendError, applyPreset, pickedCategory }) // sendError = 창의 결과 표가 실패 사유를 그대로 보인다 (2026-10-01) · applyPreset·pickedCategory = 여러 상품 보내기 (2026-10-02)
 </script>
 
 <style scoped>

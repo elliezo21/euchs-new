@@ -98,6 +98,7 @@ import {
   ZIGZAG, zigzagKeyProblems, normalizeZigzagCategories, normalizeEssentialTemplates, buildZigzagProduct, mergeZigzagUpdate, zigzagContentKey, zigzagStockChanges,
   zigzagStatusOf, SUMMARY_MAX as Z_SUMMARY_MAX, ZIGZAG_SINGLE_MAX,
 } from './_zigzagFields.js'
+import { PREVIOUS_SELECT, previousOf } from './_marketPrevious.js'
 import crypto from 'crypto'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
 
@@ -1684,8 +1685,12 @@ async function sendPrepare(ctx, body, res) {
     if (isNewColumnMissing(e)) return newSqlMissing(res, e, 'send_prepare')
     throw e
   }
+  // 판매처마다 마지막으로 보낸 판매가·재고·카테고리 (2026-10-02 여러 상품 한 번에 보내기 — 같은 작업의 결과물 전부, 판매처를 부르지 않음)
+  const prevRows = await sb(ctx.cfg, `marketplace_sends?select=${PREVIOUS_SELECT}&user_id=eq.${ctx.userId}&export_id=in.(${(await projectExportIds(ctx, ex.id)).join(',')})&order=created_at.desc&limit=200`)
+  const previous = previousOf(prevRows)
   return res.status(200).json({
     existing, // 판매처마다 이미 있는 상품 (2026-10-02) — { [market]: { mode:'modify'|'manual', sendId, sellerProductId, status, extra } } · 없으면 새로 등록
+    previous, // 판매처마다 마지막으로 보낸 { price, stock, category:{ id, name }, at, status } (2026-10-02 — api/_marketPrevious.js)
     connected, markets: { [MARKET]: { connected } }, // 판매처마다 연결 여부 — 보내기 창 "보낼 판매처" 줄이 쓴다
     // projectTitle = 작업의 지금 이름 (내 상품을 만든 뒤 작업 이름을 한글로 고쳤을 수 있다 — 보내기 창의 상품명 기본값이 먼저 본다)
     export: { id: ex.id, title: ex.title || projRows?.[0]?.title || '', projectTitle: projRows?.[0]?.title || '', mode: ex.mode, format: ex.format, files: ex.files.map(f => ({ key: f.key, name: f.name, width: f.width, height: f.height })) },

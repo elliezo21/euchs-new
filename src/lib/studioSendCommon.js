@@ -13,7 +13,7 @@ import { pickKoreanName } from '../../api/_coupangFields.js'
 import { ssOptionPriceRange, elevenstOptionPriceRange } from '../../api/_marketOptions.js'
 import { optionEditorFromSource, cloneOptionEditor } from './studioOptionEditor.js'
 
-export const COMMON_MARKETS = ['coupang', 'smartstore', '11st']
+export const COMMON_MARKETS = ['coupang', 'smartstore', '11st', 'zigzag'] // 2026-10-02 지그재그 — 같은 옵션 편집기(studioOptionEditor)·같은 칸 이름이라 그대로 옮긴다
 export const COMMON_GROUPS = [
   { key: 'name', label: '상품명' },
   { key: 'price', label: '판매가' },
@@ -24,6 +24,7 @@ export const COMMON_GROUPS = [
 export const COMMON_FIELDS = {
   smartstore: { name: 'productName', price: 'salePrice', stock: 'stock' },
   '11st': { name: 'productName', price: 'price', stock: 'stock' },
+  zigzag: { name: 'productName', price: 'price', stock: 'stock' },
 }
 export const COUPANG_COMMON_NOTE = '쿠팡에는 옵션별 판매가(공통 판매가 + 추가금액)로 등록합니다. 쿠팡 옵션 이름 연결·정가·품번은 아래 쿠팡 칸에서 입력합니다.'
 

@@ -306,9 +306,9 @@
 // 보내기 창의 쿠팡 섹션 — 내 상품 한 줄(prepare = send_prepare 응답)을 쿠팡 상품으로. 창(StudioSendModal)이 쿠팡을 체크했을 때만 이 섹션을 띄운다.
 // 판매처마다 섹션 컴포넌트 하나 — 밖으로 내놓는 것은 같다: missing(빠진 것)·busy·done·submit(). 다른 판매처가 열리면 같은 모양으로 하나 더 만든다.
 // 필수값은 화면에서 먼저 막고(missing) 서버가 다시 검사한다. 항목 규칙은 api/_coupangFields.js — 서버와 같은 파일
-import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, inject, onMounted, onBeforeUnmount } from 'vue'
 import StudioTagChips from '@/components/studio/StudioTagChips.vue'
-import { optionTableMode } from '@/lib/studioMarketplaceRules'
+import { optionTableMode, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { COMMON_GROUPS } from '@/lib/studioSendCommon'
 import {
   COUPANG_LINK_TITLE, COMMON_ITEMS_NOTE, OPTION_CHANGE_NOTE, OPTION_CHANGE_CONFIRM, OPTION_CHANGE_MISSING, LINK_EMPTY, LINK_FILL,
@@ -711,7 +711,7 @@ async function loadMeta({ keep = null } = {}) {
   if (!/^\d+$/.test(f.value.categoryCode)) { meta.value = null; return }
   busy.value = 'meta'
   try {
-    meta.value = await getCategoryMeta(f.value.categoryCode)
+    meta.value = await categoryMetaOf(f.value.categoryCode)
     for (const it of f.value.items) for (const a of meta.value.attributes) if (!(a.name in it.attributes)) it.attributes[a.name] = ''
     if (commonItems.value) {
       // 공통 정보 옵션 — 고객이 고른 것 → 지난번 이 상품을 쿠팡에 보낼 때의 연결 → 같은 이름·같은 뜻 (studioCoupangLink.autoLinks)
@@ -844,10 +844,35 @@ const optionChangeOk = ref(false)
 const previousItemNames = computed(() => (existingCoupang.value?.mode === 'modify' ? existingCoupang.value.itemNames : resend.value?.form?.items?.map(x => x.name)) || [])
 const optionChange = computed(() => optionSetChanged(previousItemNames.value, itemNames.value))
 
+// ── 여러 상품 한 번에 보내기 (2026-10-02 StudioBulkSendModal) — 카테고리·배송 템플릿을 밖에서 정한다 ──
+// 카테고리 메타는 창(sendCache)에서 같이 쓴다 — 같은 카테고리를 여러 상품에 적용해도 쿠팡 조회는 한 번 (실패는 기억하지 않는다)
+const sendCache = inject(SEND_CACHE_KEY, null)
+function categoryMetaOf(code) {
+  if (!sendCache) return getCategoryMeta(code)
+  const key = `coupangMeta:${code}`
+  if (!sendCache[key]) {
+    const p = getCategoryMeta(code)
+    sendCache[key] = p
+    p.catch(() => { if (sendCache[key] === p) delete sendCache[key] }) // 원인은 loadMeta가 console.error로 남긴다
+  }
+  return sendCache[key]
+}
+function applyPreset({ category = null, templateId = '' } = {}) {
+  if (done.value) return
+  if (templateId && (props.prepare?.templates || []).some(t => t.id === templateId) && f.value.templateId !== templateId) { f.value.templateId = templateId; onTemplate() }
+  const code = category?.id != null ? String(category.id) : ''
+  if (/^\d+$/.test(code) && code !== f.value.categoryCode) {
+    f.value.categoryCode = code
+    f.value.categoryName = category.name || ''
+    loadMeta()
+  }
+}
+const pickedCategory = computed(() => (/^\d+$/.test(f.value.categoryCode) ? { id: f.value.categoryCode, name: f.value.categoryName || '' } : null))
+
 init()
 watch(() => props.common, syncCommon, { deep: true, immediate: true })
 watch(own, syncCommon)
-defineExpose({ missing, busy, done, submit, sendError }) // sendError = 창의 결과 표가 실패 사유를 그대로 보인다 (2026-10-01)
+defineExpose({ missing, busy, done, submit, sendError, applyPreset, pickedCategory }) // sendError = 창의 결과 표가 실패 사유를 그대로 보인다 (2026-10-01)
 </script>
 
 <style scoped>

@@ -25,6 +25,7 @@ const DB_STUBS = {
   '@/lib/studioFolders': 'listFolders,createFolder,renameFolder,deleteFolder,moveProjects',
   '@/lib/studioExportArchive': 'listProductExports,downloadArchive',
   '@/lib/studioGate': 'studioGate',
+  '@/lib/studioCategoryBundles': 'listCategoryBundles,createCategoryBundle,deleteCategoryBundle',
 }
 const stubPlugin = {
   name: 'send-modal-test',
@@ -76,6 +77,7 @@ export { default as Smartstore } from '@/components/studio/StudioSendSmartstore.
 export { default as Elevenst } from '@/components/studio/StudioSendElevenst.vue'
 export { default as Common } from '@/components/studio/StudioSendCommon.vue'
 export { default as ProductList } from '@/components/studio/StudioProductList.vue'
+export { default as BulkSend } from '@/components/studio/StudioBulkSendModal.vue'
 export { createRouter, createMemoryHistory } from 'vue-router'
 export { commonFromPrepare } from '@/lib/studioSendCommon'
 export { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
@@ -448,6 +450,21 @@ if (built?.ProductList) {
   let html = ''
   try { html = await renderToString(app) } catch (e) { errors.push(e) }
   eq('[내 상품] 목록: 운영 방식으로 그려도 setup 예외 없음 · 탭 5개 · 상품 없음 안내', [errors[0] ? `${errors[0].name}: ${errors[0].message}` : null, (html.match(/data-products-tab="/g) || []).length, /data-products-none/.test(html)], [null, 5, true])
+}
+
+// ── 여러 상품 한 번에 보내기 (2026-10-02) — 운영 방식으로 묶어 setup이 예외 없이 도는지 · 상품마다 한 줄(준비 데이터를 받기 전 = 불러오는 중) ──
+if (built?.BulkSend) {
+  const quietErr = console.error
+  console.error = () => {} // 가짜 서버(never)가 실패하면 원인 로그를 남긴다 — 그려 보기 대상 아님
+  const errors = []
+  const app = createSSRApp({ render: () => h(built.BulkSend, { open: true, rows: [{ id: 'p1', name: '도트 헤어핀', exportId: 'e1' }, { id: 'p2', name: '머그컵', exportId: 'e2' }, { id: 'p3', name: '작성 중', exportId: null }] }) })
+  app.config.errorHandler = e => { errors.push(e) }
+  app.config.warnHandler = () => {}
+  let html = ''
+  const ctx = {}
+  try { html = await renderToString(app, ctx) } catch (e) { errors.push(e) } finally { console.error = quietErr }
+  html += Object.values(ctx.teleports || {}).join('')
+  eq('여러 상품 창: setup 예외 없음 · 결과물 있는 상품만 한 줄씩(2) · 보내기 버튼 꺼짐(준비 전)', [errors[0] ? `${errors[0].name}: ${errors[0].message}` : null, (html.match(/data-bulk-item="/g) || []).length, /<button[^>]*disabled[^>]*data-bulk-send|<button[^>]*data-bulk-send[^>]*disabled/.test(html)], [null, 2, true])
 }
 
 try { fs.rmSync(workDir, { recursive: true, force: true }) } catch (e) { console.warn('임시 폴더를 지우지 못함:', workDir, e.message) }

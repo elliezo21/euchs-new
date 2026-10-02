@@ -11,8 +11,17 @@
       <button type="button" class="st-link ml-1" data-mk-zz-meta-retry @click="loadMeta(true)">다시 불러오기</button></p>
     <p v-if="meta && !meta.shop?.zigzagKr" class="text-[13px] font-bold st-danger-text break-keep" data-mk-zz-no-site>이 스토어의 판매 채널에 지그재그(한국)가 없습니다. 파트너센터에서 판매 채널을 확인하세요.</p>
 
+    <!-- 공통 정보를 쓰는 중 (2026-10-02) — 이 판매처만 다르게 할 묶음을 켜면 아래에 그 칸이 다시 보인다 -->
+    <div v-if="common" class="st-surface st-border rounded-[10px] p-3 space-y-1.5" data-mk-zz-common>
+      <p class="text-[13px] st-ink break-keep">상품명·판매가·재고·옵션·대표 이미지는 위 공통 정보 값을 사용합니다.</p>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] st-ink">
+        <span class="st-desc-sm">이 판매처만 다르게:</span>
+        <label v-for="g in COMMON_GROUPS" :key="g.key" class="flex items-center gap-1.5"><input v-model="own[g.key]" type="checkbox" :disabled="!!done" :data-mk-zz-own="g.key" /> {{ g.label }}</label>
+      </div>
+    </div>
+
     <!-- 상품명 -->
-    <label ref="nameEl" class="block">
+    <label v-show="showOwn('name')" ref="nameEl" class="block">
       <span class="st-label">상품명 *</span>
       <input v-model="f.productName" type="text" class="st-input w-full" placeholder="상품명을 입력하세요" :disabled="!!done" data-mk-zz-name />
     </label>
@@ -32,7 +41,7 @@
 
     <!-- 판매가 · 시중판매가 · 재고 -->
     <div ref="priceEl" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <label class="block">
+      <label v-show="showOwn('price')" class="block">
         <span class="st-label">판매가 *</span>
         <input v-model.number="f.price" type="number" min="1" step="1" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-zz-price />
       </label>
@@ -40,23 +49,23 @@
         <span class="st-label">시중판매가</span>
         <input v-model.number="f.listPrice" type="number" min="1" step="1" class="st-input w-full" placeholder="비우면 판매가와 같게" :disabled="!!done" data-mk-zz-list-price />
       </label>
-      <label v-if="!useOptions" class="block">
+      <label v-if="!useOptions" v-show="showOwn('stock')" class="block">
         <span class="st-label">재고 수량 *</span>
         <input v-model.number="f.stock" type="number" min="0" step="1" class="st-input w-full" placeholder="개" :disabled="!!done" data-mk-zz-stock />
       </label>
-      <div v-else class="block" data-mk-zz-stock-total>
+      <div v-else v-show="showOwn('stock')" class="block" data-mk-zz-stock-total>
         <span class="st-label">재고 수량</span>
         <p class="text-[13px] st-ink mt-1">옵션 재고 합계 {{ optionStockTotal.toLocaleString('ko-KR') }}개</p>
       </div>
     </div>
 
     <!-- 옵션 — 옵션 종류(option_list) · 조합 = 구매 단위(item_list) -->
-    <div ref="optionsEl">
+    <div v-show="showOwn('stock')" ref="optionsEl">
       <StudioSendOptions :model="opts" :disabled="!!done" :note="OPTION_NOTE" data-mk-zz-options />
     </div>
 
     <!-- 대표 이미지 -->
-    <div ref="imageEl" class="block">
+    <div v-show="showOwn('image')" ref="imageEl" class="block">
       <span class="st-label">대표 이미지 *</span>
       <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
       <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-zz-images>
@@ -171,7 +180,7 @@
 // 11번가·스마트스토어 섹션과 같은 모양으로 밖에 내놓는다: missing(빠진 것)·busy·done·submit()·sendError. 창(StudioSendModal)이 지그재그를 체크했을 때만 보인다.
 // 항목 규칙은 공용 파일(api/_zigzagFields.js — 스키마·문서 근거). 화면(missing)이 먼저 막고 서버(buildZigzagProduct)가 다시 검사한다. 금액은 기본값 없이 비워 둔다(임의 숫자 없음)
 // 스토어·카테고리·고시 템플릿·배송주소록은 창이 들고 있는 목록(sendCache)을 같이 쓴다 — 창을 다시 열어도 다시 받지 않는다
-import { ref, computed, onMounted, inject, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, inject, nextTick } from 'vue'
 import { getZigzagMeta, sendZigzagProduct, isNotReady } from '@/lib/studioMarketplace'
 import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
@@ -181,11 +190,14 @@ import {
 } from '../../../api/_zigzagFields.js'
 import { optionsPayload } from '../../../api/_marketOptions.js'
 import { optionEditorFromSource } from '@/lib/studioOptionEditor'
+import { COMMON_GROUPS, commonPatch } from '@/lib/studioSendCommon'
+import { matchCategory } from '@/lib/studioBulkSend'
 import StudioSendOptions from './StudioSendOptions.vue'
 
 const CAT_SHOWN = 200
 const OPTION_NOTE = `지그재그는 옵션 조합마다 구매 단위(품목)로 등록합니다. 품목 가격 = 판매가 + 추가금액이며, 조합은 ${ITEM_MAX}개까지입니다. 재고 0인 조합은 품절로 등록됩니다.`
-const props = defineProps({ prepare: { type: Object, required: true } })
+// common = 창의 공통 정보(2026-10-02) — 다른 판매처와 함께 보낼 때만 온다. null이면 예전 그대로(이 섹션 칸에 직접 넣는다)
+const props = defineProps({ prepare: { type: Object, required: true }, common: { type: Object, default: null } })
 
 const busy = ref('')
 const done = ref(null)
@@ -365,9 +377,40 @@ async function submit() {
   }
 }
 
+// ── 공통 정보 (2026-10-02) — 스마트스토어·11번가와 같은 방식(commonPatch): 상품명·판매가·재고·옵션·대표 이미지를 공통 값으로 채우고 칸을 가린다.
+//    [이 판매처만 다르게]를 켠 묶음(own)은 채우지 않고 칸을 다시 보인다. 시중판매가·카테고리·배송·고시는 지그재그 칸 그대로
+const own = reactive(Object.fromEntries(COMMON_GROUPS.map(g => [g.key, false])))
+const showOwn = key => !props.common || own[key]
+function syncCommon() {
+  if (!props.common || done.value) return
+  const p = commonPatch('zigzag', props.common, own)
+  Object.assign(f.value, p.form)
+  if (p.opts) opts.value = p.opts
+}
+watch(() => props.common, syncCommon, { deep: true, immediate: true })
+watch(own, syncCommon)
+
+// ── 여러 상품 한 번에 보내기 (2026-10-02 StudioBulkSendModal) — 카테고리를 밖에서 정한다(목록을 받은 뒤에 고른다) ──
+const pendingCategory = ref(null)
+function applyPendingCategory() {
+  if (done.value || pendingCategory.value == null) return
+  const hit = matchCategory(categories.value, pendingCategory.value)
+  if (!hit) return
+  f.value.categoryId = hit.id
+  pendingCategory.value = null
+  onCategory()
+}
+function applyPreset({ category = null } = {}) {
+  if (done.value) return
+  if (category?.id != null) pendingCategory.value = category.id
+  applyPendingCategory()
+}
+watch(categories, applyPendingCategory)
+const pickedCategory = computed(() => (category.value ? { id: String(category.value.id), name: category.value.wholeName || '' } : null))
+
 if (sendCache?.zigzagMetaDone) applyMeta(sendCache.zigzagMetaDone)
 onMounted(() => { if (!sendCache?.zigzagMetaDone) loadMeta() })
-defineExpose({ missing, busy, done, submit, sendError })
+defineExpose({ missing, busy, done, submit, sendError, applyPreset, pickedCategory })
 </script>
 
 <style scoped>

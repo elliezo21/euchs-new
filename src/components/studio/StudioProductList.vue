@@ -157,6 +157,7 @@
       <span class="flex-1" />
       <button type="button" class="st-link-muted text-[13px] pl-tap" @click="clearPicks">선택 해제</button>
       <button v-if="foldersReady" type="button" class="st-btn pl-tap" data-projects-bulk-move @click="openMove(pickedRows.map(r => r.id))">폴더로 이동</button>
+      <span v-if="summary.total > BULK_MAX" class="text-[12px] font-bold st-danger-text" data-products-bar-max>한 번에 {{ BULK_MAX }}개까지 보낼 수 있습니다</span>
       <button type="button" class="st-btn st-btn-primary pl-tap" :disabled="!canSendPicked || !!opening" data-products-bar-send @click="sendPicked">판매처로 보내기</button>
     </div>
 
@@ -232,6 +233,8 @@
 
     <!-- 보내기 창 (상품 하나) — 예전 보내기 탭·보낸 상품의 [수정 후 재전송]과 같은 창·같은 진입(sendToMarketplace / resendToMarketplace) -->
     <StudioSendModal :open="send.open" :prepare="send.prepare" :market="send.market" :load-error="send.error" :sent="sentOfOpen" @close="send.open = false" @sent="onSent" @retry="loadPrepare" />
+    <!-- 여러 상품 한 번에 보내기 (2개 이상 골랐을 때) — 열 때마다 새로 만든다 -->
+    <StudioBulkSendModal v-if="bulk.open" :open="bulk.open" :rows="bulk.rows" @close="bulk.open = false" @sent="loadSends" />
   </section>
 </template>
 
@@ -246,6 +249,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { MoreHorizontal, Search, Folder, FolderPlus } from 'lucide-vue-next'
 import StudioModal from './StudioModal.vue'
 import StudioSendModal from './StudioSendModal.vue'
+import StudioBulkSendModal from './StudioBulkSendModal.vue'
+import { BULK_MAX } from '@/lib/studioBulkSend'
+import { loadMarketLinks } from '@/lib/studioMarketLinks'
 import { listMyProjects, listImagesOf, signViewUrls, sortStudioImages, renameProject, softDeleteProject } from '@/lib/studioProjects'
 import { copyProject } from '@/lib/studioProjectCopy'
 import { listFolders, createFolder, renameFolder, deleteFolder, moveProjects } from '@/lib/studioFolders'
@@ -381,10 +387,17 @@ function pickAll(on) {
   picked.value = next
 }
 function clearPicks() { picked.value = new Set() }
-const canSendPicked = computed(() => summary.value.total === 1)
-function sendPicked() {
-  const r = pickedRows.value.find(canPick)
-  if (r && summary.value.total === 1) runAction(r, { forceSend: true })
+// 1개 = 예전 보내기 창 그대로 · 2개 이상 = 여러 상품 한 번에 보내기(StudioBulkSendModal) — 한 번에 BULK_MAX개까지
+const canSendPicked = computed(() => summary.value.total >= 1 && summary.value.total <= BULK_MAX)
+const bulk = reactive({ open: false, rows: [] })
+async function sendPicked() {
+  const list = pickedRows.value.filter(canPick)
+  if (!list.length || list.length > BULK_MAX) return
+  if (list.length === 1) { runAction(list[0], { forceSend: true }); return }
+  if (!(await studioGate('/studio/projects'))) return // 작업 시작 관문 — 로그인·안내 창은 studioGate가 띄운다
+  message.value = ''
+  bulk.rows = list
+  bulk.open = true
 }
 
 // ── 할 일 ──
@@ -619,6 +632,7 @@ const onStudioAuthChanged = (e) => {
     sendsError.value = ''
     message.value = ''
     Object.assign(send, { open: false, prepare: null, error: '', exportId: '', market: '', how: 'send', sendId: null, rowId: '' })
+    Object.assign(bulk, { open: false, rows: [] })
     for (const k of Object.keys(busy)) delete busy[k]
     renameModal.open = false
     deleteModal.open = false
@@ -637,6 +651,7 @@ onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
   document.addEventListener('click', closeMenu)
   load()
+  loadMarketLinks().catch(e => console.error('[StudioProductList] 판매처 연결 상태 조회 실패:', e)) // 보내기 창의 판매처 줄(스마트스토어·11번가·지그재그 연결 상태 — studioMarketLinks, 예전 보내기 탭과 같게)
 })
 onUnmounted(() => {
   window.removeEventListener('euchs-auth-changed', onStudioAuthChanged)
