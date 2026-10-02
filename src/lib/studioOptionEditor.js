@@ -108,6 +108,17 @@ export function optionEditorFromSource(skus) {
   return rebuildRows(m)
 }
 
+/**
+ * 편집 모양을 그 자리에서 바꾼다 (화면이 들고 있는 같은 객체 — [주문한 옵션 불러오기]·[1688 옵션 불러오기], 2026-10-02)
+ * @param {object} m 바꿀 모양(그대로 고친다) @param {object} next 새 모양(optionEditorFromSource 등)
+ */
+export function replaceOptionEditor(m, next) {
+  const n = cloneOptionEditor(next)
+  for (const k of Object.keys(m)) if (!(k in n)) delete m[k]
+  Object.assign(m, n)
+  return m
+}
+
 /** 편집 모양 복사 (공통 정보 ↔ 판매처 섹션이 서로의 줄을 고치지 않게) */
 export function cloneOptionEditor(o) {
   return {

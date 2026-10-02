@@ -31,7 +31,7 @@
     </div>
 
     <!-- 옵션 — 판매처 공용 옵션 영역 그대로. 추가금액 범위 = 체크한 판매처 범위가 모두 겹치는 곳 -->
-    <StudioSendOptions :model="common.opts" :disabled="disabled" :range="optionRange" :note="optionNote" data-mk-cm-options />
+    <StudioSendOptions :model="common.opts" :skus="prepare.source?.skus || []" :sku-total="prepare.source?.skuTotal || 0" :ordered="prepare.ordered || []" :disabled="disabled" :range="optionRange" :note="optionNote" data-mk-cm-options />
 
     <!-- 대표 이미지 -->
     <div class="block">

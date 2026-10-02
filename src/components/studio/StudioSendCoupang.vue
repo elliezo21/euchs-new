@@ -90,6 +90,10 @@
         <p class="st-desc-sm break-keep">품번(판매자 상품코드) 필수 · GTIN(바코드 8~14자리) 선택 · 옵션 이름은 옵션 값으로 자동 생성 · 상품식별정보·필수 구매옵션이 비면 쿠팡 노출 제한</p>
         <p v-if="commonItems" class="text-[13px] st-ink break-keep" data-mk-s-common-items>{{ COMMON_ITEMS_NOTE }}</p>
         <p v-else-if="sourceNote" class="st-desc-sm break-keep" data-mk-s-source-note>{{ sourceNote }}</p>
+        <!-- 옵션 불러오기 (2026-10-02) — 처음에는 옵션 1줄(빈칸). 누를 때만 주문한 옵션·1688 옵션(체크한 것)으로 옵션 표를 바꾼다 -->
+        <StudioSourceOptionPicker v-if="!commonItems && !resend" :skus="source?.skus || []" :sku-total="source?.skuTotal || 0" :ordered="prepare.ordered || []" @pick="onPickSource" data-mk-s-src-opt />
+        <!-- 쿠팡 카테고리의 필수 구매옵션이 셀러 옵션에 없음 — 값을 지어내 넣지 않고 알린다 (빠짐 목록에도) -->
+        <p v-for="n in requiredOptionNotes" :key="n" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-required-option>{{ n }}</p>
 
         <!-- 쿠팡 옵션 연결 — 옵션 종류(공통 정보 또는 가져온 옵션) → 쿠팡 구매옵션 이름. 같은 이름·같은 뜻이면 자동 연결 (studioCoupangLink) -->
         <div v-if="f.optionTypes.length || linkTable.length" class="st-surface st-border rounded-[10px] p-3 space-y-2" data-mk-s-option-types>
@@ -307,6 +311,7 @@
 // 판매처마다 섹션 컴포넌트 하나 — 밖으로 내놓는 것은 같다: missing(빠진 것)·busy·done·submit(). 다른 판매처가 열리면 같은 모양으로 하나 더 만든다.
 // 필수값은 화면에서 먼저 막고(missing) 서버가 다시 검사한다. 항목 규칙은 api/_coupangFields.js — 서버와 같은 파일
 import { ref, reactive, computed, watch, inject, onMounted, onBeforeUnmount } from 'vue'
+import StudioSourceOptionPicker from '@/components/studio/StudioSourceOptionPicker.vue'
 import StudioTagChips from '@/components/studio/StudioTagChips.vue'
 import { optionTableMode, SEND_CACHE_KEY, repImageCandidates, defaultRepImageId, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
 import { COMMON_GROUPS } from '@/lib/studioSendCommon'
@@ -366,10 +371,9 @@ const resend = computed(() => props.prepare?.resend || null)
 const template = computed(() => (props.prepare?.templates || []).find(t => t.id === f.value.templateId) || null)
 const hasCny = computed(() => !!source.value && f.value.items.some(it => it.fromSource))
 const sourceNote = computed(() => {
-  const s = source.value
-  if (!s || !s.skus?.length) return ''
-  const more = s.skuTotal > s.skus.length ? ` (전체 ${s.skuTotal}개 중 ${s.skus.length}개)` : ''
-  return `가져온 상품의 옵션 ${s.skus.length}개를 불러왔습니다${more}. 1688 가격은 참고용이며 판매가는 직접 입력합니다.`
+  const n = f.value.items.filter(it => it.fromSource).length
+  if (!n) return '' // 옵션은 처음부터 채우지 않는다 (2026-10-02) — 불러온 뒤에만 안내
+  return `불러온 옵션 ${n}개입니다. 1688 가격은 참고용이며 판매가는 직접 입력합니다.`
 })
 
 // 처음 값 — 창이 열릴 때마다 이 섹션이 새로 만들어진다(StudioSendModal이 key로 다시 띄움). 맨 아래에서 한 번 부른다
@@ -381,7 +385,7 @@ function init() {
   f.value.repImageId = defaultRepImageId(p?.images)
   // 고쳐서 다시 보내기 — 그 전송에서 보냈던 값으로 채운다 (템플릿·대표 이미지·옵션 사진은 지금 것에서 다시 고른다)
   if (resend.value?.form) return fillFromResend(resend.value.form)
-  fillFromSource()
+  // 1688 옵션은 처음부터 채우지 않는다 (2026-10-02 — 사입 셀러는 실제로 들여온 옵션만 판다). [주문한 옵션 불러오기]·[1688 옵션 불러오기] → onPickSource
   applyRememberedMode()
   if (nameSeed.value) { f.value.generalName = suggestGeneralName({ title: nameSeed.value, optionValues: optionValueList() }); suggestTags() }
 }
@@ -404,14 +408,14 @@ function fillFromResend(r) {
   loadMeta({ keep: { noticeCategory: r.noticeCategory, notices: r.notices, certifications: r.certifications, mapped: true } })
 }
 
-/** 가져온 상품(1688)의 옵션 줄 → 옵션 표. 가격(원)은 비워 둔다 — 임의 숫자로 채우지 않는다 */
-function fillFromSource() {
+/** 가져온 상품(1688)의 옵션 줄(고른 것만 — list) → 옵션 표. 가격(원)은 비워 둔다 — 임의 숫자로 채우지 않는다 */
+function fillFromSource(list) {
   const s = source.value
-  if (!s?.skus?.length) return
+  if (!s || !Array.isArray(list) || !list.length) return
   // 옵션 이름·값은 한글만 넣는다(규칙: koreanizeSkus) — 못 옮긴 값은 비워 두고 가져온 글자를 칸 아래에 보여 준다
-  const kr = koreanizeSkus(s.skus, { valueMax: ATTR_VALUE_MAX, nameMax: 150 })
+  const kr = koreanizeSkus(list, { valueMax: ATTR_VALUE_MAX, nameMax: 150 })
   f.value.optionTypes = kr.types.map(t => ({ ...t, mapped: '' }))
-  f.value.items = s.skus.map((row, i) => {
+  f.value.items = list.map((row, i) => {
     const it = blankItem()
     it.fromSource = true
     it.opt = { ...kr.rows[i].opt }
@@ -427,6 +431,35 @@ function fillFromSource() {
   })
 }
 const optionValueList = () => f.value.items.flatMap(it => Object.values(it.opt || {})).filter(Boolean)
+/** [주문한 옵션 불러오기]·[1688 옵션 불러오기] (StudioSourceOptionPicker) → 옵션 표를 고른 옵션으로. 카테고리 메타가 이미 있으면 옵션 이름 연결도 다시 (loadMeta와 같은 규칙) */
+function onPickSource({ skus }) {
+  fillFromSource(skus)
+  if (!meta.value) return
+  for (const it of f.value.items) for (const a of meta.value.attributes) if (!(a.name in it.attributes)) it.attributes[a.name] = ''
+  for (const t of f.value.optionTypes) {
+    const hit = mapOptionName(t.names, meta.value.attributes)
+    t.mapped = hit && !f.value.optionTypes.some(x => x !== t && x.mapped === hit) ? hit : ''
+  }
+}
+/**
+ * 쿠팡 카테고리 필수 구매옵션(EXPOSED + MANDATORY)이 셀러 옵션 종류에 연결되지 않았고 비어 있는 옵션 줄이 있으면 안내 (2026-10-02)
+ *   예: "쿠팡은 이 카테고리에 수량 옵션이 필수입니다" — 값을 지어내 넣지 않는다. 옵션 표의 그 칸에 직접 넣거나 옵션 종류로 만들면 풀린다
+ */
+const requiredOptionNotes = computed(() => {
+  const attrs = (meta.value?.attributes || []).filter(a => a.required && a.exposed)
+  const out = []
+  const seen = new Set()
+  for (const a of attrs) {
+    const members = a.group ? attrs.filter(x => x.group === a.group) : [a]
+    const key = members.map(x => x.name).join('|')
+    if (seen.has(key)) continue
+    seen.add(key)
+    if (members.some(x => mappedNames.value.includes(x.name))) continue
+    const empty = f.value.items.some(it => !members.some(x => String(attributesOf(it)[x.name] || '').trim()))
+    if (empty) out.push(`쿠팡은 이 카테고리에 ${members.map(x => x.name).join(' 또는 ')} 옵션이 필수입니다`)
+  }
+  return out
+})
 
 // ── 판매 방식 ──
 function pickMode(key) {
@@ -538,6 +571,7 @@ const missing = computed(() => {
   if (!v.templateId) out.push('배송/반품 템플릿')
   else if (!templateCourierOk.value) out.push('배송/반품 템플릿의 택배사 (판매처 > 기본 설정에서 다시 저장)')
   if (!v.repImageId) out.push('대표 이미지')
+  out.push(...requiredOptionNotes.value)
   if (commonItems.value) {
     // 공통 정보 옵션 → 쿠팡 옵션 이름 연결 (studioCoupangLink.linkProblems) · 옵션을 켰는데 조합이 없으면 보낼 옵션이 없다
     out.push(...linkProblems(v.optionTypes.map(t => t.label), Object.fromEntries(v.optionTypes.map(t => [t.label, t.mapped])), meta.value?.attributes || []))

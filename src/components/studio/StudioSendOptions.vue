@@ -6,6 +6,8 @@
         <input v-model="model.enabled" type="checkbox" :disabled="disabled" data-mk-opt-enabled @change="onToggle" /> 옵션 사용
       </label>
     </div>
+    <!-- 옵션 불러오기 (2026-10-02) — 처음에는 비워 두고, 누를 때만 주문한 옵션·1688 옵션(체크한 것)을 가져온다 -->
+    <StudioSourceOptionPicker :skus="skus" :sku-total="skuTotal" :ordered="ordered" :disabled="disabled" @pick="onPick" />
     <p v-if="!model.enabled" class="st-desc-sm" data-mk-opt-off>옵션 없이 단일상품으로 등록합니다.</p>
     <template v-else>
       <!-- 옵션 종류 — 줄마다 종류 이름 · 옵션값 입력 · [추가] · [삭제], 값은 칩 -->
@@ -92,9 +94,10 @@
 // 보내는 모양은 예전과 같다(model.groupNames·rows → optionsPayload). 판매처 규칙 검사는 섹션이 판매처 함수(api/_marketOptions.js)로 한다
 // 재고 칸은 비워 둔다(1688 판매자 재고는 내 재고가 아니다 — 칸 툴팁으로만). 추가금액 기본 0
 import { ref, reactive, computed, nextTick } from 'vue'
+import StudioSourceOptionPicker from './StudioSourceOptionPicker.vue'
 import {
   OPTION_GROUP_MAX, OPTION_VALUE_LEN, addGroup, removeGroup, setGroupName, addValues, removeValue, renameValue,
-  deleteChecked, restoreDeleted, restorableCount, excludedComboCount, bulkSet, checkAll,
+  deleteChecked, restoreDeleted, restorableCount, excludedComboCount, bulkSet, checkAll, optionEditorFromSource, replaceOptionEditor,
 } from '@/lib/studioOptionEditor'
 
 const props = defineProps({
@@ -102,6 +105,9 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
   range: { type: Object, default: null }, // { min, max } — 판매처 옵션가 범위 (없으면 안내 안 함)
   note: { type: String, default: '' }, // 판매처 규칙 안내 한 줄 (없으면 안 그림)
+  skus: { type: Array, default: () => [] }, // send_prepare.source.skus — [1688 옵션 불러오기] 목록 (처음부터 채우지 않는다)
+  skuTotal: { type: Number, default: 0 },
+  ordered: { type: Array, default: () => [] }, // send_prepare.ordered — [주문한 옵션 불러오기]
 })
 const drafts = reactive({}) // 종류 id → 옵션값 입력 칸 글자
 const msgs = reactive({}) // 종류 id → 안내 한 줄 (중복 값 등)
@@ -111,6 +117,13 @@ const editing = reactive({ vid: '', text: '' })
 const editInput = ref(null)
 
 const clearMsg = gid => { delete msgs[gid] }
+// 불러온 옵션으로 지금 모양을 바꾼다 (같은 객체를 고친다 — 공통 정보면 판매처 섹션이 commonPatch로 따라온다)
+function onPick({ skus }) {
+  replaceOptionEditor(props.model, optionEditorFromSource(skus))
+  for (const k of Object.keys(drafts)) delete drafts[k]
+  for (const k of Object.keys(msgs)) delete msgs[k]
+  listMsg.value = ''
+}
 function onToggle() {
   // 옵션을 처음 켜면 빈 종류 줄 하나를 바로 보여 준다
   if (props.model.enabled && !props.model.groups.length) addGroup(props.model)

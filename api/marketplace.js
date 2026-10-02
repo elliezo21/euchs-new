@@ -66,6 +66,8 @@ import { readDimensions } from './studio-ingest.js'
 import { extractFacts, factTexts, withKo } from './_studioFacts.js'
 import { resendPlan } from './_coupangFields.js'
 import { detailImageOver, detailImageServerMessage } from './_marketDetailLimits.js'
+import { orderedOptionsOf, ORDERED_ORDERS_MAX } from './_marketOrdered.js'
+import { ORDER_OK_STATUSES } from './_studioBg.js'
 import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand, detailImagePlans, formFromBody, DETAIL_MAX_BYTES, cleanOptionLinks } from './_coupangFields.js'
 import { renderDetailPiece, shrinkBytes, renderSquare } from './_coupangImage.js'
 import { publishMarketImages, MarketImagesError } from './_marketImages.js'
@@ -1623,7 +1625,7 @@ async function loadSource(ctx, offerId) {
   const pair = zh => { const t = ko.get(zh); return { zh, ko: typeof t === 'string' && t.trim() && t !== zh ? t.trim() : null } }
   return {
     from: '1688', offerId: String(offerId), ...withKo(facts, ko), skuTotal: skus.total,
-    skus: skus.rows.map(r => ({ skuId: r.skuId, values: r.values.map(v => ({ name: pair(v.name), value: pair(v.value) })), priceCny: r.priceCny, stock: r.stock, imageUrl: r.imageUrl })),
+    skus: skus.rows.map(r => ({ skuId: r.skuId, specId: r.specId, values: r.values.map(v => ({ name: pair(v.name), value: pair(v.value) })), priceCny: r.priceCny, stock: r.stock, imageUrl: r.imageUrl })),
   }
 }
 /** 다시 보낼 전송 — 내 것이고 반려 상태이고 쿠팡 상품 번호가 있어야 한다. 아니면 응답을 보내고 null */
@@ -1663,6 +1665,12 @@ async function existingInMarkets(ctx, exportId) {
   }
   return out
 }
+/** 이 고객이 이 1688 상품을 주문한 옵션 — 결제 확인된 주문만(ORDER_OK_STATUSES), 최근 ORDERED_ORDERS_MAX건 (규칙·근거 api/_marketOrdered.js) */
+async function loadOrdered(ctx, offerId) {
+  if (!OFFER_ID_RE.test(String(offerId ?? ''))) return []
+  const rows = await sb(ctx.cfg, `orders?select=items&user_id=eq.${ctx.userId}&status=in.(${ORDER_OK_STATUSES.join(',')})&order=created_at.desc&limit=${ORDERED_ORDERS_MAX}`)
+  return orderedOptionsOf(rows, String(offerId))
+}
 const SIGN_POOL = 8 // 사진 서명 주소를 동시에 만드는 수
 /** items를 n개씩 동시에 worker로 — 결과 순서는 items 순서 그대로 */
 async function runSignPool(items, n, worker) {
@@ -1698,7 +1706,7 @@ async function sendPrepare(ctx, body, res) {
   // 판매처마다 마지막으로 보낸 판매가·재고·카테고리 (2026-10-02 여러 상품 한 번에 보내기 — 같은 작업의 결과물 전부, 판매처를 부르지 않음)
   const prevRowsP = projectExportIds(ctx, ex.id).then(ids => sb(ctx.cfg, `marketplace_sends?select=${PREVIOUS_SELECT}&user_id=eq.${ctx.userId}&export_id=in.(${ids.join(',')})&order=created_at.desc&limit=200`))
   const existingP = existingInMarkets(ctx, ex.id).then(v => ({ v }), e => ({ e }))
-  const [source, existingR, prevRows] = await Promise.all([loadSource(ctx, projRows?.[0]?.offer_id), existingP, prevRowsP])
+  const [source, existingR, prevRows, ordered] = await Promise.all([loadSource(ctx, projRows?.[0]?.offer_id), existingP, prevRowsP, loadOrdered(ctx, projRows?.[0]?.offer_id)])
   if (existingR.e) {
     if (isNewColumnMissing(existingR.e)) return newSqlMissing(res, existingR.e, 'send_prepare')
     throw existingR.e
@@ -1708,6 +1716,7 @@ async function sendPrepare(ctx, body, res) {
   return res.status(200).json({
     existing, // 판매처마다 이미 있는 상품 (2026-10-02) — { [market]: { mode:'modify'|'manual', sendId, sellerProductId, status, extra } } · 없으면 새로 등록
     previous, // 판매처마다 마지막으로 보낸 { price, stock, category:{ id, name }, at, status } (2026-10-02 — api/_marketPrevious.js)
+    ordered, // 이 고객이 이 1688 상품을 이유씨에서 주문한 옵션 [{ specId, color, size, quantity }] (2026-10-02 — api/_marketOrdered.js) · 1688 상품이 아니면 []
     connected, markets: { [MARKET]: { connected } }, // 판매처마다 연결 여부 — 보내기 창 "보낼 판매처" 줄이 쓴다
     // projectTitle = 작업의 지금 이름 (내 상품을 만든 뒤 작업 이름을 한글로 고쳤을 수 있다 — 보내기 창의 상품명 기본값이 먼저 본다)
     export: { id: ex.id, title: ex.title || projRows?.[0]?.title || '', projectTitle: projRows?.[0]?.title || '', mode: ex.mode, format: ex.format, files: ex.files.map(f => ({ key: f.key, name: f.name, width: f.width, height: f.height })) },

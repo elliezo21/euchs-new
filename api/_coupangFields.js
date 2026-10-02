@@ -206,7 +206,8 @@ const absUrl = u => { const s = str(u); return !s ? '' : s.startsWith('//') ? `h
 /**
  * OneBound item_get 원본(item) → 옵션 줄. skus.sku[] + props_list + props_img (src/services/api1688.js와 같은 기준)
  * 가격은 1688 원본(위안) 그대로 — 원화 판매가는 만들지 않는다(고객이 넣는다). 재고 0은 0 그대로.
- * @returns {{ rows:[{ skuId, values:[{ name, value }], priceCny:number|null, stock:number|null, imageUrl }], total:number }}  값은 원문(번역 전)
+ * @returns {{ rows:[{ skuId, specId, values:[{ name, value }], priceCny:number|null, stock:number|null, imageUrl }], total:number }}  값은 원문(번역 전)
+ *   specId = OneBound sk.spec_id (발주에 쓰는 값 — 주문 기록 orders.items[].specId와 같은 값, 2026-10-02 [주문한 옵션 불러오기])
  */
 export function extractSkus1688(item) {
   const out = { rows: [], total: 0 }
@@ -226,7 +227,7 @@ export function extractSkus1688(item) {
     const price = sk?.price === undefined || sk?.price === null || sk?.price === '' ? null : parseFloat(String(sk.price).replace(/[^0-9.]/g, ''))
     const q = sk?.quantity === undefined || sk?.quantity === null || sk?.quantity === '' ? null : Number(sk.quantity)
     out.rows.push({
-      skuId: str(sk?.sku_id), values,
+      skuId: str(sk?.sku_id), specId: str(sk?.spec_id), values,
       priceCny: Number.isFinite(price) && price > 0 ? price : null,
       stock: Number.isFinite(q) && q >= 0 ? Math.min(STOCK_MAX, Math.floor(q)) : null,
       imageUrl: ids.map(imgOf).find(Boolean) || '',

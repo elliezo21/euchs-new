@@ -80,6 +80,9 @@ export { default as ProductList } from '@/components/studio/StudioProductList.vu
 export { default as BulkSend } from '@/components/studio/StudioBulkSendModal.vue'
 export { createRouter, createMemoryHistory } from 'vue-router'
 export { commonFromPrepare } from '@/lib/studioSendCommon'
+export { default as Options } from '@/components/studio/StudioSendOptions.vue'
+export { default as SourcePicker } from '@/components/studio/StudioSourceOptionPicker.vue'
+export { optionEditorFromSource } from '@/lib/studioOptionEditor'
 export { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 export { userRole } from '@/lib/auth'
 `)
@@ -139,8 +142,11 @@ if (built?.Coupang && built?.Modal) {
 
   const b = await render(built.Coupang, { prepare: PREPARE(true, SOURCE) })
   eq('쿠팡 섹션 setup이 예외 없이 실행 (1688 옵션 2개)', b.error, null)
-  eq('옵션 2줄 · 1688 가격은 참고 표시', [(b.html.match(/data-mk-s-item="/g) || []).length, /12\.5위안/.test(b.html)], [2, true])
-  eq('재고 수량 칸: 처음에는 비어 있음 (1688 재고를 넣지 않음)', [(b.html.match(/data-mk-s-stock="/g) || []).length, /data-mk-s-stock="\d+"[^>]*value="/.test(b.html)], [2, false])
+  // 2026-10-02: 1688 옵션은 처음부터 채우지 않는다 (사입 셀러) — 옵션 1줄(빈칸) + [1688 옵션 불러오기] · 주문 기록이 없으면 [주문한 옵션 불러오기] 없음
+  eq('옵션: 처음에는 1줄(빈칸) · 1688 옵션·가격을 채우지 않음 · [1688 옵션 불러오기] 있음 · 주문 기록 없으면 [주문한 옵션 불러오기] 없음', [(b.html.match(/data-mk-s-item="/g) || []).length, /12\.5위안/.test(b.html), /data-mk-src-opt-open[^>]*>1688 옵션 불러오기</.test(b.html), /data-mk-src-opt-ordered/.test(b.html), /data-mk-src-opt-list/.test(b.html)], [1, false, true, false, false])
+  eq('재고 수량 칸: 처음에는 비어 있음 (1688 재고를 넣지 않음)', [(b.html.match(/data-mk-s-stock="/g) || []).length, /data-mk-s-stock="\d+"[^>]*value="/.test(b.html)], [1, false])
+  const bo = await render(built.Coupang, { prepare: { ...PREPARE(true, SOURCE), ordered: [{ specId: 'x', color: '블랙', size: '', quantity: 50 }] } })
+  eq('주문 기록이 있으면 [주문한 옵션 불러오기] 보임 (누르기 전에는 옵션 1줄 그대로)', [bo.error, /data-mk-src-opt-ordered[^>]*>주문한 옵션 불러오기</.test(bo.html), (bo.html.match(/data-mk-s-item="/g) || []).length], [null, true, 1])
 
   const c = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE) })
   eq('보내기 창 setup이 예외 없이 실행 (연결됨)', c.error, null)
@@ -176,7 +182,8 @@ if (built?.Coupang && built?.Modal) {
 
   const m1 = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE) })
   eq('1 창 폭: 화면 폭 90% · 최대 1400px (예전 max-w-2xl 아님)', [/data-modal-size="full"/.test(m1.html), m1.html.includes('w-[90vw] max-w-[1400px]'), /max-w-2xl/.test(m1.html)], [true, true, false])
-  eq('1 옵션 표: 가로 스크롤 상자 없음 · 칸마다 이름표(카드형에서 보임) · 모든 칸이 그려짐', [/overflow-x-auto/.test(m1.html), ['사진', '색상', '1688 가격', '정가(원) *', '판매가(원) *', '할인', '재고 수량 *', '품번 *', 'GTIN'].filter(l => !m1.html.includes('data-label="' + l + '"')), /data-mk-s-items-mode="table"/.test(m1.html)], [false, [], true])
+  // 옵션을 불러오기 전(2026-10-02)이라 옵션 종류(색상)·1688 가격 칸은 없다 — 나머지 칸은 그대로
+  eq('1 옵션 표: 가로 스크롤 상자 없음 · 칸마다 이름표(카드형에서 보임) · 모든 칸이 그려짐', [/overflow-x-auto/.test(m1.html), ['사진', '정가(원) *', '판매가(원) *', '할인', '재고 수량 *', '품번 *', 'GTIN'].filter(l => !m1.html.includes('data-label="' + l + '"')), /data-mk-s-items-mode="table"/.test(m1.html), ['색상', '1688 가격'].filter(l => m1.html.includes('data-label="' + l + '"'))], [false, [], true, []])
 
   const n1 = await render(built.Coupang, { prepare: withTitle(RAW, ZH, ZH) })
   eq('2 상품명: 작업 이름·가져온 제목이 모두 번역 전이면 세 칸 다 빈칸 + placeholder (예외 없음)', [n1.error, val(n1.html, 'data-mk-s-name'), val(n1.html, 'data-mk-s-general'), val(n1.html, 'data-mk-s-display'), /placeholder="상품명을 입력하세요"[^>]*data-mk-s-name/.test(n1.html)], [null, '', '', '', true])
@@ -185,14 +192,15 @@ if (built?.Coupang && built?.Modal) {
   eq('2 상품명: 작업의 한글 이름 · 없으면 가져온 제목의 한글', [val(n2.html, 'data-mk-s-name'), val(n3.html, 'data-mk-s-name')], ['도트 헤어핀 모음', '여성 도트 헤어핀'])
   eq('2 화면 어디에도 번역 전 제목이 값으로 들어가지 않음', [n1, n2, n3].map(r => new RegExp('value="[^"]*' + ZH).test(r.html)), [false, false, false])
 
-  eq('3 옵션: "옵션 이름" 열 없음(자동) · 색상값 "블랙"·"레드" · 옵션 종류 이름 "색상" · 자동 이름 "블랙, 레드"', [(n1.html.match(/data-mk-s-item-name="\d+"/g) || []).length, /data-label="옵션 이름/.test(n1.html), /value="블랙"/.test(n1.html), /value="레드"/.test(n1.html), /data-label="색상"/.test(n1.html), /data-mk-s-names-auto[^>]*>옵션 이름: 블랙, 레드</.test(n1.html), /data-mk-s-names-toggle[^>]*>옵션 이름 직접 입력</.test(n1.html)], [0, false, true, true, true, true, true])
+  // 2026-10-02: 옵션은 불러오기 전 빈칸 — 1688 옵션 값(블랙·레드)이 칸에 들어가지 않는다. 불러온 뒤의 한글 옮기기는 koreanizeSkus 테스트(test-marketplace)
+  eq('3 옵션: "옵션 이름" 열 없음(자동) · 1688 옵션 값이 칸에 없음 · [옵션 이름 직접 입력] 그대로', [(n1.html.match(/data-mk-s-item-name="\d+"/g) || []).length, /data-label="옵션 이름/.test(n1.html), /value="블랙"/.test(n1.html), /value="레드"/.test(n1.html), /data-mk-s-names-toggle[^>]*>옵션 이름 직접 입력</.test(n1.html)], [0, false, false, false, true])
   eq('브랜드: "브랜드 없음"이 처음부터 체크 · 브랜드 입력 꺼짐 · 요약 표 "브랜드 없음" · 경고 한 줄', [/<input[^>]*data-mk-s-no-brand[^>]*checked|<input[^>]*checked[^>]*data-mk-s-no-brand/.test(n1.html), /<input[^>]*disabled[^>]*data-mk-s-brand(?![-\w])|<input[^>]*data-mk-s-brand(?![-\w])[^>]*disabled/.test(n1.html), /data-mk-s-preview-row="브랜드"[\s\S]{0,200}브랜드 없음/.test(n1.html), /data-mk-s-brand-warn/.test(n1.html)], [true, true, true, true])
   const TWO = { ...RAW, skuTotal: 4, skus: ['黑色', '白色'].flatMap((c, ci) => ['M', 'L'].map((z, zi) => ({ skuId: String(ci * 2 + zi + 1), values: [{ name: { zh: '颜色', ko: null }, value: { zh: c, ko: null } }, { name: { zh: '尺码', ko: null }, value: { zh: z, ko: null } }], priceCny: 9, stock: 1, imageUrl: '' }))) }
   const n5 = await render(built.Coupang, { prepare: PREPARE(true, TWO) })
-  eq('옵션 종류 2개: 맞추기 2줄 · 표 열 2개(색상·사이즈) · 줄 4개 · 자동 이름 "블랙 / M"', [n5.error, (n5.html.match(/data-mk-s-option-map="/g) || []).length, /<th[^>]*>색상<\/th>/.test(n5.html) && /<th[^>]*>사이즈<\/th>/.test(n5.html), (n5.html.match(/data-mk-s-item="/g) || []).length, /옵션 이름: 블랙 \/ M, 블랙 \/ L, 화이트 \/ M …/.test(n5.html)], [null, 2, true, 4, true])
+  eq('옵션 종류 2개인 1688 상품도 처음에는 옵션 1줄 · 맞추기 줄 없음 · [1688 옵션 불러오기]', [n5.error, (n5.html.match(/data-mk-s-option-map="/g) || []).length, (n5.html.match(/data-mk-s-item="/g) || []).length, /data-mk-src-opt-open/.test(n5.html)], [null, 0, 1, true])
   eq('3 옵션: 입력 값에 번역 전 글자 없음', /value="[^"]*\p{Script=Han}/u.test(n1.html), false)
   const n4 = await render(built.Coupang, { prepare: PREPARE(true, { ...RAW, skus: [{ skuId: '1', values: [{ name: { zh: '款式', ko: null }, value: { zh: '蝴蝶发夹', ko: null } }], priceCny: 1, stock: 1, imageUrl: '' }] }) })
-  eq('3 옵션: 한글로 못 옮긴 값은 빈칸 · 가져온 글자는 칸 아래와 placeholder에만', [n4.error, val(n4.html, 'data-mk-s-item-name'), /data-mk-s-origin="0:0"[^>]*>가져온 옵션: 蝴蝶发夹</.test(n4.html), /placeholder="蝴蝶发夹"/.test(n4.html)], [null, '', true, true])
+  eq('3 옵션: 불러오기 전에는 가져온 글자가 칸·칸 아래 어디에도 없음', [n4.error, val(n4.html, 'data-mk-s-item-name'), /蝴蝶发夹/.test(n4.html)], [null, '', false])
 
   eq('4 태그 추천: 가져온 상품 속성의 말(이우·타오바오·경동·이베이·아마존·소원)이 화면에 없음', ['이우', '타오바오', '경동', '이베이', '아마존', '소원'].filter(w => n3.html.includes(w)), [])
   eq('4 태그 추천: 상품명에서 나온 말은 있음', ['헤어핀', '도트'].filter(w => !n3.html.includes(w)), [])
@@ -245,14 +253,19 @@ if (built?.Coupang && built?.Modal) {
   eq('스마트스토어 섹션: 국내 출고지면 관부가세 칸·요약 줄 없음', [/data-mk-ss-customs/.test(ss.html), /data-mk-ss-preview-row="관부가세"/.test(ss.html)], [false, false])
   // 옵션(조합형, 2026-10-01) — 가져온 상품에 옵션이 있으면 옵션 영역 · 없으면 예전 그대로 단일상품
   const sso = await render({ setup: () => { vueProvide(built.SEND_CACHE_KEY, ssCache); return () => h(built.Smartstore, { prepare: PREPARE(true, SOURCE) }) } }, {})
-  eq('스마트스토어 섹션(옵션 있는 상품): 예외 없이 그려짐 · 옵션 영역 · 옵션 사용 체크 · 줄 수 = 가져온 옵션 수 · 재고 칸 대신 합계 · 옵션 재고 빈칸 · 추가금액 0 · 값 = 한글', [
-    sso.error, /data-mk-opt-table/.test(sso.html), checked(sso.html, 'data-mk-opt-enabled'), (sso.html.match(/data-mk-opt-row="/g) || []).length, /data-mk-ss-stock-total/.test(sso.html), /data-mk-ss-stock /.test(sso.html), val(sso.html, 'data-mk-opt-stock="0"'), val(sso.html, 'data-mk-opt-price="0"'), /data-mk-opt-value="0-0"[^>]*>블랙</.test(sso.html),
-  ], [null, true, true, SOURCE.skus.length, true, false, '', '0', true])
-  // 옵션 편집 (2026-10-02) — 옵션 종류 줄·값 칩·조합 목록 도구
+  // 2026-10-02: 1688 옵션이 있어도 처음에는 비어 꺼진 채 + [1688 옵션 불러오기] (목록은 누를 때만)
+  eq('스마트스토어 섹션(옵션 있는 상품): 예외 없이 그려짐 · 옵션 사용 꺼진 채 · 옵션 표 없음 · 단일 재고 칸 · [1688 옵션 불러오기] · 목록은 닫힌 채', [
+    sso.error, checked(sso.html, 'data-mk-opt-enabled'), /data-mk-opt-table/.test(sso.html), /data-mk-ss-stock /.test(sso.html), /data-mk-src-opt-open[^>]*>1688 옵션 불러오기</.test(sso.html), /data-mk-src-opt-list/.test(sso.html),
+  ], [null, false, false, true, true, false])
+  // 옵션 편집 (2026-10-02) — 옵션 종류 줄·값 칩·조합 목록 도구 = [1688 옵션 불러오기]로 가져온 뒤의 모양(optionEditorFromSource)을 편집 화면에 그려 본다
+  const sso2 = await render(built.Options, { model: built.optionEditorFromSource(SOURCE.skus), skus: SOURCE.skus, skuTotal: 2, ordered: [] })
+  eq('불러온 옵션: 옵션 사용 체크 · 줄 수 = 고른 옵션 수 · 옵션 재고 빈칸 · 추가금액 0 · 값 = 한글', [
+    sso2.error, checked(sso2.html, 'data-mk-opt-enabled'), (sso2.html.match(/data-mk-opt-row="/g) || []).length, val(sso2.html, 'data-mk-opt-stock="0"'), val(sso2.html, 'data-mk-opt-price="0"'), /data-mk-opt-value="0-0"[^>]*>블랙</.test(sso2.html),
+  ], [null, true, SOURCE.skus.length, '', '0', true])
   eq('옵션 편집 화면: 종류 줄 1개(이름 "색상") · 값 칩 블랙·화이트 · [옵션 종류 추가]·[추가]·[삭제] · 옵션 목록 (총 2개) · [선택 삭제]·[추가금액 일괄입력]·[재고 일괄입력] · 되살리기는 지운 뒤에만 · 가져온 옵션 원문', [
-    (sso.html.match(/data-mk-opt-group-row="/g) || []).length, val(sso.html, 'data-mk-opt-group="0"'), (sso.html.match(/data-mk-opt-chip="/g) || []).length, /data-mk-opt-chip="블랙"/.test(sso.html) && /data-mk-opt-chip="화이트"/.test(sso.html),
-    /data-mk-opt-group-add[^>]*>옵션 종류 추가</.test(sso.html), /data-mk-opt-value-add="0"[^>]*>추가</.test(sso.html), /data-mk-opt-group-remove="0"[^>]*>삭제</.test(sso.html),
-    /data-mk-opt-total[^>]*>옵션 목록 \(총 2개\)</.test(sso.html), /data-mk-opt-delete[^>]*>선택 삭제</.test(sso.html), /data-mk-opt-bulk-price-apply[^>]*>추가금액 일괄입력</.test(sso.html), /data-mk-opt-bulk-stock-apply[^>]*>재고 일괄입력</.test(sso.html), /data-mk-opt-restore/.test(sso.html), /가져온 옵션: 黑色/.test(sso.html),
+    (sso2.html.match(/data-mk-opt-group-row="/g) || []).length, val(sso2.html, 'data-mk-opt-group="0"'), (sso2.html.match(/data-mk-opt-chip="/g) || []).length, /data-mk-opt-chip="블랙"/.test(sso2.html) && /data-mk-opt-chip="화이트"/.test(sso2.html),
+    /data-mk-opt-group-add[^>]*>옵션 종류 추가</.test(sso2.html), /data-mk-opt-value-add="0"[^>]*>추가</.test(sso2.html), /data-mk-opt-group-remove="0"[^>]*>삭제</.test(sso2.html),
+    /data-mk-opt-total[^>]*>옵션 목록 \(총 2개\)</.test(sso2.html), /data-mk-opt-delete[^>]*>선택 삭제</.test(sso2.html), /data-mk-opt-bulk-price-apply[^>]*>추가금액 일괄입력</.test(sso2.html), /data-mk-opt-bulk-stock-apply[^>]*>재고 일괄입력</.test(sso2.html), /data-mk-opt-restore/.test(sso2.html), /가져온 옵션: 黑色/.test(sso2.html),
   ], [1, '색상', 2, true, true, true, true, true, true, true, true, false, true])
   eq('스마트스토어 섹션(옵션 없는 상품): 옵션 영역은 "옵션 사용" 꺼진 채(직접 켜서 종류·값 추가) · 옵션 표 없음 · 단일 재고 칸 · 요약 표 옵션 "없음 (단일상품)"', [/data-mk-opt-enabled/.test(ss.html), checked(ss.html, 'data-mk-opt-enabled'), /data-mk-opt-off/.test(ss.html), /data-mk-opt-table/.test(ss.html), /data-mk-ss-stock-total/.test(ss.html), /data-mk-ss-preview-row="옵션"[\s\S]{0,200}없음 \(단일상품\)/.test(ss.html)], [true, false, true, false, false, true])
   // 출고지·반품지 기본값 = 국내 주소 우선 (2026-10-01 운영 1차: 주소록 첫 번째 해외(항주)가 기본으로 잡혀 관부가세 400)
@@ -341,11 +354,20 @@ if (built?.Elevenst) {
   // 옵션(싱글옵션, 2026-10-01) — 가져온 상품에 옵션이 있으면 옵션 영역 · 없으면 예전 그대로
   const o11 = await render({ setup: () => { vueProvide2(built.SEND_CACHE_KEY, cache11({ out: null, in: null })); return () => h(built.Elevenst, { prepare: PREPARE(true, SOURCE) }) } }, {})
   const inVal = (html, attr) => (new RegExp('<input[^>]*' + attr + '[^>]*>').exec(html)?.[0].match(/ value="([^"]*)"/)?.[1]) ?? ''
-  eq('11번가 섹션(옵션 있는 상품): 예외 없이 그려짐 · 옵션 영역 · 줄 수 = 가져온 옵션 수 · 재고 칸 대신 합계 · 0원 옵션 안내 · 옵션 재고 빈칸 · 추가금액 0', [
-    o11.error, /data-mk-opt-table/.test(o11.html), (o11.html.match(/data-mk-opt-row="/g) || []).length, /data-mk-11st-stock-total/.test(o11.html), /data-mk-11st-stock /.test(o11.html), /data-mk-opt-note[^>]*>[^<]*0원인 옵션이 1개 이상/.test(o11.html), inVal(o11.html, 'data-mk-opt-stock="0"'), inVal(o11.html, 'data-mk-opt-price="0"'),
-  ], [null, true, SOURCE.skus.length, true, false, true, '', '0'])
+  // 2026-10-02: 처음에는 비어 꺼진 채 + [1688 옵션 불러오기] — 불러온 뒤의 편집 화면은 같은 컴포넌트(StudioSendOptions)라 위 스마트스토어 테스트(sso2)와 같다
+  eq('11번가 섹션(옵션 있는 상품): 예외 없이 그려짐 · 옵션 사용 꺼진 채 · 옵션 표 없음 · 단일 재고 칸 · [1688 옵션 불러오기]', [
+    o11.error, /data-mk-opt-off/.test(o11.html), /data-mk-opt-table/.test(o11.html), /data-mk-11st-stock /.test(o11.html), /data-mk-src-opt-open[^>]*>1688 옵션 불러오기</.test(o11.html),
+  ], [null, true, false, true, true])
+  const o11b = await render(built.Options, { model: built.optionEditorFromSource(SOURCE.skus), note: '11번가는 추가금액 0원인 옵션이 1개 이상 있어야 합니다.', skus: SOURCE.skus })
+  eq('불러온 옵션(11번가 안내 포함): 줄 수 · 0원 옵션 안내 · 옵션 재고 빈칸 · 추가금액 0', [o11b.error, (o11b.html.match(/data-mk-opt-row="/g) || []).length, /data-mk-opt-note[^>]*>[^<]*0원인 옵션이 1개 이상/.test(o11b.html), inVal(o11b.html, 'data-mk-opt-stock="0"'), inVal(o11b.html, 'data-mk-opt-price="0"')], [null, SOURCE.skus.length, true, '', '0'])
   eq('11번가 섹션(옵션 없는 상품): 옵션 영역은 "옵션 사용" 꺼진 채 · 옵션 표 없음 · 단일 재고 칸 · 요약 표 옵션 "없음 (단일상품)"', [/data-mk-opt-off/.test(a.html), /data-mk-opt-table/.test(a.html), /data-mk-11st-stock /.test(a.html), /data-mk-11st-preview-row="옵션"[\s\S]{0,200}없음 \(단일상품\)/.test(a.html)], [true, false, true, true])
-  eq('11번가 섹션(옵션 있는 상품): 같은 옵션 편집 화면(종류 줄·칩·옵션 목록 도구)', [(o11.html.match(/data-mk-opt-group-row="/g) || []).length, (o11.html.match(/data-mk-opt-chip="/g) || []).length, /data-mk-opt-total[^>]*>옵션 목록 \(총 2개\)</.test(o11.html), /data-mk-opt-bulk-stock-apply/.test(o11.html)], [1, 2, true, true])
+  eq('불러온 옵션: 같은 옵션 편집 화면(종류 줄·칩·옵션 목록 도구)', [(o11b.html.match(/data-mk-opt-group-row="/g) || []).length, (o11b.html.match(/data-mk-opt-chip="/g) || []).length, /data-mk-opt-total[^>]*>옵션 목록 \(총 2개\)</.test(o11b.html), /data-mk-opt-bulk-stock-apply/.test(o11b.html)], [1, 2, true, true])
+  // 옵션 불러오기 버튼 — 주문 기록이 있을 때만 [주문한 옵션 불러오기] · 1688 옵션이 있을 때만 [1688 옵션 불러오기] · 둘 다 없으면 아무것도 안 그림
+  const pk = async props => (await render(built.SourcePicker, props)).html
+  eq('옵션 불러오기 버튼: 주문 기록·1688 옵션 있을 때만 · 목록은 닫힌 채 · 둘 다 없으면 없음', [
+    /data-mk-src-opt-ordered/.test(await pk({ skus: SOURCE.skus, ordered: [{ specId: 'a', color: '블랙', size: '', quantity: 3 }] })), /data-mk-src-opt-ordered/.test(await pk({ skus: SOURCE.skus, ordered: [] })),
+    /data-mk-src-opt-open/.test(await pk({ skus: [], ordered: [{ specId: 'a', color: '', size: '', quantity: 1 }] })), /data-mk-src-opt-list/.test(await pk({ skus: SOURCE.skus })), /data-mk-src-opt/.test(await pk({ skus: [], ordered: [] })),
+  ], [true, false, false, false, false])
   eq('11번가 섹션: KC 기본값 없음(네 그룹 모두 "선택" · 인증번호 칸 없음) · 원산지 기본 해외·중국(1287) · 고시 기본 기타 재화 · 금액 칸 빈칸 · 관리자 아니면 테스트 판매중지 없음', [
     ['01', '02', '03', '04'].every(g => sel11(a.html, 'data-mk-11st-kc-group="' + g + '"', '')), /data-mk-11st-kc-key/.test(a.html), sel11(a.html, 'data-mk-11st-origin-kind', '02'), sel11(a.html, 'data-mk-11st-origin-code', '1287'),
     sel11(a.html, 'data-mk-11st-notice-type', '891045'), /data-mk-11st-price[^>]*value="\d/.test(a.html), /data-mk-11st-teststop/.test(a.html),
@@ -358,7 +380,7 @@ if (built?.Elevenst) {
   // ── 공통 정보 (2026-10-01) — 스마트스토어·11번가를 함께 보낼 때 창이 common을 넘긴다. 안 넘기면 예전 그대로 ──
   const val = (html, attr) => (new RegExp('<input[^>]*' + attr + '[^>]*>').exec(html)?.[0].match(/ value="([^"]*)"/)?.[1]) ?? ''
   const ssCacheC = { smartstoreCategoriesDone: { categories: [] }, smartstoreAddressesDone: { addresses: [] } }
-  const COMMON = () => { const c = built.commonFromPrepare(PREPARE(true, SOURCE)); c.productName = '공통 머그'; c.price = 12900; c.repImageId = 'img1'; c.fit = 'cover'; c.opts.rows[0].stock = 7; c.opts.rows[1].stock = 3; c.opts.rows[1].addPrice = 1000; return c }
+  const COMMON = () => { const c = built.commonFromPrepare(PREPARE(true, SOURCE)); c.productName = '공통 머그'; c.price = 12900; c.repImageId = 'img1'; c.fit = 'cover'; c.opts = built.optionEditorFromSource(SOURCE.skus) /* [1688 옵션 불러오기]로 전부 가져온 뒤 (2026-10-02 — 처음에는 비어 있다) */; c.opts.rows[0].stock = 7; c.opts.rows[1].stock = 3; c.opts.rows[1].addPrice = 1000; return c }
   const withC = (comp, cache, common) => render({ setup: () => { vueProvide2(built.SEND_CACHE_KEY, cache); return () => h(comp, { prepare: PREPARE(true, SOURCE), common }) } }, {})
   const hidden = (html, attr) => new RegExp('<(label|div)[^>]*style="display:none;?"[^>]*>(?:(?!</(label|div)>)[\\s\\S])*' + attr).test(html)
   const ssNo = await withC(built.Smartstore, ssCacheC, null), ssYes = await withC(built.Smartstore, ssCacheC, COMMON())

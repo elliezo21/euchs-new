@@ -95,7 +95,7 @@
 
     <!-- 옵션 (싱글옵션 한 칸 — 종류가 여럿이면 "/"로 합침) — 옵션 종류·값을 넣으면 조합 목록이 만들어진다(가져온 옵션이 없으면 꺼진 채). 규칙·근거 api/_marketOptions.js -->
     <div v-show="showOwn('stock')" ref="optionsEl">
-      <StudioSendOptions :model="opts" :disabled="!!done" :range="optionRange" :note="OPTION_NOTE" data-mk-11st-options />
+      <StudioSendOptions :model="opts" :skus="prepare.source?.skus || []" :sku-total="prepare.source?.skuTotal || 0" :ordered="prepare.ordered || []" :disabled="!!done" :range="optionRange" :note="OPTION_NOTE" data-mk-11st-options />
     </div>
 
     <!-- 대표 이미지 -->
@@ -293,7 +293,7 @@ import {
   elevenstFormFromProduct, elevenstFormFromShipping, productTemplateFromElevenstForm, shippingTemplateFromElevenstForm,
 } from '../../../api/_elevenstFields.js'
 import { optionsPayload, elevenstOptionProblems, elevenstOptionPriceRange, elevenstOptionMerge } from '../../../api/_marketOptions.js'
-import { optionEditorFromSource } from '@/lib/studioOptionEditor'
+import { emptyOptionEditor } from '@/lib/studioOptionEditor'
 import StudioSendOptions from './StudioSendOptions.vue'
 
 const CAT_SHOWN = 200
@@ -344,7 +344,8 @@ const f = ref({
 })
 // 옵션 — 다른 판매처와 같은 원천(send_prepare.source.skus)·같은 옵션 편집 모양(src/lib/studioOptionEditor.js). 가져온 옵션이 있으면 처음부터 "옵션 사용"
 // 옵션 사용을 켜면 조합이 0개여도 옵션 상품으로 본다(빠짐 목록 "판매할 옵션") — 단일 재고 칸으로 몰래 돌아가지 않게
-const opts = ref(optionEditorFromSource(props.prepare?.source?.skus))
+// 옵션은 처음부터 채우지 않는다 (2026-10-02 — 사입 셀러는 실제로 들여온 옵션만 판다). [주문한 옵션 불러오기]·[1688 옵션 불러오기]로만 가져온다(StudioSendOptions)
+const opts = ref(emptyOptionEditor())
 const useOptions = computed(() => opts.value.enabled)
 const optionsOut = computed(() => (useOptions.value ? optionsPayload(opts.value) : null))
 const optionStockTotal = computed(() => (optionsOut.value?.rows || []).reduce((s, r) => s + (Number.isInteger(r.stock) ? r.stock : 0), 0))

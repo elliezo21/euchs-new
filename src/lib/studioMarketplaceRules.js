@@ -70,7 +70,7 @@ export function defaultRepImageId(images) {
   const c = repImageCandidates(images)
   return (c.find(im => im.included !== false) || c[0])?.id ?? null
 }
-export const REP_IMAGE_EMPTY = '대표 이미지로 쓸 사진이 없습니다. 편집기 [사진]에서 내 사진을 올려 주세요.'
+export const REP_IMAGE_EMPTY = '대표 이미지로 쓸 사진이 없습니다. 편집기 [사진]에서 내 사진을 올리면 고를 수 있습니다.'
 
 // 보이는 범위 — MARKETS 항목의 설정 두 가지로만 정한다 (화면마다 판매처 이름으로 거르지 않는다)
 //   off: true       = 운영 중단 — 누구에게도(관리자·스태프 포함) 안 보임: 판매처 목록·보내기 줄·보낸 상품(칩·필터·상태 카드·이력)·연결 화면·소개·홈

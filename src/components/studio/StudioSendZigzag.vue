@@ -62,7 +62,7 @@
 
     <!-- 옵션 — 옵션 종류(option_list) · 조합 = 구매 단위(item_list) -->
     <div v-show="showOwn('stock')" ref="optionsEl">
-      <StudioSendOptions :model="opts" :disabled="!!done" :note="OPTION_NOTE" data-mk-zz-options />
+      <StudioSendOptions :model="opts" :skus="prepare.source?.skus || []" :sku-total="prepare.source?.skuTotal || 0" :ordered="prepare.ordered || []" :disabled="!!done" :note="OPTION_NOTE" data-mk-zz-options />
     </div>
 
     <!-- 대표 이미지 -->
@@ -192,7 +192,7 @@ import {
   ESSENTIAL_DEFAULT, ESSENTIAL_COUNTRY_DEFAULT, essentialDefaults, zigzagOptionRows, buildZigzagProduct, DISPLAY_LABEL, needsPartialReturn,
 } from '../../../api/_zigzagFields.js'
 import { optionsPayload } from '../../../api/_marketOptions.js'
-import { optionEditorFromSource } from '@/lib/studioOptionEditor'
+import { emptyOptionEditor } from '@/lib/studioOptionEditor'
 import { COMMON_GROUPS, commonPatch } from '@/lib/studioSendCommon'
 import { matchCategory } from '@/lib/studioBulkSend'
 import StudioSendOptions from './StudioSendOptions.vue'
@@ -224,7 +224,8 @@ const f = ref({
 // 부분 반품 배송비 기본값 = 반품 배송비 (고객이 직접 고치기 전까지 따라간다)
 const partialTouched = ref(false)
 watch(() => f.value.returnFee, v => { if (!partialTouched.value) f.value.partialReturnFee = v })
-const opts = ref(optionEditorFromSource(props.prepare?.source?.skus))
+// 옵션은 처음부터 채우지 않는다 (2026-10-02 — 사입 셀러는 실제로 들여온 옵션만 판다). [주문한 옵션 불러오기]·[1688 옵션 불러오기]로만 가져온다(StudioSendOptions)
+const opts = ref(emptyOptionEditor())
 const useOptions = computed(() => opts.value.enabled)
 const optionsOut = computed(() => (useOptions.value ? optionsPayload(opts.value) : null))
 const optionStockTotal = computed(() => (optionsOut.value?.rows || []).reduce((s, r) => s + (Number.isInteger(r.stock) ? r.stock : 0), 0))

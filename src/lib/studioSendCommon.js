@@ -11,7 +11,7 @@
  */
 import { pickKoreanName } from '../../api/_coupangFields.js'
 import { ssOptionPriceRange, elevenstOptionPriceRange } from '../../api/_marketOptions.js'
-import { optionEditorFromSource, cloneOptionEditor } from './studioOptionEditor.js'
+import { emptyOptionEditor, cloneOptionEditor } from './studioOptionEditor.js'
 import { defaultRepImageId } from './studioMarketplaceRules.js'
 
 export const COMMON_MARKETS = ['coupang', 'smartstore', '11st', 'zigzag'] // 2026-10-02 지그재그 — 같은 옵션 편집기(studioOptionEditor)·같은 칸 이름이라 그대로 옮긴다
@@ -49,14 +49,14 @@ export function commonOptionRange(markets, price) {
 export const cloneOptions = cloneOptionEditor
 
 /**
- * 처음 공통 값 — 판매처 섹션의 처음 값과 같은 규칙 (상품명 한글만 · 금액·재고 비움 · 옵션 = 같은 원천 · 대표 이미지 = 첫 사진)
+ * 처음 공통 값 — 판매처 섹션의 처음 값과 같은 규칙 (상품명 한글만 · 금액·재고 비움 · 옵션 비움 · 대표 이미지 = 첫 후보)
  * @param {object} prepare send_prepare 응답
  */
 export function commonFromPrepare(prepare) {
   return {
     productName: pickKoreanName([prepare?.export?.projectTitle, prepare?.export?.title, prepare?.source?.title?.ko]),
     price: null, stock: null,
-    opts: optionEditorFromSource(prepare?.source?.skus),
+    opts: emptyOptionEditor(), // 옵션은 비워 둔다 (2026-10-02) — [주문한 옵션 불러오기]·[1688 옵션 불러오기]로만 가져온다
     repImageId: defaultRepImageId(prepare?.images), fit: 'contain', // 대표 이미지 후보 = 1688 대표 사진 + 내 사진
   }
 }

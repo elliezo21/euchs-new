@@ -203,7 +203,7 @@ const UID = '11111111-1111-4111-8111-111111111111'
 const PID = '22222222-2222-4222-8222-222222222222'
 const EID = '44444444-4444-4444-8444-444444444444'
 globalThis.__createOnly = true // 예전 테스트 = 새 등록 길 (위 fetch 주석) — '다시 보내기 = 수정' 묶음에서만 끈다
-const db = { marketplace_accounts: [], marketplace_places: [], marketplace_templates: [], marketplace_sends: [], studio_exports: [], studio_images: [], studio_projects: [], studio_product_snapshots: [], translation_cache: [] }
+const db = { marketplace_accounts: [], marketplace_places: [], marketplace_templates: [], marketplace_sends: [], studio_exports: [], studio_images: [], studio_projects: [], studio_product_snapshots: [], translation_cache: [], orders: [] }
 const files = new Map()
 const marketImages = { files: new Map(), copies: [] }
 let relay ={ mode: 'ok', calls: [] }
@@ -1223,7 +1223,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('3 어디에도 번역 안 된 글자를 넣지 않음', [...kr.rows, ...same.rows].some(r => F.hasUntranslated(r.name) || Object.values(r.opt).some(F.hasUntranslated)), false)
   eq('3 번역 캐시의 한글에 번역 안 된 글자가 섞였으면 쓰지 않음', F.koreanizeSkus([{ values: [V('款式', null, '蝴蝶发夹', '나비 发夹')] }]).rows[0], { name: '', opt: { 款式: '' }, original: '蝴蝶发夹' })
   eq('3 값 30자·이름 150자', (() => { const r = F.koreanizeSkus([{ values: [V('款式', '스타일', '发夹', '가'.repeat(40))] }]).rows[0]; return [r.opt['款式'].length, r.name.length] })(), [30, 40])
-  eq('3 화면: 옵션 표는 koreanizeSkus를 씀 · 빈 옵션 이름을 상품명으로 채우지 않음 · 가져온 글자는 칸 아래·placeholder', [cp.includes('const kr = koreanizeSkus(s.skus, { valueMax: ATTR_VALUE_MAX, nameMax: 150 })'), /items\[0\]\.name = f\.value\.productName/.test(cp), /data-mk-s-origin/.test(cp), /:placeholder="it\.originals\[t\.key\] \|\| /.test(cp)], [true, false, true, true])
+  eq('3 화면: 옵션 표는 koreanizeSkus를 씀 · 빈 옵션 이름을 상품명으로 채우지 않음 · 가져온 글자는 칸 아래·placeholder', [cp.includes('const kr = koreanizeSkus(list, { valueMax: ATTR_VALUE_MAX, nameMax: 150 })'), /items\[0\]\.name = f\.value\.productName/.test(cp), /data-mk-s-origin/.test(cp), /:placeholder="it\.originals\[t\.key\] \|\| /.test(cp)], [true, false, true, true])
 
   // 4) 검색태그 추천
   const bad = ['이우', '타오바오', '경동', '이베이', '아마존', '소원']
@@ -1270,7 +1270,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const pairOf = zh => ({ zh, ko: null })
   const kr2 = F.koreanizeSkus(two.rows.map(r => ({ values: r.values.map(v => ({ name: pairOf(v.name), value: pairOf(v.value) })) })))
   eq('옵션 종류 2개(색상+사이즈): 종류 2 · 줄 = SKU 수 · 자동 이름', [kr2.types.map(t => t.label), kr2.rows.length, F.autoItemNames(kr2.rows.map(r => kr2.types.map(t => r.opt[t.key])))], [['색상', '사이즈'], 3, ['블랙 / 36-37', '화이트 / 36-37', '블랙 / 40-41']])
-  eq('화면: 맞추기 줄·표 열이 옵션 종류 수만큼 (v-for)', [/<div v-for="t in f\.optionTypes" :key="t\.key" class="flex flex-wrap items-center gap-2 text-\[13px\]">/.test(shown), /<th v-for="t in f\.optionTypes" :key="t\.key">/.test(shown), /<td v-for="\(t, ti\) in f\.optionTypes" :key="t\.key"/.test(shown), /f\.value\.items = s\.skus\.map\(/.test(cp)], [true, true, true, true])
+  eq('화면: 맞추기 줄·표 열이 옵션 종류 수만큼 (v-for)', [/<div v-for="t in f\.optionTypes" :key="t\.key" class="flex flex-wrap items-center gap-2 text-\[13px\]">/.test(shown), /<th v-for="t in f\.optionTypes" :key="t\.key">/.test(shown), /<td v-for="\(t, ti\) in f\.optionTypes" :key="t\.key"/.test(shown), /f\.value\.items = list\.map\(/.test(cp)], [true, true, true, true])
 }
 
 // ── 15. 쿠팡 승인반려 대응 (2026-09-28): 도서산간 택배사 · 상세 이미지 규격 · 고쳐서 다시 보내기 ──
@@ -2438,7 +2438,7 @@ function elevenstRelay(u, method, opts) {
   // 화면 연결 — 스마트스토어 섹션만 옵션 영역을 쓴다 (11번가는 근거 확정 전이라 보류 · 쿠팡은 손대지 않음)
   const ss = read('src/components/studio/StudioSendSmartstore.vue'), area = read('src/components/studio/StudioSendOptions.vue')
   eq('스마트스토어 섹션: 옵션 영역(늘 그림 — 가져온 옵션이 없으면 꺼진 채) · 같은 원천(prepare.source.skus) · 화면 검사 = 서버 함수 · 옵션을 쓸 때만 options 보냄 · 재고 칸 대신 합계', [
-    /<StudioSendOptions v-show="showOwn\('stock'\)" :model="opts"/.test(ss), /optionEditorFromSource\(props\.prepare\?\.source\?\.skus\)/.test(ss), /smartstoreOptionProblems\(/.test(ss), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(ss), /<label v-if="!useOptions"( v-show="showOwn\('stock'\)")? class="block">/.test(ss), /const useOptions = computed\(\(\) => opts\.value\.enabled\)/.test(ss),
+    /<StudioSendOptions v-show="showOwn\('stock'\)" :model="opts"/.test(ss), ss.includes('const opts = ref(emptyOptionEditor())') && ss.includes(':skus="prepare.source?.skus || []"') && ss.includes(':ordered="prepare.ordered || []"'), /smartstoreOptionProblems\(/.test(ss), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(ss), /<label v-if="!useOptions"( v-show="showOwn\('stock'\)")? class="block">/.test(ss), /const useOptions = computed\(\(\) => opts\.value\.enabled\)/.test(ss),
   ], [true, true, true, true, true, true])
   eq('옵션 영역(2026-10-02): 옵션 사용 끄기 · 종류 추가·삭제 · 값 입력·[추가]·Enter · 칩 ⓧ · 선택 삭제·일괄입력·되살리기 · 추가금액·재고 칸 · 가져온 원문 · 1688 재고는 툴팁만 · "판매" 체크 없음', [
     /data-mk-opt-enabled/.test(area), /data-mk-opt-group-add[^>]*>옵션 종류 추가</.test(area), /data-mk-opt-group-remove[^>]*>삭제</.test(area), /data-mk-opt-value-input[^>]*@keydown\.enter\.prevent="onAddValues\(g\)"/.test(area), /data-mk-opt-value-add[^>]*>추가</.test(area), /data-mk-opt-chip-remove/.test(area),
@@ -2504,7 +2504,7 @@ function elevenstRelay(u, method, opts) {
 
   const el11 = read('src/components/studio/StudioSendElevenst.vue')
   eq('11번가 섹션: 옵션 영역(같은 컴포넌트) · 같은 원천 · 화면 검사 = 서버 함수 · 옵션 쓸 때만 options · 재고 칸 대신 합계 · 규칙 안내 · 요약 "옵션" 줄', [
-    /<StudioSendOptions :model="opts"[^>]*:note="OPTION_NOTE"/.test(el11), /optionEditorFromSource\(props\.prepare\?\.source\?\.skus\)/.test(el11), /elevenstOptionProblems\(/.test(el11), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(el11), /<label v-if="!useOptions"( v-show="showOwn\('stock'\)")? class="block">/.test(el11), /0원인 옵션이 1개 이상/.test(el11), /label: '옵션', value: optionsSummary\.value/.test(el11),
+    /<StudioSendOptions :model="opts"[^>]*:note="OPTION_NOTE"/.test(el11), el11.includes('const opts = ref(emptyOptionEditor())') && el11.includes(':skus="prepare.source?.skus || []"'), /elevenstOptionProblems\(/.test(el11), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(el11), /<label v-if="!useOptions"( v-show="showOwn\('stock'\)")? class="block">/.test(el11), /0원인 옵션이 1개 이상/.test(el11), /label: '옵션', value: optionsSummary\.value/.test(el11),
   ], [true, true, true, true, true, true, true])
 }
 
@@ -2660,9 +2660,14 @@ function elevenstRelay(u, method, opts) {
   const PREP = { export: { projectTitle: '매일 쓰는 머그', title: 'x' }, source: { title: { ko: '머그' }, skus: SKUS }, images: [{ id: 'img0', kind: 'desc', sortOrder: 0 }, { id: 'img2', kind: 'upload', sortOrder: 0 }, { id: 'img1', kind: 'gallery', sortOrder: 1 }] }
   const c0 = SC.commonFromPrepare(PREP)
   {
+    // 2026-10-02: 옵션은 처음부터 채우지 않는다(사입 셀러 — 실제로 들여온 옵션만) · 대표 이미지 = 1688 대표 사진 첫 후보
+    eq('처음 공통 값 = 섹션 처음 값과 같은 규칙: 상품명 한글(작업 이름) · 판매가·재고 비움 · 옵션 비움(꺼진 채) · 대표 이미지 = 첫 후보(1688 대표 사진) · 여백 채우기', [c0.productName, c0.price, c0.stock, c0.opts.enabled, c0.opts.groupNames, c0.opts.rows, c0.repImageId, c0.fit],
+      ['매일 쓰는 머그', null, null, false, [], [], 'img1', 'contain'])
+    // 아래 테스트는 [1688 옵션 불러오기]로 전부 가져온 뒤의 모양으로 (StudioSendOptions onPick = replaceOptionEditor(optionEditorFromSource))
+    const OE = await import('../src/lib/studioOptionEditor.js')
+    OE.replaceOptionEditor(c0.opts, OE.optionEditorFromSource(SKUS))
     const src = O.marketOptionsFromSource(SKUS)
-    eq('처음 공통 값 = 섹션 처음 값과 같은 규칙: 상품명 한글(작업 이름) · 판매가·재고 비움 · 옵션 = 같은 원천(종류·값·원문·추가금액·재고) · 대표 이미지 = 첫 사진 · 여백 채우기', [c0.productName, c0.price, c0.stock, c0.opts.enabled, c0.opts.groupNames, c0.opts.rows.map(r => [r.values, r.originals, r.addPrice, r.stock, r.use]), c0.repImageId, c0.fit],
-      ['매일 쓰는 머그', null, null, true, src.groupNames, src.rows.map(r => [r.values, r.originals, r.addPrice, r.stock, r.use]), 'img1', 'contain'])
+    eq('[1688 옵션 불러오기] 뒤: 같은 객체가 바뀜 · 같은 원천(종류·값·원문·추가금액·재고)', [c0.opts.enabled, c0.opts.groupNames, c0.opts.rows.map(r => [r.values, r.originals, r.addPrice, r.stock, r.use])], [true, src.groupNames, src.rows.map(r => [r.values, r.originals, r.addPrice, r.stock, r.use])])
   }
   eq('처음 공통 값: 사진·옵션 없는 상품 = 대표 이미지 null · 옵션 꺼짐·줄 없음(단일상품)', [SC.commonFromPrepare({ export: {}, images: [] }).repImageId, SC.commonFromPrepare({ export: {} }).opts.enabled, SC.commonFromPrepare({ export: {} }).opts.rows, O.optionsPayload(SC.commonFromPrepare({ export: {} }).opts)], [null, false, [], null])
 
@@ -3766,7 +3771,7 @@ function elevenstRelay(u, method, opts) {
   const sp = api.slice(api.indexOf('async function sendPrepare'), api.indexOf('async function categoryPredict'))
   eq('서버: 사진 서명을 동시에(SIGN_POOL) · kind·sortOrder를 응답에 · 원천·기존 상품·지난 값도 동시에', [
     /const SIGN_POOL = \d+/.test(api), sp.includes('runSignPool(') && !/for \(const im of[^\n]*\n[^\n]*await storageSignDownload/.test(sp), sp.includes('kind: im.kind, sortOrder: im.sort_order'),
-    sp.includes('await Promise.all([loadSource(ctx, projRows?.[0]?.offer_id), existingP, prevRowsP])'),
+    sp.includes('await Promise.all([loadSource(ctx, projRows?.[0]?.offer_id), existingP, prevRowsP, loadOrdered(ctx, projRows?.[0]?.offer_id)])'),
   ], [true, true, true, true])
   const secs = ['Common', 'Coupang', 'Smartstore', 'Elevenst', 'Zigzag', 'Cafe24'].map(n => read(`src/components/studio/StudioSend${n}.vue`))
   eq('화면: 대표 이미지 그리드 6곳 = repImages · 처음 값 = defaultRepImageId · 사진은 loading="lazy" · 쿠팡 옵션 사진 고르기는 사진 전부', [
@@ -3775,6 +3780,56 @@ function elevenstRelay(u, method, opts) {
   ], [true, true, true, true])
   const cats = ['Smartstore', 'Elevenst', 'Zigzag'].map(n => read(`src/components/studio/StudioSend${n}.vue`))
   eq('카테고리: 검색했을 때만 목록을 그림(고른 카테고리는 늘 보임) · 검색 전 안내 한 줄', cats.map(s => s.includes("const list = catQuery.value.trim() ? catMatches.value.slice(0, CAT_SHOWN) : []") && s.includes('data-mk-cat-hint')), [true, true, true])
+}
+
+// ── 28. 옵션 불러오기 (2026-10-02 — 사입 셀러: 옵션은 처음부터 채우지 않고 [주문한 옵션 불러오기]·[1688 옵션 불러오기]로만) ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const OD = await import('../api/_marketOrdered.js')
+  const SO = await import('../src/lib/studioSourceOptions.js')
+  const OFFER = '123456789012'
+  // 주문 줄 모양 = cartWriter.js(옵션 하나마다 한 줄: num_iid·specId·skus[{color,size,quantity}]) · 예전 주문은 num_iid 없이 itemId만
+  const rows = [
+    { items: [{ num_iid: OFFER, itemId: OFFER, specId: 'spB', sku: '블랙 / M', skus: [{ color: '블랙', size: 'M', quantity: 30 }], quantity: 30 }, { num_iid: '999999999', specId: 'zz', skus: [{ color: '빨강', size: '', quantity: 5 }] }] },
+    { items: [{ itemId: OFFER, specId: 'spB', skus: [{ color: '블랙', size: 'M', quantity: 20 }] }, { num_iid: OFFER, specId: '', skus: [{ color: '화이트', size: 'L', quantity: 10 }] }] },
+    { items: [{ num_iid: OFFER, specId: 'gone', skus: [{ color: '핑크', size: 'S', quantity: 2 }] }] },
+    { items: null },
+  ]
+  const ordered = OD.orderedOptionsOf(rows, OFFER)
+  eq('주문한 옵션: 이 상품(num_iid·itemId)만 · 같은 spec_id 수량 합 · spec_id 없으면 글자로 · 다른 상품·빈 items 무시', ordered,
+    [{ specId: 'spB', color: '블랙', size: 'M', quantity: 50 }, { specId: '', color: '화이트', size: 'L', quantity: 10 }, { specId: 'gone', color: '핑크', size: 'S', quantity: 2 }])
+  eq('상품 번호가 없으면 빈 목록', [OD.orderedOptionsOf(rows, ''), OD.orderedOptionsOf(null, OFFER)], [[], []])
+  const SK = [
+    { skuId: '1', specId: 'spA', values: [{ name: { zh: '颜色', ko: '색상' }, value: { zh: '黑色', ko: '블랙' } }, { name: { zh: '尺码', ko: '사이즈' }, value: { zh: 'S', ko: null } }] },
+    { skuId: '2', specId: 'spB', values: [{ name: { zh: '颜色', ko: '색상' }, value: { zh: '黑色', ko: '블랙' } }, { name: { zh: '尺码', ko: '사이즈' }, value: { zh: 'M', ko: null } }] },
+    { skuId: '3', specId: 'spC', values: [{ name: { zh: '颜色', ko: '색상' }, value: { zh: '白色', ko: '화이트' } }, { name: { zh: '尺码', ko: '사이즈' }, value: { zh: 'L', ko: null } }] },
+  ]
+  const r = SO.orderedSkus(SK, ordered)
+  eq('주문 옵션 → 1688 옵션 줄: spec_id로 정확히 · 없으면 글자(원문·한글)로 · 못 찾은 것은 지어내지 않고 missing', [r.skus.map(s => s.skuId), r.quantity, r.missing], [['2', '3'], { 0: 50, 1: 10 }, [{ color: '핑크', size: 'S', quantity: 2 }]])
+  eq('못 찾은 주문 옵션 안내 한 줄 · 없으면 빈 글자', [SO.orderedMissingNote(r.missing), SO.orderedMissingNote([])], ['주문한 옵션 1개는 지금 1688 옵션 목록에서 찾지 못했습니다: 핑크 / S', ''])
+  eq('[1688 옵션 불러오기] = 체크한 줄만(순서 그대로) · 줄 글자 = 한글(없으면 원문) · 원문', [SO.pickSkus(SK, [2, 0]).map(s => s.skuId), SO.pickSkus(SK, []).length, SO.skuLabel(SK[0])], [['1', '3'], 0, { text: '블랙 / S', original: '黑色 / S' }])
+  const OE = await import('../src/lib/studioOptionEditor.js')
+  const m = OE.emptyOptionEditor()
+  const same = m
+  OE.replaceOptionEditor(m, OE.optionEditorFromSource(r.skus))
+  eq('불러오면 같은 객체가 그 옵션으로 · 주문한 조합만(나머지 조합은 목록 밖)', [m === same, m.enabled, m.groupNames, m.rows.map(x => x.values.join('/')), OE.excludedComboCount(m)], [true, true, ['색상', '사이즈'], ['블랙/M', '화이트/L'], 2])
+  eq('1688 원천 줄에 spec_id (OneBound sk.spec_id — 주문 기록 specId와 같은 값)', F.extractSkus1688({ skus: { sku: [{ sku_id: '9', spec_id: 'abc', properties: '1:2', price: '3', quantity: 1 }] }, props_list: { '1:2': '颜色:黑色' } }).rows[0].specId, 'abc')
+  const api = read('api/marketplace.js')
+  eq('서버: send_prepare.ordered = 이 사용자·결제 확인된 주문(ORDER_OK_STATUSES)·최근 200건 · 원천 skus에 specId', [
+    api.includes("orders?select=items&user_id=eq.${ctx.userId}&status=in.(${ORDER_OK_STATUSES.join(',')})&order=created_at.desc&limit=${ORDERED_ORDERS_MAX}"), api.includes('return orderedOptionsOf(rows, String(offerId))'), api.includes('skus: skus.rows.map(r => ({ skuId: r.skuId, specId: r.specId,'), OD.ORDERED_ORDERS_MAX,
+  ], [true, true, true, 200])
+  db.orders.push({ id: 'o1', user_id: UID, status: 'paid', created_at: '2026-10-01', items: [{ num_iid: OFFER, specId: 'x1', skus: [{ color: '블랙', size: '', quantity: 9 }] }] }, { id: 'o2', user_id: UID, status: 'quote_pending', created_at: '2026-10-01', items: [{ num_iid: OFFER, specId: 'x2', skus: [{ color: '화이트', size: '', quantity: 1 }] }] })
+  const sp = await post('send_prepare', { exportId: EID })
+  eq('send_prepare(가짜 DB): 결제 확인된 주문만 ordered에', [sp.statusCode, (sp.body.ordered || []).map(o => o.specId)], [200, ['x1']])
+  // 화면 기본값
+  const secs = { ss: read('src/components/studio/StudioSendSmartstore.vue'), e11: read('src/components/studio/StudioSendElevenst.vue'), zz: read('src/components/studio/StudioSendZigzag.vue'), cp: read('src/components/studio/StudioSendCoupang.vue') }
+  eq('기본은 빈칸: 스마트스토어·11번가·지그재그 emptyOptionEditor · 공통 정보 emptyOptionEditor · 쿠팡 init에서 fillFromSource 안 부름 · [불러오기] → onPickSource', [
+    [secs.ss, secs.e11, secs.zz].every(s => s.includes('const opts = ref(emptyOptionEditor())') && !s.includes('optionEditorFromSource(')), read('src/lib/studioSendCommon.js').includes('opts: emptyOptionEditor(),'),
+    !/^\s*fillFromSource\(\)/m.test(secs.cp), secs.cp.includes('@pick="onPickSource"') && secs.cp.includes('function onPickSource({ skus }) {'),
+  ], [true, true, true, true])
+  eq('쿠팡 필수 구매옵션 안내: "쿠팡은 이 카테고리에 ○○ 옵션이 필수입니다" · 빠짐 목록에도 · 값을 지어내 넣지 않음', [
+    secs.cp.includes('out.push(`쿠팡은 이 카테고리에 ${members.map(x => x.name).join(\' 또는 \')} 옵션이 필수입니다`)'), secs.cp.includes('out.push(...requiredOptionNotes.value)'), secs.cp.includes('const attrs = (meta.value?.attributes || []).filter(a => a.required && a.exposed)'),
+  ], [true, true, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)
