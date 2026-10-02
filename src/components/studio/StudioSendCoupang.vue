@@ -5,6 +5,15 @@
         <span class="st-desc-sm break-keep">상품 등록 후 승인 요청까지 진행합니다.</span>
       </div>
 
+      <!-- 공통 정보를 쓰는 중 (2026-10-02) — 이 판매처만 다르게 할 묶음을 켜면 아래에 그 칸이 다시 보인다 (판매가·재고·옵션 중 하나를 켜면 옵션 표 전체를 이 칸에서 넣는다) -->
+      <div v-if="common" class="st-surface st-border rounded-[10px] p-3 space-y-1.5" data-mk-s-common>
+        <p class="text-[13px] st-ink break-keep">상품명·판매가·재고·옵션·대표 이미지는 위 공통 정보 값을 사용합니다.</p>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] st-ink">
+          <span class="st-desc-sm">이 판매처만 다르게:</span>
+          <label v-for="g in COMMON_GROUPS" :key="g.key" class="flex items-center gap-1.5"><input v-model="own[g.key]" type="checkbox" :disabled="!!done" :data-mk-s-own="g.key" /> {{ g.label }}</label>
+        </div>
+      </div>
+
       <!-- 1. 판매 방식 (기본값 없음) -->
       <section class="space-y-2" data-mk-s-mode>
         <h4 class="st-h-card">판매 방식 *</h4>
@@ -24,7 +33,7 @@
       <!-- 2. 상품 정보 -->
       <section class="space-y-2">
         <h4 class="st-h-card">상품 정보</h4>
-        <label class="block"><span class="st-label">등록상품명 *</span><input v-model.trim="f.productName" class="st-input w-full" :maxlength="NAME_MAX" :placeholder="NAME_HINT" data-mk-s-name /><span class="st-desc-sm block mt-1">발주서에 사용하는 이름 · {{ NAME_MAX }}자 이내</span></label>
+        <label v-show="showOwn('name')" class="block"><span class="st-label">등록상품명 *</span><input v-model.trim="f.productName" class="st-input w-full" :maxlength="NAME_MAX" :placeholder="NAME_HINT" data-mk-s-name /><span class="st-desc-sm block mt-1">발주서에 사용하는 이름 · {{ NAME_MAX }}자 이내</span></label>
         <p v-if="namesBad" class="text-[12px] font-bold st-danger-text break-keep" data-mk-s-name-korean>상품명은 한글로 입력하세요.</p>
         <!-- 브랜드 (선택) — 기본은 "브랜드 없음". 브랜드를 쓰려면 쿠팡에 등록된 브랜드여야 한다(brandId) -->
         <div class="space-y-1.5" data-mk-s-brand-box>
@@ -79,11 +88,12 @@
       <section class="space-y-2">
         <h4 class="st-h-card">옵션·가격·재고</h4>
         <p class="st-desc-sm break-keep">품번(판매자 상품코드) 필수 · GTIN(바코드 8~14자리) 선택 · 옵션 이름은 옵션 값으로 자동 생성 · 상품식별정보·필수 구매옵션이 비면 쿠팡 노출 제한</p>
-        <p v-if="sourceNote" class="st-desc-sm break-keep" data-mk-s-source-note>{{ sourceNote }}</p>
+        <p v-if="commonItems" class="text-[13px] st-ink break-keep" data-mk-s-common-items>{{ COMMON_ITEMS_NOTE }}</p>
+        <p v-else-if="sourceNote" class="st-desc-sm break-keep" data-mk-s-source-note>{{ sourceNote }}</p>
 
-        <!-- 옵션 종류 → 쿠팡 구매옵션 -->
-        <div v-if="f.optionTypes.length" class="st-surface st-border rounded-[10px] p-3 space-y-2" data-mk-s-option-types>
-          <div class="st-label">옵션 종류 매칭</div>
+        <!-- 쿠팡 옵션 연결 — 옵션 종류(공통 정보 또는 가져온 옵션) → 쿠팡 구매옵션 이름. 같은 이름·같은 뜻이면 자동 연결 (studioCoupangLink) -->
+        <div v-if="f.optionTypes.length || linkTable.length" class="st-surface st-border rounded-[10px] p-3 space-y-2" data-mk-s-option-types>
+          <div class="st-label">{{ COUPANG_LINK_TITLE }}</div>
           <div v-for="t in f.optionTypes" :key="t.key" class="flex flex-wrap items-center gap-2 text-[13px]">
             <span class="st-ink font-bold min-w-[80px]">{{ t.label }}</span>
             <span class="st-muted">→</span>
@@ -92,14 +102,23 @@
               <option v-for="a in buyAttrs" :key="a.name" :value="a.name">{{ a.name }}{{ a.required ? ' *' : '' }}</option>
             </select>
             <input v-else v-model.trim="t.mapped" class="st-input w-[200px]" :maxlength="ATTR_NAME_MAX" placeholder="옵션 종류 (예: 색상)" :data-mk-s-option-map="t.key" />
+            <span v-if="!t.mapped" class="text-[12px] font-bold st-danger-text" :data-mk-s-option-unlinked="t.key">{{ LINK_EMPTY }}</span>
           </div>
+          <!-- 이 카테고리의 쿠팡 구매옵션 — 필수인데 비면 빨간색(보내기 막힘). 연결 안 한 옵션은 아래 옵션 표에서 옵션별로 넣는다 -->
+          <ul v-if="linkTable.length" class="pt-1 space-y-1" data-mk-s-link-rows>
+            <li v-for="r in linkTable" :key="r.name" class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px]" :data-mk-s-link-row="r.name" :data-mk-s-link-state="r.state">
+              <span class="font-bold" :class="r.state === 'empty' ? 'st-danger-text' : 'st-ink'">쿠팡 {{ r.name }}{{ r.required ? ' *' : '' }}</span>
+              <span :class="r.state === 'empty' ? 'st-danger-text font-bold' : 'st-muted'">{{ r.state === 'linked' ? `← ${r.from}` : r.state === 'fill' ? LINK_FILL : LINK_EMPTY }}</span>
+              <span v-if="r.hint" class="st-muted">· {{ r.hint }}</span>
+            </li>
+          </ul>
         </div>
 
         <!-- 한꺼번에 넣기 -->
         <div v-if="f.items.length > 1" class="flex flex-wrap items-end gap-2" data-mk-s-bulk>
           <label class="block"><span class="st-desc-sm">정가(원)</span><input v-model.number="bulk.originalPrice" type="number" min="1" class="st-input w-[120px]" /></label>
-          <label class="block"><span class="st-desc-sm">판매가(원)</span><input v-model.number="bulk.salePrice" type="number" min="1" class="st-input w-[120px]" /></label>
-          <label class="block"><span class="st-desc-sm">재고 수량</span><input v-model.number="bulk.stock" type="number" min="0" :max="STOCK_MAX" class="st-input w-[100px]" data-mk-s-bulk-stock /></label>
+          <label v-if="!commonItems" class="block"><span class="st-desc-sm">판매가(원)</span><input v-model.number="bulk.salePrice" type="number" min="1" class="st-input w-[120px]" /></label>
+          <label v-if="!commonItems" class="block"><span class="st-desc-sm">재고 수량</span><input v-model.number="bulk.stock" type="number" min="0" :max="STOCK_MAX" class="st-input w-[100px]" data-mk-s-bulk-stock /></label>
           <button type="button" class="st-btn" :disabled="!bulkReady" data-mk-s-bulk-apply @click="applyBulk">전체 적용</button>
         </div>
 
@@ -135,21 +154,28 @@
                   <input v-model.trim="it.name" class="st-input opt-in" :maxlength="ITEM_NAME_MAX" :placeholder="autoNames[i] || '예: 블랙 / M'" :data-mk-s-item-name="i" />
                 </td>
                 <td v-for="(t, ti) in f.optionTypes" :key="t.key" :data-label="t.mapped || t.label">
-                  <input v-model.trim="it.opt[t.key]" class="st-input opt-in" :maxlength="ATTR_VALUE_MAX" :placeholder="it.originals[t.key] || (t.isColor ? '예: 블랙' : '')" :title="it.originals[t.key] || ''" :data-mk-s-opt="t.key" />
+                  <span v-if="commonItems" class="text-[13px] break-all" :class="it.opt[t.key] ? 'st-ink' : 'st-danger-text font-bold'" :data-mk-s-opt="t.key">{{ it.opt[t.key] || '값 입력 필요' }}</span>
+                  <input v-else v-model.trim="it.opt[t.key]" class="st-input opt-in" :maxlength="ATTR_VALUE_MAX" :placeholder="it.originals[t.key] || (t.isColor ? '예: 블랙' : '')" :title="it.originals[t.key] || ''" :data-mk-s-opt="t.key" />
                   <span v-if="it.originals[t.key] && needsHand(it, t)" class="opt-origin" :data-mk-s-origin="`${i}:${ti}`">가져온 옵션: {{ it.originals[t.key] }}</span>
                 </td>
-                <td v-for="a in extraAttrs" :key="a.name" :data-label="attrLabel(a)"><input v-model.trim="it.attributes[a.name]" class="st-input opt-in" :maxlength="ATTR_VALUE_MAX" :data-mk-s-attr="a.name" /></td>
+                <td v-for="a in extraAttrs" :key="a.name" :data-label="attrLabel(a)"><input v-model.trim="it.attributes[a.name]" class="st-input opt-in" :maxlength="ATTR_VALUE_MAX" :placeholder="unitPlaceholder(a)" :title="unitHint(a)" :data-mk-s-attr="a.name" /></td>
                 <td v-if="!f.optionTypes.length && !extraAttrs.length" data-label="구매옵션 *">
                   <div class="flex gap-1"><input v-model.trim="it.freeAttrName" class="st-input opt-in" placeholder="종류" :maxlength="ATTR_NAME_MAX" /><input v-model.trim="it.freeAttrValue" class="st-input opt-in" placeholder="값" :maxlength="ATTR_VALUE_MAX" /></div>
                 </td>
                 <td v-if="hasCny" class="c-cny st-muted whitespace-nowrap" data-label="1688 가격" :data-mk-s-cny="i">{{ it.priceCny ? `${it.priceCny}위안` : '확인 필요' }}</td>
                 <td class="c-price" data-label="정가(원) *"><input v-model.number="it.originalPrice" type="number" min="1" class="st-input opt-in" /></td>
-                <td class="c-price" data-label="판매가(원) *"><input v-model.number="it.salePrice" type="number" min="1" class="st-input opt-in" :data-mk-s-price="i" /></td>
+                <td class="c-price" data-label="판매가(원) *">
+                  <span v-if="commonItems" class="text-[13px] whitespace-nowrap" :class="it.salePrice > 0 ? 'st-ink' : 'st-danger-text font-bold'" :data-mk-s-price="i">{{ it.salePrice > 0 ? it.salePrice.toLocaleString('ko-KR') : '확인 필요' }}</span>
+                  <input v-else v-model.number="it.salePrice" type="number" min="1" class="st-input opt-in" :data-mk-s-price="i" />
+                </td>
                 <td class="c-rate whitespace-nowrap st-ink" data-label="할인" :data-mk-s-rate="i">{{ rateText(it) }}</td>
-                <td class="c-stock" data-label="재고 수량 *"><input v-model.number="it.stock" type="number" min="0" :max="STOCK_MAX" class="st-input opt-in" :title="it.stock1688 === null ? '' : `1688 재고 ${it.stock1688}`" :data-mk-s-stock="i" /></td>
+                <td class="c-stock" data-label="재고 수량 *">
+                  <span v-if="commonItems" class="text-[13px]" :class="Number.isInteger(it.stock) ? 'st-ink' : 'st-danger-text font-bold'" :data-mk-s-stock="i">{{ Number.isInteger(it.stock) ? it.stock.toLocaleString('ko-KR') : '입력 필요' }}</span>
+                  <input v-else v-model.number="it.stock" type="number" min="0" :max="STOCK_MAX" class="st-input opt-in" :title="it.stock1688 === null ? '' : `1688 재고 ${it.stock1688}`" :data-mk-s-stock="i" />
+                </td>
                 <td class="c-sku" data-label="품번 *"><input v-model.trim="it.sku" class="st-input opt-in font-mono" maxlength="50" :data-mk-s-sku="i" /></td>
                 <td class="c-gtin" data-label="GTIN"><input v-model.trim="it.gtin" class="st-input opt-in font-mono" maxlength="14" placeholder="8~14자리" /></td>
-                <td class="c-del"><button v-if="f.items.length > 1" type="button" class="st-link-muted text-[12px] whitespace-nowrap" @click="removeItem(i)">삭제</button></td>
+                <td class="c-del"><button v-if="f.items.length > 1 && !commonItems" type="button" class="st-link-muted text-[12px] whitespace-nowrap" @click="removeItem(i)">삭제</button></td>
               </tr>
             </tbody>
           </table>
@@ -161,7 +187,7 @@
           </div>
         </div>
         <div class="flex items-center gap-3">
-          <button type="button" class="st-btn" :disabled="f.items.length >= ITEMS_MAX" data-mk-s-item-add @click="addItem">옵션 추가</button>
+          <button v-if="!commonItems" type="button" class="st-btn" :disabled="f.items.length >= ITEMS_MAX" data-mk-s-item-add @click="addItem">옵션 추가</button>
           <span class="text-[12px] st-muted">{{ f.items.length }} / {{ ITEMS_MAX }}</span>
           <button type="button" class="st-link-muted text-[12px] ml-auto" data-mk-s-names-toggle @click="toggleManualNames">{{ f.manualNames ? '옵션 이름 자동 생성' : '옵션 이름 직접 입력' }}</button>
         </div>
@@ -204,7 +230,7 @@
       </section>
 
       <!-- 7. 대표 이미지 -->
-      <section class="space-y-2">
+      <section v-show="showOwn('image')" class="space-y-2">
         <h4 class="st-h-card">대표 이미지 *</h4>
         <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
         <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-s-images>
@@ -259,6 +285,12 @@
         </div>
       </section>
 
+      <!-- 쿠팡에 이미 있는 상품의 옵션 구성이 바뀜 — 확인해야 보낸다 -->
+      <label v-if="optionChange && !done" class="flex items-start gap-2 st-surface st-border rounded-[10px] p-3 text-[13px] cursor-pointer" data-mk-s-option-change>
+        <input v-model="optionChangeOk" type="checkbox" class="mt-0.5" data-mk-s-option-change-ok />
+        <span class="break-keep"><b class="st-danger-text">{{ OPTION_CHANGE_NOTE }}</b><span class="block st-desc-sm mt-0.5">{{ OPTION_CHANGE_CONFIRM }}</span></span>
+      </label>
+
       <p v-if="sendError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-error>등록에 실패했습니다. (사유: {{ sendError }})</p>
       <p v-if="done && done.resend" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>수정 후 승인 요청되었습니다. 상품번호 {{ done.sellerProductId }} · 진행 상태는 [보낸 상품]에서 확인합니다.</p>
       <!-- 판매처에 있는 상품 수정 (2026-10-02) — 서버 way: modify(수정 + 다시 승인 요청) · price_stock(승인 완료 상품의 가격·재고만 — 승인 없음) · none(바뀐 것 없음) -->
@@ -274,9 +306,14 @@
 // 보내기 창의 쿠팡 섹션 — 내 상품 한 줄(prepare = send_prepare 응답)을 쿠팡 상품으로. 창(StudioSendModal)이 쿠팡을 체크했을 때만 이 섹션을 띄운다.
 // 판매처마다 섹션 컴포넌트 하나 — 밖으로 내놓는 것은 같다: missing(빠진 것)·busy·done·submit(). 다른 판매처가 열리면 같은 모양으로 하나 더 만든다.
 // 필수값은 화면에서 먼저 막고(missing) 서버가 다시 검사한다. 항목 규칙은 api/_coupangFields.js — 서버와 같은 파일
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import StudioTagChips from '@/components/studio/StudioTagChips.vue'
 import { optionTableMode } from '@/lib/studioMarketplaceRules'
+import { COMMON_GROUPS } from '@/lib/studioSendCommon'
+import {
+  COUPANG_LINK_TITLE, COMMON_ITEMS_NOTE, OPTION_CHANGE_NOTE, OPTION_CHANGE_CONFIRM, OPTION_CHANGE_MISSING, LINK_EMPTY, LINK_FILL,
+  commonCoupangRows, autoLinks, linkRows, linkProblems, linksPayload, linksFromSaved, unitValueOk, unitHint, optionSetChanged,
+} from '@/lib/studioCoupangLink'
 import { predictCategory, searchBrand, getCategoryMeta, sendProduct, REP_SIZE, readSaleMode, rememberSaleMode, fileToBase64, SEND_BODY_MAX } from '@/lib/studioMarketplace'
 import {
   SALE_MODES, isSaleMode, defaultOutboundDays, OUTBOUND_DAYS_MIN, OUTBOUND_DAYS_MAX, ENUMS, ENUM_LABEL, advancedDefaults, discountRate,
@@ -286,7 +323,8 @@ import {
   pickKoreanName, namesNeedKorean, koreanizeSkus, autoItemNames, ITEM_NAME_MAX, BRAND_MAX, BRAND_NOT_FOUND, pickBrand, brandWordIn,
 } from '../../../api/_coupangFields.js'
 
-const props = defineProps({ prepare: { type: Object, required: true } })
+// common = 창의 공통 정보(2026-10-02) — 스마트스토어·11번가와 함께 보낼 때만 온다. null이면 예전 그대로(이 섹션 칸에 직접 넣는다)
+const props = defineProps({ prepare: { type: Object, required: true }, common: { type: Object, default: null } })
 
 const ATTR_NAME_MAX = 25
 const ATTR_VALUE_MAX = 30
@@ -499,9 +537,15 @@ const missing = computed(() => {
   if (!v.templateId) out.push('배송/반품 템플릿')
   else if (!templateCourierOk.value) out.push('배송/반품 템플릿의 택배사 (판매처 > 기본 설정에서 다시 저장)')
   if (!v.repImageId) out.push('대표 이미지')
-  for (const t of v.optionTypes) if (!t.mapped) out.push(`옵션 종류 "${t.label}"에 맞는 쿠팡 옵션`)
-  const dupMap = v.optionTypes.map(t => t.mapped).filter(Boolean)
-  if (new Set(dupMap).size !== dupMap.length) out.push('옵션 종류별 서로 다른 쿠팡 옵션')
+  if (commonItems.value) {
+    // 공통 정보 옵션 → 쿠팡 옵션 이름 연결 (studioCoupangLink.linkProblems) · 옵션을 켰는데 조합이 없으면 보낼 옵션이 없다
+    out.push(...linkProblems(v.optionTypes.map(t => t.label), Object.fromEntries(v.optionTypes.map(t => [t.label, t.mapped])), meta.value?.attributes || []))
+    if (!v.items.length) out.push('판매할 옵션 (공통 정보 옵션 목록)')
+  } else {
+    for (const t of v.optionTypes) if (!t.mapped) out.push(`옵션 종류 "${t.label}"에 맞는 쿠팡 옵션`)
+    const dupMap = v.optionTypes.map(t => t.mapped).filter(Boolean)
+    if (new Set(dupMap).size !== dupMap.length) out.push('옵션 종류별 서로 다른 쿠팡 옵션')
+  }
   const names = new Set()
   const groupsDone = new Set()
   v.items.forEach((it, i) => {
@@ -514,7 +558,7 @@ const missing = computed(() => {
     }
     names.add(name)
     if (hasUntranslated(name) || Object.values(it.opt).some(hasUntranslated)) out.push(`${tag}옵션 값 한글 입력`)
-    if (!(it.salePrice > 0)) out.push(`${tag}판매가`)
+    if (!(it.salePrice > 0)) out.push(commonItems.value ? `${tag}판매가 (공통 판매가·추가금액)` : `${tag}판매가`)
     else if (it.originalPrice > 0 && it.salePrice > it.originalPrice) out.push(`${tag}판매가가 정가 초과`)
     if (it.stock === null || it.stock === '' || it.stock === undefined) out.push(`${tag}재고 수량`)
     else if (!(Number.isInteger(it.stock) && it.stock >= 0 && it.stock <= STOCK_MAX)) out.push(`${tag}재고 수량은 0~${STOCK_MAX}`)
@@ -522,6 +566,8 @@ const missing = computed(() => {
     if (it.gtin && !/^\d{8,14}$/.test(it.gtin)) out.push(`${tag}GTIN은 숫자 8~14자리`)
     const attrs = attributesOf(it)
     for (const t of v.optionTypes) if (t.mapped && !String(it.opt[t.key] || '').trim()) out.push(`${tag}${t.mapped}`)
+    // 단위형(NUMBER) — 숫자 또는 숫자+허용 단위만 (studioCoupangLink.unitValueOk)
+    for (const [n, val] of Object.entries(attrs)) { const am = attrMeta(n); if (am && !unitValueOk(val, am)) out.push(`${tag}${n}: ${unitHint(am)}`) }
     groupsDone.clear()
     for (const a of (meta.value?.attributes || []).filter(x => x.required)) {
       if (a.group) {
@@ -540,6 +586,7 @@ const missing = computed(() => {
     else if (got?.on && c.needsCode && !got.code) out.push(`인증정보 ${c.name || c.type} 인증번호`)
   }
   for (const d of docList.value) if (d.needed && !v.docs[d.templateName]) out.push(`구비서류 ${d.templateName}`)
+  if (optionChange.value && !optionChangeOk.value) out.push(OPTION_CHANGE_MISSING)
   const limit = props.prepare?.limits?.optionImages
   if (Number.isInteger(limit) && optionImageIds.value.length > limit) out.push(`옵션 이미지 ${limit}장 초과 (현재 ${optionImageIds.value.length}장)`)
   return [...new Set(out)]
@@ -666,7 +713,11 @@ async function loadMeta({ keep = null } = {}) {
   try {
     meta.value = await getCategoryMeta(f.value.categoryCode)
     for (const it of f.value.items) for (const a of meta.value.attributes) if (!(a.name in it.attributes)) it.attributes[a.name] = ''
-    for (const t of f.value.optionTypes) {
+    if (commonItems.value) {
+      // 공통 정보 옵션 — 고객이 고른 것 → 지난번 이 상품을 쿠팡에 보낼 때의 연결 → 같은 이름·같은 뜻 (studioCoupangLink.autoLinks)
+      const links = autoLinks(f.value.optionTypes.map(t => t.label), meta.value.attributes, savedLinks.value, Object.fromEntries(f.value.optionTypes.map(t => [t.label, t.mapped])))
+      for (const t of f.value.optionTypes) t.mapped = links[t.label] || ''
+    } else for (const t of f.value.optionTypes) {
       const hit = mapOptionName(t.names, meta.value.attributes)
       if (keep?.mapped && meta.value.attributes.some(a => a.name === t.mapped)) continue
       t.mapped = hit && !f.value.optionTypes.some(x => x !== t && x.mapped === hit) ? hit : ''
@@ -714,6 +765,8 @@ async function submit() {
       productName: v.productName, displayName: v.displayName, generalName: v.generalName, brand: brandOut.value, brandId: v.noBrand ? '' : v.brandId, manufacture: v.manufacture, modelNo: v.modelNo,
       items, notices, certifications: certsOut.value.map(c => ({ type: c.type, code: c.code })), documents: docsOut.value, advanced: { ...v.advanced },
       repImageId: v.repImageId, fit: v.fit, optionImages, searchTags: v.tags,
+      // 공통 옵션 종류 → 쿠팡 옵션 이름 연결 — 보내기 기록(request_json.optionLinks)에 남겨 다시 보낼 때 그대로 쓴다
+      optionLinks: linksPayload(Object.fromEntries(v.optionTypes.map(t => [t.label, t.mapped]))),
     }
     const size = JSON.stringify(payload).length
     if (size > SEND_BODY_MAX) {
@@ -732,7 +785,68 @@ async function submit() {
   }
 }
 
+// ── 공통 정보 (2026-10-02) — 창이 common을 주면 상품명·대표 이미지·판매가·재고·옵션을 그 값으로 채운다.
+//    판매가·재고·옵션 = 공통 옵션 줄마다 쿠팡 옵션 1개, 판매가 = 공통 판매가 + 추가금액(studioCoupangLink.commonCoupangRows).
+//    쿠팡 칸에 남는 것: 옵션 이름 연결 · 정가 · 품번 · GTIN · 필수 속성 · 옵션 이미지. [이 판매처만 다르게]에서 판매가나 재고·옵션을 켜면 예전처럼 이 칸에서 직접 넣는다
+const own = reactive(Object.fromEntries(COMMON_GROUPS.map(g => [g.key, false])))
+const showOwn = key => !props.common || own[key]
+const commonItems = computed(() => !!props.common && !own.price && !own.stock)
+const existingCoupang = computed(() => props.prepare?.existing?.coupang || null)
+const savedLinks = computed(() => linksFromSaved(existingCoupang.value?.optionLinks))
+const attrMeta = n => (meta.value?.attributes || []).find(a => a.name === n) || null
+// 1688 옵션 사진 — 원문 옵션값 묶음 → 작업 사진 (공통 옵션 줄의 originals로 찾는다)
+const sourceImages = new Map()
+for (const row of source.value?.skus || []) {
+  const key = (row.values || []).map(x => String(x?.value?.zh || x?.value?.ko || '').replace(/\s+/g, ' ').trim()).join('|')
+  const id = matchOptionImage(row.imageUrl, props.prepare?.images || [])
+  if (key && id && !sourceImages.has(key)) sourceImages.set(key, id)
+}
+function nextSku(used) {
+  const offer = source.value?.offerId
+  if (!offer) return ''
+  for (let n = 1; n <= ITEMS_MAX + 1; n++) { const sku = `${offer}-${String(n).padStart(3, '0')}`; if (!used.has(sku)) { used.add(sku); return sku } }
+  return ''
+}
+function syncCommon() {
+  if (!props.common || done.value) return
+  const c = props.common
+  if (!own.name) f.value.productName = c.productName
+  if (!own.image) { f.value.repImageId = c.repImageId; f.value.fit = c.fit }
+  if (!commonItems.value) return
+  const { groupNames, rows } = commonCoupangRows(c)
+  const links = autoLinks(groupNames, meta.value?.attributes || [], savedLinks.value, Object.fromEntries(f.value.optionTypes.map(t => [t.label, t.mapped])))
+  f.value.optionTypes = groupNames.map((g, gi) => ({ key: `g${gi}`, label: g, names: [g], isColor: isColorOption([g]), mapped: links[g] || '' }))
+  const before = new Map(f.value.items.filter(it => it.ckey).map(it => [it.ckey, it]))
+  const used = new Set([...before.values()].map(it => it.sku).filter(Boolean))
+  f.value.items = rows.map(r => {
+    let it = before.get(r.key)
+    if (!it) {
+      it = blankItem()
+      it.ckey = r.key
+      it.sku = nextSku(used)
+      it.imageId = sourceImages.get(r.originals.join('|')) || null
+    }
+    it.opt = Object.fromEntries(groupNames.map((g, gi) => [`g${gi}`, r.values[gi] || '']))
+    it.originals = {}
+    it.salePrice = r.salePrice
+    it.stock = r.stock
+    for (const a of meta.value?.attributes || []) if (!(a.name in it.attributes)) it.attributes[a.name] = ''
+    return it
+  })
+  if (pickFor.value >= f.value.items.length) pickFor.value = -1
+}
+// 쿠팡 구매옵션마다 연결 상태 (연결 표) — 옵션별로 넣는 필수 속성이 모든 줄에 있으면 'fill'
+const linkTable = computed(() => linkRows(meta.value?.attributes || [], Object.fromEntries(f.value.optionTypes.map(t => [t.label, t.mapped])),
+  name => f.value.items.length > 0 && f.value.items.every(it => String(attributesOf(it)[name] || '').trim())))
+const unitPlaceholder = a => (a?.dataType === 'NUMBER' && (a.unit || a.units?.[0]) ? `예: 1${a.unit || a.units[0]}` : '')
+// 쿠팡에 이미 있는 상품의 옵션 구성이 바뀜 — 확인 문구를 보여 주고 체크해야 보낸다 (반려 상품 고치기도 같은 규칙)
+const optionChangeOk = ref(false)
+const previousItemNames = computed(() => (existingCoupang.value?.mode === 'modify' ? existingCoupang.value.itemNames : resend.value?.form?.items?.map(x => x.name)) || [])
+const optionChange = computed(() => optionSetChanged(previousItemNames.value, itemNames.value))
+
 init()
+watch(() => props.common, syncCommon, { deep: true, immediate: true })
+watch(own, syncCommon)
 defineExpose({ missing, busy, done, submit, sendError }) // sendError = 창의 결과 표가 실패 사유를 그대로 보인다 (2026-10-01)
 </script>
 

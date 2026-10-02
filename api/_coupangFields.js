@@ -445,6 +445,23 @@ export function resendPlan() {
 }
 
 /**
+ * 쿠팡 옵션 이름 연결 기록 (2026-10-02) — 공통 옵션 종류 → 쿠팡 구매옵션 이름. 보내기 기록 request_json.optionLinks에 남겨 다시 보낼 때 그대로 쓴다.
+ * 화면(src/lib/studioCoupangLink.js linksPayload)과 서버가 같은 정리 규칙. 보내는 본문(items[].attributes)은 바꾸지 않는다 — 기록용
+ * @param {[{ from, to }]} list @returns {[{ from, to }]}  from·to 50자 · 빈 값 빼기 · 같은 from은 처음 것 · 10개까지
+ */
+export const OPTION_LINKS_MAX = 10
+export function cleanOptionLinks(list) {
+  const out = []
+  for (const x of Array.isArray(list) ? list : []) {
+    const from = str(x?.from).replace(/\s+/g, ' ').slice(0, 50), to = str(x?.to).replace(/\s+/g, ' ').slice(0, 50)
+    if (!from || !to || out.some(o => o.from === from)) continue
+    out.push({ from, to })
+    if (out.length >= OPTION_LINKS_MAX) break
+  }
+  return out
+}
+
+/**
  * 상품 수정 본문에 넣을 옵션 id 맞추기 — 쿠팡 상품 조회(data.items)에서 품번(externalVendorSku) → 옵션 이름 순으로 찾는다
  * [근거] 상품 수정(승인필요): sellerProductId(필수) · items[].sellerProductItemId(기존 옵션 수정 시 필수, 새 옵션은 넣지 않음) · items[].vendorItemId(임시저장 상태면 null)
  * @returns {[{ sellerProductItemId, vendorItemId } | null]}  우리 옵션 순서대로. 못 찾은 옵션(새 옵션)은 null

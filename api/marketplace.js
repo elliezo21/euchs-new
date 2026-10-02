@@ -65,7 +65,7 @@ import {
 import { readDimensions } from './studio-ingest.js'
 import { extractFacts, factTexts, withKo } from './_studioFacts.js'
 import { resendPlan } from './_coupangFields.js'
-import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand, detailImagePlans, formFromBody, DETAIL_MAX_BYTES } from './_coupangFields.js'
+import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand, detailImagePlans, formFromBody, DETAIL_MAX_BYTES, cleanOptionLinks } from './_coupangFields.js'
 import { renderDetailPiece, shrinkBytes, renderSquare } from './_coupangImage.js'
 import { publishMarketImages, MarketImagesError } from './_marketImages.js'
 import {
@@ -1627,14 +1627,20 @@ const revisionsOf = s => (Array.isArray(s?.request_json?.revisions) ? s.request_
  */
 async function existingInMarkets(ctx, exportId) {
   const markets = Object.keys(UPDATE_MODES)
-  const rows = await sb(ctx.cfg, `marketplace_sends?select=id,market,status,seller_product_id,market_account,created_at&user_id=eq.${ctx.userId}&export_id=eq.${exportId}&market=in.(${markets.join(',')})&status=in.(${LIVE_SEND_STATUSES.join(',')})&seller_product_id=not.is.null`)
+  // option_links·prev_items = 쿠팡 기록만 값이 있다 (2026-10-02 — 옵션 이름 연결을 다시 쓰고, 옵션 구성이 바뀌는지 보내기 창이 본다)
+  const rows = await sb(ctx.cfg, `marketplace_sends?select=id,market,status,seller_product_id,market_account,created_at,option_links:request_json->optionLinks,prev_items:request_json->body->items&user_id=eq.${ctx.userId}&export_id=eq.${exportId}&market=in.(${markets.join(',')})&status=in.(${LIVE_SEND_STATUSES.join(',')})&seller_product_id=not.is.null`)
   const list = (Array.isArray(rows) ? rows : []).map(r => ({ ...r, sellerProductId: r.seller_product_id, account: r.market_account, createdAt: r.created_at }))
   if (!list.length) return {}
   const accounts = await currentAccounts(ctx)
   const out = {}
   for (const m of markets) {
     const plan = updatePlan(list.filter(r => r.market === m), m, accounts[m] ?? null)
-    if (plan.mode !== 'create') out[m] = { mode: plan.mode, sendId: plan.target.id, sellerProductId: String(plan.target.seller_product_id), status: plan.target.status, extra: plan.extra }
+    if (plan.mode === 'create') continue
+    out[m] = { mode: plan.mode, sendId: plan.target.id, sellerProductId: String(plan.target.seller_product_id), status: plan.target.status, extra: plan.extra }
+    if (m === MARKET) {
+      out[m].optionLinks = cleanOptionLinks(plan.target.option_links)
+      out[m].itemNames = (Array.isArray(plan.target.prev_items) ? plan.target.prev_items : []).map(it => String(it?.itemName ?? '').trim()).filter(Boolean)
+    }
   }
   return out
 }
@@ -1909,7 +1915,8 @@ async function send(ctx, body, res) {
   // 내용 표식 — 다음에 다시 보낼 때 "가격·재고만 바뀜"을 가린다 (이미지·서류는 원본 바이트 해시, 상세는 내 상품 파일 경로)
   const sources = { rep: sha16(rep.buf), options: Object.fromEntries(optImgs.map(o => [o.key, sha16(o.buf)])), docs: Object.fromEntries(docs.map(d => [d.templateName, sha16(d.buf)])), detail: Object.fromEntries(ex.files.map(f => [f.key, f.path])) }
   const contentKey = sha16(coupangContentKey(built.body, sources))
-  const requestJson = { body: built.body, files, pieces, categoryName: body.categoryName || null, revisions, contentKey }
+  // optionLinks = 공통 옵션 종류 → 쿠팡 옵션 이름 연결 (2026-10-02 — 다시 보낼 때 보내기 창이 그대로 쓴다. 보낸 본문과 별개 기록)
+  const requestJson = { body: built.body, files, pieces, categoryName: body.categoryName || null, revisions, contentKey, optionLinks: cleanOptionLinks(body.optionLinks) }
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: requestJson }, prefer: 'return=minimal' })
   if (prev) return await updateCoupang(ctx, res, { cred, prev, sendId, requestJson, plan, current, mode, extra, restore })
 

@@ -354,10 +354,30 @@ if (built?.Elevenst) {
   ], [null, true, 4, '공통 머그', '12900', '1000', true, true, true, false, true])
   const cm = await render(built.Common, { common: COMMON(), prepare: PREPARE(true, SOURCE), markets: ['smartstore', '11st'], coupang: true })
   eq('공통 정보 칸: 예외 없음 · 상품명·판매가·옵션 표(공용 영역)·대표 이미지 · 쿠팡 안내 한 줄 · 추가금액 범위 = 두 판매처가 겹치는 곳(-6,450 ~ +6,450)', [
-    cm.error, val(cm.html, 'data-mk-cm-name'), val(cm.html, 'data-mk-cm-price'), /data-mk-opt-table/.test(cm.html), /data-mk-cm-images/.test(cm.html), /data-mk-cm-coupang[^>]*>쿠팡은 아래 쿠팡 칸에서 따로 입력합니다\.</.test(cm.html), /data-mk-opt-range[^>]*>추가금액은 -6,450원 ~ \+6,450원/.test(cm.html), /data-mk-cm-desc[^>]*>[^<]*스마트스토어·11번가/.test(cm.html),
+    cm.error, val(cm.html, 'data-mk-cm-name'), val(cm.html, 'data-mk-cm-price'), /data-mk-opt-table/.test(cm.html), /data-mk-cm-images/.test(cm.html), /data-mk-cm-coupang[^>]*>쿠팡에는 옵션별 판매가\(공통 판매가 \+ 추가금액\)로 등록합니다\./.test(cm.html), /data-mk-opt-range[^>]*>추가금액은 -6,450원 ~ \+6,450원/.test(cm.html), /data-mk-cm-desc[^>]*>[^<]*스마트스토어·11번가/.test(cm.html),
   ], [null, '공통 머그', '12900', true, true, true, true, true])
   const cmNoCp = await render(built.Common, { common: COMMON(), prepare: PREPARE(true, SOURCE), markets: ['smartstore', '11st'], coupang: false })
   eq('공통 정보 칸: 쿠팡을 체크하지 않으면 쿠팡 안내 없음', /data-mk-cm-coupang/.test(cmNoCp.html), false)
+
+  // ── 쿠팡 섹션 + 공통 정보 (2026-10-02) — 판매가·재고·옵션은 공통 값, 쿠팡 판매가 = 공통 판매가 + 추가금액 · 쿠팡 칸에는 연결·정가·품번만 ──
+  const spanText = (html, attr) => (new RegExp('<span[^>]*' + attr + '[^>]*>([^<]*)<').exec(html)?.[1] ?? '').trim()
+  const cpNo = await render(built.Coupang, { prepare: PREPARE(true, SOURCE) })
+  const cpYes = await render(built.Coupang, { prepare: PREPARE(true, SOURCE), common: COMMON() })
+  eq('쿠팡 섹션(common 없음): 예전 그대로 — 공통 안내 없음 · 판매가·재고 입력 칸 · [옵션 추가]', [cpNo.error, /data-mk-s-common/.test(cpNo.html), /<input[^>]*data-mk-s-price="0"/.test(cpNo.html), /data-mk-s-item-add/.test(cpNo.html)], [null, false, true, true])
+  eq('쿠팡 섹션(common 있음): 안내 + [이 판매처만 다르게] 4개 · 공통 옵션 안내 · 옵션 값 블랙·화이트 · 판매가 12,900 / 13,900(+1,000) · 재고 7·3 · 입력 칸 없음 · [옵션 추가] 없음', [
+    cpYes.error, /data-mk-s-common[ >]/.test(cpYes.html), (cpYes.html.match(/data-mk-s-own="/g) || []).length, /data-mk-s-common-items/.test(cpYes.html),
+    [...cpYes.html.matchAll(/<span[^>]*data-mk-s-opt="g0"[^>]*>([^<]*)</g)].map(m => m[1].trim()), spanText(cpYes.html, 'data-mk-s-price="0"'), spanText(cpYes.html, 'data-mk-s-price="1"'), spanText(cpYes.html, 'data-mk-s-stock="0"'), spanText(cpYes.html, 'data-mk-s-stock="1"'),
+    /<input[^>]*data-mk-s-price=/.test(cpYes.html), /data-mk-s-item-add/.test(cpYes.html),
+  ], [null, true, 4, true, ['블랙', '화이트'], '12,900', '13,900', '7', '3', false, false])
+  eq('쿠팡 섹션(common 있음): 상품명·대표 이미지 칸은 가려짐 · 품번 = 1688 상품번호-001·002 · 카테고리 메타 전 = 연결 안 됨 표시', [
+    hidden(cpYes.html, 'data-mk-s-name'), /<section[^>]*style="display:none;?"[^>]*>(?:(?!<\/section>)[\s\S])*data-mk-s-images/.test(cpYes.html), val(cpYes.html, 'data-mk-s-sku="0"'), val(cpYes.html, 'data-mk-s-sku="1"'), /data-mk-s-option-unlinked="g0"/.test(cpYes.html),
+  ], [true, true, '123456789012-001', '123456789012-002', true])
+  const cpPrev = await render(built.Coupang, { prepare: { ...PREPARE(true, SOURCE), existing: { coupang: { mode: 'modify', sendId: 's1', sellerProductId: '99', status: 'approved', extra: 0, optionLinks: [{ from: '색상', to: '색상' }], itemNames: ['블랙'] } } }, common: COMMON() })
+  eq('쿠팡에 이미 있는 상품: 지난번 연결(색상→색상)을 그대로 · 옵션 구성이 바뀌면(블랙 → 블랙·화이트) 확인 문구 + 체크 칸', [
+    cpPrev.error, val(cpPrev.html, 'data-mk-s-option-map="g0"'), /data-mk-s-option-unlinked/.test(cpPrev.html), /data-mk-s-option-change[^-]/.test(cpPrev.html), /쿠팡에서는 옵션을 바꾸면 기존 옵션의 리뷰·판매 이력이 이어지지 않을 수 있습니다\./.test(cpPrev.html),
+  ], [null, '색상', false, true, true])
+  const cpSame = await render(built.Coupang, { prepare: { ...PREPARE(true, SOURCE), existing: { coupang: { mode: 'modify', sendId: 's1', sellerProductId: '99', status: 'approved', extra: 0, optionLinks: [{ from: '색상', to: '색상' }], itemNames: ['화이트', '블랙'] } } }, common: COMMON() })
+  eq('옵션 구성이 같으면(순서만 다름) 확인 문구 없음', [cpSame.error, /data-mk-s-option-change[^-]/.test(cpSame.html)], [null, false])
 
   // ── 등록 템플릿 (2026-10-01) — 기본 템플릿 자동 선택 · 고르면 칸이 채워짐 · 조건부 무료 ──
   const val11 = (html, attr) => (new RegExp('<input[^>]*' + attr + '[^>]*>').exec(html)?.[0].match(/ value="([^"]*)"/)?.[1]) ?? ''

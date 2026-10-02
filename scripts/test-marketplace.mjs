@@ -2637,15 +2637,17 @@ function elevenstRelay(u, method, opts) {
   eq('공통 정보 복사 함수 = 편집 모양 복사', (await import('../src/lib/studioSendCommon.js')).cloneOptions === E.cloneOptionEditor, true)
 }
 
-// ── 22. 여러 판매처 한 번에 보내기 — 공통 정보 (2026-10-01) · src/lib/studioSendCommon.js (스마트스토어·11번가만, 쿠팡은 자기 칸) ──
+// ── 22. 여러 판매처 한 번에 보내기 — 공통 정보 (2026-10-01) · src/lib/studioSendCommon.js (2026-10-02 쿠팡도 공통 정보 — 쿠팡 규칙은 studioCoupangLink, 24번 묶음) ──
 {
   const SC = await import('../src/lib/studioSendCommon.js')
   const O = await import('../api/_marketOptions.js')
-  eq('공통 정보 대상 = 스마트스토어·11번가 (쿠팡·카페24 아님)', SC.COMMON_MARKETS, ['smartstore', '11st'])
-  eq('공통 정보를 쓰는 때: 대상 2곳 이상 · 1곳만이면 예전 그대로 · 쿠팡+1곳은 아님 · 다시 보내기는 아님', [
+  eq('공통 정보 대상 = 쿠팡·스마트스토어·11번가 (카페24 아님 — 2026-10-02 쿠팡 포함)', SC.COMMON_MARKETS, ['coupang', 'smartstore', '11st'])
+  eq('공통 정보를 쓰는 때: 대상 2곳 이상 · 1곳만이면 예전 그대로 · 쿠팡+1곳도 공통 · 다시 보내기는 아님', [
     SC.commonActive(['smartstore']), SC.commonActive(['11st']), SC.commonActive(['coupang', 'smartstore']), SC.commonActive(['smartstore', '11st']), SC.commonActive(['coupang', 'smartstore', '11st']),
     SC.commonActive(['smartstore', '11st'], { resend: true }), SC.commonActive([]), SC.commonActive(undefined),
-  ], [false, false, false, true, true, false, false, false])
+  ], [false, false, true, true, true, false, false, false])
+  eq('쿠팡만 1곳 = 예전 그대로(쿠팡 칸에서 직접) · 쿠팡+지그재그(공통 대상 1곳) = 예전 그대로', [SC.commonActive(['coupang']), SC.commonActive(['coupang', 'zigzag'])], [false, false])
+  eq('추가금액 범위: 쿠팡은 범위 규칙이 없어 빼고 계산 (쿠팡+스마트스토어 = 스마트스토어 범위)', [SC.commonOptionRange(['coupang', 'smartstore'], 12900), SC.commonOptionRange(['smartstore'], 12900), SC.commonOptionRange(['coupang'], 12900)].map(x => JSON.stringify(x)), [JSON.stringify(SC.commonOptionRange(['smartstore'], 12900)), JSON.stringify(SC.commonOptionRange(['smartstore'], 12900)), 'null'])
 
   const pair = (zh, ko = null) => ({ zh, ko })
   // 옵션별 가격이 다른 상품(3-8 첫째 — 1081981728994 모양): 줄마다 1688 가격이 다르다 → 원화 추가금액은 고객이 줄마다 넣는다(1688 위안은 원화로 바꾸지 않음)
@@ -2763,9 +2765,9 @@ function elevenstRelay(u, method, opts) {
   ], [{ min: -6450, max: 6450 }, { min: -2500, max: 5000 }, null, { min: -6450, max: 12900 }, null])
   {
     const ssv = read('src/components/studio/StudioSendSmartstore.vue'), e11v = read('src/components/studio/StudioSendElevenst.vue'), cpv = read('src/components/studio/StudioSendCoupang.vue')
-    eq('창: 공통 정보는 대상 2곳 이상일 때만(commonActive) · common은 스마트스토어·11번가 섹션에만 · 쿠팡 섹션은 common을 모름', [
-      /useCommon = computed\(\(\) => !!common\.value && commonActive\(picked\.value, \{ resend: !!props\.prepare\?\.resend \}\)\)/.test(modal), /v-bind="COMMON_MARKETS\.includes\(key\) \? \{ common: useCommon \? common : null \} : \{\}"/.test(modal), /common/.test(cpv.replace(/\/\/.*$/gm, '')),
-    ], [true, true, false])
+    eq('창: 공통 정보는 대상 2곳 이상일 때만(commonActive) · common은 쿠팡·스마트스토어·11번가 섹션에 · 쿠팡 섹션도 common을 받음(2026-10-02)', [
+      /useCommon = computed\(\(\) => !!common\.value && commonActive\(picked\.value, \{ resend: !!props\.prepare\?\.resend \}\)\)/.test(modal), /v-bind="COMMON_MARKETS\.includes\(key\) \? \{ common: useCommon \? common : null \} : \{\}"/.test(modal), /common: \{ type: Object, default: null \}/.test(cpv),
+    ], [true, true, true])
     eq('섹션: 공통 값은 commonPatch로 자기 f·opts에 옮김(빠짐 목록·요약·보내기는 예전 그대로) · 보낸 뒤(done)는 안 옮김 · submit 본문은 공통 정보를 직접 안 봄', [
       /commonPatch\('smartstore', props\.common, own\)/.test(ssv), /commonPatch\('11st', props\.common, own\)/.test(e11v), [ssv, e11v].every(s => /if \(!props\.common \|\| done\.value\) return/.test(s)), [ssv, e11v].every(s => !/props\.common/.test(s.slice(s.indexOf('async function submit()'), s.indexOf('async function submit()') + 3000))),
     ], [true, true, true, true])
@@ -3165,7 +3167,7 @@ function elevenstRelay(u, method, opts) {
   const c1 = await post('send', CP)
   eq('쿠팡 살아 있는 상품 없음 → 상품 생성(POST) · 기록 1개 · 업체코드 기록', [c1.statusCode, c1.body.status, !!c1.body.updated, cpPaths(), mine().length, mine()[0].market_account, !!mine()[0].request_json.contentKey], [200, 'approval_pending', false, ['POST /seller-products'], 1, 'A00012345', true])
   const pre1 = await post('send_prepare', { exportId: UEID })
-  eq('보내기 창 재료: existing.coupang = 수정 · 상품번호 · 다른 판매처 없음', [pre1.body.existing.coupang && { ...pre1.body.existing.coupang, sendId: !!pre1.body.existing.coupang.sendId }, Object.keys(pre1.body.existing)], [{ mode: 'modify', sendId: true, sellerProductId: '1234567890', status: 'approval_pending', extra: 0 }, ['coupang']])
+  eq('보내기 창 재료: existing.coupang = 수정 · 상품번호 · 다른 판매처 없음', [pre1.body.existing.coupang && { ...pre1.body.existing.coupang, sendId: !!pre1.body.existing.coupang.sendId }, Object.keys(pre1.body.existing)], [{ mode: 'modify', sendId: true, sellerProductId: '1234567890', status: 'approval_pending', extra: 0, optionLinks: [], itemNames: ['블랙'] }, ['coupang']])
   // 승인 대기 상품을 다시 보냄 → 상품 수정(PUT) · 옵션 id 유지 · 같은 기록
   relay.products = { 1234567890: { statusName: '승인대기중', items: [{ sellerProductItemId: 777001, vendorItemId: null, itemName: '블랙', externalVendorSku: 'MUG-BK', salePrice: 9900, originalPrice: 12000, maximumBuyCount: 50 }] } }
   relay.calls = []
@@ -3616,6 +3618,69 @@ function elevenstRelay(u, method, opts) {
     /method: 'DELETE', path/.test(api),
   ], [[true, true, true], false])
   globalThis.__createOnly = true
+}
+
+// ── 24. 쿠팡 ↔ 공통 정보 (2026-10-02) — src/lib/studioCoupangLink.js 순수 함수 · 서버 기록(request_json.optionLinks)·send_prepare.existing 배선 ──
+{
+  const L = await import('../src/lib/studioCoupangLink.js')
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const F = await import('../api/_coupangFields.js')
+  const ATTRS = [
+    { name: '색상', required: true, exposed: true, dataType: 'STRING', unit: '', units: [] },
+    { name: '사이즈', required: false, exposed: true, dataType: 'STRING', unit: '', units: [] },
+    { name: '수량', required: true, exposed: true, dataType: 'NUMBER', unit: '개', units: ['개', '세트'] },
+    { name: '소재', required: false, exposed: false, dataType: 'STRING', unit: '', units: [] },
+  ]
+  // 옵션별 판매가 = 공통 판매가 + 추가금액 (반올림·임의 숫자 없음)
+  const common = { price: 12900, stock: null, opts: { enabled: true, groupNames: ['컬러', '사이즈'], rows: [
+    { key: 'a', values: ['블랙', 'M'], originals: ['黑色', 'M'], addPrice: 0, stock: 5, use: true },
+    { key: 'b', values: ['블랙', 'L'], originals: ['黑色', 'L'], addPrice: 1000, stock: 0, use: true },
+    { key: 'c', values: ['화이트', 'M'], originals: ['白色', 'M'], addPrice: -500, stock: 2, use: true },
+    { key: 'd', values: ['화이트', 'L'], originals: ['白色', 'L'], addPrice: 0, stock: 1, use: false },
+  ] } }
+  const r1 = L.commonCoupangRows(common)
+  eq('옵션별 쿠팡 판매가 = 공통 판매가 + 추가금액 · 재고 그대로(0 = 0) · 판매 안 함 줄 빠짐', [r1.groupNames, r1.rows.map(r => [r.key, r.salePrice, r.stock])], [['컬러', '사이즈'], [['a', 12900, 5], ['b', 13900, 0], ['c', 12400, 2]]])
+  eq('공통 판매가가 비면 판매가 null(빠짐 목록 "판매가") — 임의 숫자로 채우지 않음 · 추가금액이 비면 그 줄만 null', [
+    L.commonCoupangRows({ ...common, price: null }).rows.map(r => r.salePrice), L.commonCoupangRows({ ...common, opts: { ...common.opts, rows: [{ ...common.opts.rows[0], addPrice: '' }] } }).rows[0].salePrice,
+    L.commonCoupangRows({ ...common, price: 500, opts: { ...common.opts, rows: [{ ...common.opts.rows[0], addPrice: -500 }] } }).rows[0].salePrice,
+  ], [[null, null, null], null, null])
+  eq('옵션을 안 쓰면 줄 하나(single) = 공통 판매가·재고 · 옵션을 켰는데 조합 0개면 줄 0개', [L.commonCoupangRows({ price: 9900, stock: 30, opts: { enabled: false, groupNames: [], rows: [] } }), L.commonCoupangRows({ price: 9900, stock: 30, opts: { enabled: true, groupNames: ['색상'], rows: [] } }).rows.length],
+    [{ groupNames: [], rows: [{ key: 'single', values: [], originals: [], salePrice: 9900, stock: 30 }] }, 0])
+  // 자동 연결
+  eq('자동 연결: 같은 이름 그대로 · 같은 뜻(컬러→색상) · 못 맞추면 빈칸', [L.autoLinks(['색상', '사이즈'], ATTRS), L.autoLinks(['컬러', '사이즈'], ATTRS), L.autoLinks(['무늬'], ATTRS)], [{ 색상: '색상', 사이즈: '사이즈' }, { 컬러: '색상', 사이즈: '사이즈' }, { 무늬: '' }])
+  eq('연결 우선순위: 화면에서 고른 것 → 지난번 보낸 연결 → 자동 · 카테고리에 없는 이름은 버림 · 한 쿠팡 옵션에 두 종류 안 이음', [
+    L.autoLinks(['컬러'], ATTRS, { 컬러: '사이즈' }), L.autoLinks(['컬러'], ATTRS, { 컬러: '사이즈' }, { 컬러: '색상' }), L.autoLinks(['컬러'], ATTRS, { 컬러: '없는옵션' }), L.autoLinks(['컬러', '색깔'], ATTRS), L.autoLinks(['컬러'], [], { 컬러: '색상' }),
+  ], [{ 컬러: '사이즈' }, { 컬러: '색상' }, { 컬러: '색상' }, { 컬러: '색상', 색깔: '' }, { 컬러: '색상' }])
+  // 필수 누락 · 막기
+  eq('연결 빠짐: 연결 안 된 종류 · 같은 쿠팡 옵션 두 번 · 카테고리에 없는 이름 → 보내기 막음', [
+    L.linkProblems(['컬러', '사이즈'], { 컬러: '색상', 사이즈: '' }, ATTRS), L.linkProblems(['컬러', '사이즈'], { 컬러: '색상', 사이즈: '색상' }, ATTRS), L.linkProblems(['컬러'], { 컬러: '모양' }, ATTRS), L.linkProblems(['컬러', '사이즈'], { 컬러: '색상', 사이즈: '사이즈' }, ATTRS),
+  ], [['쿠팡 옵션 연결: "사이즈"에 맞는 쿠팡 옵션'], ['쿠팡 옵션 연결: 옵션 종류마다 서로 다른 쿠팡 옵션'], ['쿠팡 옵션 연결: "모양"은 이 카테고리의 쿠팡 옵션이 아님'], []])
+  const rows = L.linkRows(ATTRS, { 컬러: '색상' }, n => n === '사이즈')
+  eq('연결 표: 구매옵션(EXPOSED)만 · 이어짐 / 옵션별로 입력 / 필수인데 빔(빨강) · 단위형 안내', rows.map(r => [r.name, r.required, r.from, r.state, r.hint]), [
+    ['색상', true, '컬러', 'linked', ''], ['사이즈', false, '', 'fill', ''], ['수량', true, '', 'empty', '숫자+단위만 입력 (예: 1개 · 단위 개·세트)'],
+  ])
+  // 단위형
+  const Q = ATTRS[2]
+  eq('단위형(NUMBER): 숫자 · 숫자+허용 단위만 통과 · 띄어쓰기·다른 단위·글자 막음 · 문자형은 늘 통과', [
+    ['1', '1개', '2세트', '1.5개', '1 개', '1팩', '한개', '개1', ''].map(v => L.unitValueOk(v, Q)), L.unitValueOk('아무 값', ATTRS[0]),
+  ], [[true, true, true, true, false, false, false, false, true], true])
+  // 연결 기록 · 옵션 구성 변경
+  eq('연결 기록: 화면·서버 같은 정리(cleanOptionLinks) — 빈 값·같은 from 두 번 빼기 · 50자 · 10개', [
+    L.linksPayload({ 컬러: '색상', 사이즈: '', ' 무늬 ': ' 패턴 ' }), F.cleanOptionLinks([{ from: 'a', to: 'b' }, { from: 'a', to: 'c' }, { from: '', to: 'x' }, null]), F.cleanOptionLinks(Array.from({ length: 15 }, (_, i) => ({ from: `f${i}`, to: 't' }))).length, F.cleanOptionLinks([{ from: 'x'.repeat(80), to: 'y' }])[0].from.length,
+    L.linksFromSaved([{ from: '컬러', to: '색상' }, { from: '', to: 'x' }]),
+  ], [[{ from: '컬러', to: '색상' }, { from: '무늬', to: '패턴' }], [{ from: 'a', to: 'b' }], 10, 50, { 컬러: '색상' }])
+  eq('옵션 구성 변경: 옵션 이름 묶음이 다르면 true(순서 무관) · 지난 옵션을 모르면 false', [
+    L.optionSetChanged(['블랙', '화이트'], ['화이트', '블랙']), L.optionSetChanged(['블랙'], ['블랙', '화이트']), L.optionSetChanged(['블랙 / M'], ['블랙 / L']), L.optionSetChanged([], ['블랙']), L.optionSetChanged(undefined, ['블랙']),
+  ], [false, true, true, false, false])
+  eq('문구: 확인 문구 = 지시 문구 그대로 · 합니다체', [L.OPTION_CHANGE_NOTE, /요[.!]?$/.test(L.COMMON_ITEMS_NOTE)], ['쿠팡에서는 옵션을 바꾸면 기존 옵션의 리뷰·판매 이력이 이어지지 않을 수 있습니다.', false])
+  // 배선
+  const cpv = read('src/components/studio/StudioSendCoupang.vue'), api = read('api/marketplace.js')
+  eq('배선: 쿠팡 섹션이 common을 받아 commonCoupangRows로 옵션 줄을 만듦 · 연결 빠짐·단위·옵션 구성 확인이 빠짐 목록에 · 보낼 때 optionLinks', [
+    /commonCoupangRows\(c\)/.test(cpv), /linkProblems\(/.test(cpv), /unitValueOk\(val, am\)/.test(cpv), /OPTION_CHANGE_MISSING/.test(cpv), /optionLinks: linksPayload\(/.test(cpv),
+  ], [true, true, true, true, true])
+  eq('배선: 서버가 연결을 request_json.optionLinks에 저장 · send_prepare.existing.coupang에 optionLinks·itemNames', [
+    /optionLinks: cleanOptionLinks\(body\.optionLinks\)/.test(api), /out\[m\]\.optionLinks = cleanOptionLinks\(plan\.target\.option_links\)/.test(api), /out\[m\]\.itemNames = /.test(api),
+  ], [true, true, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)
