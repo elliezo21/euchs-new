@@ -23,9 +23,10 @@ export const SETTINGS_TABS = [
 
 // 판매처 화면 탭 (2026-09-30 — 만드는 곳(내 작업)과 보내는 곳(판매처)을 나눔). route = 자식 라우트 이름 (/studio/channels/<key>)
 // moved = 예전 주소(라우트 이름) — 새 탭으로 redirect
+// 2026-10-02 [보내기] 탭은 [내 상품]으로 합침(상품 고르기·판매처 현황이 한 목록에) — 예전 주소는 router에서 [내 상품]으로 redirect.
+//   [보낸 상품]은 "전송 기록"으로 남김 — 보낸 회차·판매처 상품번호 검색·상태 자동 확인·실패 사유를 보는 보조 화면
 export const CHANNEL_TABS = [
-  { key: 'send', label: '보내기', route: 'studio-channels-send' },
-  { key: 'sent', label: '보낸 상품', route: 'studio-channels-sent' },
+  { key: 'sent', label: '전송 기록', route: 'studio-channels-sent' },
   { key: 'defaults', label: '기본 설정', route: 'studio-channels-defaults', moved: ['studio-settings-shipping'] },
   { key: 'connect', label: '연결', route: 'studio-channels-connect', moved: ['studio-settings-marketplace', 'studio-marketplace'] },
 ]

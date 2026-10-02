@@ -1,7 +1,7 @@
 <template>
   <section id="sends" ref="root" class="scroll-mt-6" data-mk-sends>
     <div class="flex flex-wrap items-center gap-2 mb-4">
-      <h2 class="st-h-section">보낸 상품</h2>
+      <h2 class="st-h-section">전송 기록</h2>
       <!-- 판매처 상태 확인 = 연결된 모든 판매처(서버 sync — 판매처 공통). 탭을 열 때 10분이 지났으면 자동, [지금 확인] = 바로
            확인이 실패하면(자동·지금 확인 모두) 옆에 "확인 실패 · [다시 시도]" — 판매처 이름·서버 문구는 마우스를 올렸을 때만(checkFailInfo) -->
       <div v-if="sends.length" class="flex flex-wrap items-center gap-2 ml-auto" data-sl-check>
@@ -13,7 +13,7 @@
     </div>
     <p v-if="errorMsg" class="text-[13px] break-keep" :class="errorSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-sends-error>{{ errorMsg }}
       <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">[연결] 탭으로 가기</router-link></p>
-    <p v-else-if="!sends.length" class="st-desc break-keep" data-mk-sends-empty>보낸 상품이 없습니다. [보내기] 탭에서 상품을 선택하세요.</p>
+    <p v-else-if="!sends.length" class="st-desc break-keep" data-mk-sends-empty>전송 기록이 없습니다. [내 상품]에서 상품을 골라 보냅니다.</p>
     <template v-else>
       <!-- 상태 카드 — 누르면 그 상태가 판매처 칸에 하나라도 있는 상품만, 다시 누르면 전체 (상태 고르기와 같은 값) -->
       <div class="grid grid-cols-4 gap-2 md:gap-3 mb-4" data-sl-status-cards>

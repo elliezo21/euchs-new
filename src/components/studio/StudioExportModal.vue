@@ -86,7 +86,7 @@
       <!-- [작업 저장] 끝 — 내 상품에 저장만 (받지 않는다) -->
       <div v-else-if="phase === 'saved'" class="space-y-1.5" data-export-saved>
         <p class="text-[15px] font-bold st-success-text">내 상품에 저장됐어요</p>
-        <p class="st-desc break-keep">{{ doneCount }}장 · {{ saved.updated ? '전에 저장한 내 상품을 새 결과물로 바꿨어요.' : '내 작업의 [내 상품]에서 볼 수 있어요.' }}</p>
+        <p class="st-desc break-keep">{{ doneCount }}장 · {{ saved.updated ? '전에 저장한 내 상품을 새 결과물로 바꿨어요.' : '[내 상품]에서 볼 수 있어요.' }}</p>
       </div>
 
       <!-- [작업 저장] 실패 -->
@@ -136,7 +136,7 @@
       </template>
       <template v-else-if="phase === 'saved'">
         <button type="button" class="st-btn" data-export-saved-continue @click="$emit('close')">계속 편집</button>
-        <button type="button" class="st-btn" data-export-saved-home @click="$emit('home')">내 작업으로 가기</button>
+        <button type="button" class="st-btn" data-export-saved-home @click="$emit('home')">내 상품으로 가기</button>
         <button type="button" class="st-btn st-btn-primary" data-export-saved-send @click="$emit('send', saved.exportId)">판매처로 보내기</button>
       </template>
       <template v-else-if="phase === 'saveError' || (saveOnly && phase !== 'error')">

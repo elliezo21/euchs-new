@@ -76,6 +76,31 @@ export function savePatchFrom(fresh) {
   }
 }
 
+/**
+ * [내 상품] 목록 한 줄 = 작업(project) 하나 (2026-10-02) — 작업마다 지금 판매처로 보낼 결과물 하나와 그 작업의 모든 결과물 id.
+ * 지금 결과물 = [작업 저장](source 'save')이 있으면 그것(작업마다 하나 — 다시 저장하면 같은 id), 없으면 가장 최근 [다운로드] 보관.
+ * 판매처로 보낸 기록(marketplace_sends.export_id)은 예전 결과물을 가리킬 수 있어 ids를 함께 준다(목록이 작업 단위로 모은다).
+ * @param {[{ id, project_id, source?, created_at, files }]} rows 최근순이 아니어도 된다
+ * @returns {[{ current, ids:string[] }]}  작업마다 하나 · 지금 결과물이 최근인 순
+ */
+export function currentExportsByProject(rows) {
+  const t = r => { const v = new Date(r?.created_at).getTime(); return Number.isFinite(v) ? v : 0 }
+  const by = new Map()
+  for (const r of Array.isArray(rows) ? rows : []) {
+    if (!r?.id || !r.project_id) continue
+    if (!by.has(r.project_id)) by.set(r.project_id, [])
+    by.get(r.project_id).push(r)
+  }
+  const out = []
+  for (const list of by.values()) {
+    list.sort((a, b) => t(b) - t(a))
+    const current = list.find(r => r.source === 'save') || list[0]
+    out.push({ current, ids: list.map(r => r.id) })
+  }
+  return out.sort((a, b) => t(b.current) - t(a.current))
+}
+export const PRODUCT_EXPORTS_MAX = 2000 // [내 상품] 목록이 한 번에 읽는 결과물 수 상한 (넘으면 최근 것만 — 원인 로그)
+
 /** 표가 없음·권한 없음(GRANT 누락) — 보관만 "준비 중"으로 */
 export function isExportsUnavailable(err) {
   return err?.status === 404 || err?.status === 401 || err?.status === 403

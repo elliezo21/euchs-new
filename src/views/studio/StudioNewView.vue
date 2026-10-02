@@ -3,7 +3,7 @@
     <!-- 상단 바 -->
     <header class="sticky top-0 z-20 st-surface st-border-b">
       <div class="min-h-[64px] px-4 sm:px-6 py-2.5 flex flex-wrap items-center gap-3">
-        <router-link :to="{ name: 'studio-projects' }" class="st-icon-btn" title="내 작업으로">
+        <router-link :to="{ name: 'studio-projects' }" class="st-icon-btn" title="내 상품으로">
           <ArrowLeft class="w-5 h-5" :stroke-width="2" />
         </router-link>
         <div class="min-w-0 flex-1">

@@ -93,7 +93,7 @@
  * POST { action:'export_begin', projectId, title, format, scale, mode, count } → { exportId, stamp }  (studio_exports 행, 폴더 = {uid}/{projectId}/exports/{stamp})
  * POST { action:'export_file_prepare', exportId, key, size } → { exists:true, path } | { path, token }   key = 01·02…·all·thumb(목록 미리보기 JPG)
  * POST { action:'export_file_confirm', exportId, key, path, name } → { ok:true, saved }  서버가 형식·크기를 읽어 확인 후 files(또는 thumb_path)에 기록
- * POST { action:'exports_list' } → { ready, items }   /   POST { action:'export_download', exportId } → { files:[{ name, url, bytes }] } (서명 주소 10분)
+ * POST { action:'exports_list', perProject? } → { ready, items }  (perProject = [내 상품] 목록 — 작업마다 한 줄 + exportIds·source)   /   POST { action:'export_download', exportId } → { files:[{ name, url, bytes }] } (서명 주소 10분)
  * 에러: invalid_input·export_too_large·export_invalid·not_uploaded 400 / not_found 404 / export_sql_missing 503(표 없음) / sign_failed·storage_error 500
  *
  * ── 사용 자격 (2026-09-28) ── POST { action:'access' } → { ok:true, staff, mode }. 관문(api/_studio.js studioGuard)이 all 모드에서
@@ -126,7 +126,7 @@ import { extractFacts, factTexts, withKo } from './_studioFacts.js'
 import {
   EXPORT_MAX_BYTES, EXPORT_FORMATS, EXPORT_MODES, EXPORT_SCALES, EXPORT_MAX_FILES, EXPORTS_LIST_MAX, EXPORT_SIGN_SECONDS, KEY_RE,
   exportStamp, exportFolder, cleanExportName, upsertExportFile, exportsTableReady,
-  EXPORT_SOURCES, SAVE_CLEANUP_HOLD_MS, isSourceColumnMissing, savePatchFrom,
+  EXPORT_SOURCES, SAVE_CLEANUP_HOLD_MS, isSourceColumnMissing, savePatchFrom, currentExportsByProject, PRODUCT_EXPORTS_MAX,
 } from './_studioExports.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
@@ -1350,26 +1350,45 @@ async function exportSaveCommit(ctx, body, res) {
   return res.status(200).json({ exportId: old.id, updated: true })
 }
 
-/** POST { action:'exports_list' } → { ready, items:[{ id, projectId, title, createdAt, format, scale, mode, count, planned, previewUrl }] } */
+/**
+ * POST { action:'exports_list' } → { ready, items:[{ id, projectId, title, createdAt, format, scale, mode, count, planned, previewUrl }] }
+ * POST { action:'exports_list', perProject:true } → 작업마다 한 줄(2026-10-02 [내 상품] 목록) — 위 칸 + source('save'|'download') + exportIds(그 작업의 모든 결과물 id)
+ */
+async function exportItem(ctx, r) {
+  let previewUrl = null
+  if (r.thumb_path) {
+    try {
+      previewUrl = await storageSignDownload(ctx.cfg, BUCKET, r.thumb_path, EXPORT_SIGN_SECONDS)
+    } catch (e) {
+      console.error(`[studio-upload] 내 상품 미리보기 주소 실패 ${r.thumb_path}:`, e.message)
+    }
+  }
+  return {
+    id: r.id, projectId: r.project_id, title: r.title, createdAt: r.created_at, format: r.format, scale: r.scale, mode: r.mode,
+    count: r.files.length, planned: r.file_count, previewUrl,
+  }
+}
 async function exportsList(ctx, body, res) {
   if (!(await exportsTableReady(ctx))) return res.status(200).json({ ready: false, items: [] })
+  if (body.perProject === true) return exportsByProject(ctx, res)
   const rows = await sb(ctx.cfg,
     `studio_exports?select=${EXPORT_SELECT}&user_id=eq.${ctx.userId}&order=created_at.desc&limit=${EXPORTS_LIST_MAX}`)
   const list = (Array.isArray(rows) ? rows : []).filter(r => Array.isArray(r.files) && r.files.length > 0)
-  const items = await runPool(list, 6, async r => {
-    let previewUrl = null
-    if (r.thumb_path) {
-      try {
-        previewUrl = await storageSignDownload(ctx.cfg, BUCKET, r.thumb_path, EXPORT_SIGN_SECONDS)
-      } catch (e) {
-        console.error(`[studio-upload] 내 상품 미리보기 주소 실패 ${r.thumb_path}:`, e.message)
-      }
-    }
-    return {
-      id: r.id, projectId: r.project_id, title: r.title, createdAt: r.created_at, format: r.format, scale: r.scale, mode: r.mode,
-      count: r.files.length, planned: r.file_count, previewUrl,
-    }
-  })
+  const items = await runPool(list, 6, r => exportItem(ctx, r))
+  return res.status(200).json({ ready: true, items })
+}
+async function exportsByProject(ctx, res) {
+  const read = cols => sb(ctx.cfg, `studio_exports?select=${cols}&user_id=eq.${ctx.userId}&order=created_at.desc&limit=${PRODUCT_EXPORTS_MAX}`)
+  let rows
+  try { rows = await read(`${EXPORT_SELECT},source`) } catch (e) {
+    if (!isSourceColumnMissing(e)) throw e
+    console.error('[studio-upload] exports_list(perProject): studio_exports.source 칸 없음(docs/sql/2026-09-28-studio-folders.sql 실행 필요) — 모두 [다운로드] 보관으로 읽음:', e.message)
+    rows = await read(EXPORT_SELECT)
+  }
+  const list = (Array.isArray(rows) ? rows : []).filter(r => Array.isArray(r.files) && r.files.length > 0)
+  if ((Array.isArray(rows) ? rows.length : 0) >= PRODUCT_EXPORTS_MAX) console.error(`[studio-upload] exports_list(perProject): 결과물이 ${PRODUCT_EXPORTS_MAX}개를 넘음 — 최근 것만 읽음 ${ctx.userId}`)
+  const groups = currentExportsByProject(list)
+  const items = await runPool(groups, 6, async g => ({ ...(await exportItem(ctx, g.current)), source: g.current.source === 'save' ? 'save' : 'download', exportIds: g.ids }))
   return res.status(200).json({ ready: true, items })
 }
 

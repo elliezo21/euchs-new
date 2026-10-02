@@ -59,7 +59,7 @@ const studioRoute = {
       path: 'projects',
       name: 'studio-projects',
       component: () => import('../views/studio/StudioHomeView.vue'),
-      meta: { ...STUDIO_PUBLIC, title: '내 작업' } // 누구나 봄 — 로그인 전이면 빈 화면 안내, 작업 버튼만 관문(2026-09-30)
+      meta: { ...STUDIO_PUBLIC, title: '내 상품' } // 누구나 봄 — 로그인 전이면 빈 화면 안내, 작업 버튼만 관문(2026-09-30) · 2026-10-02 [내 작업] → [내 상품]
     },
     {
       path: 'templates',
@@ -85,18 +85,14 @@ const studioRoute = {
       component: () => import('../views/studio/StudioChannelsView.vue'),
       meta: { ...STUDIO_PUBLIC, title: '판매처' },
       children: [
-        { path: '', name: 'studio-channels', redirect: { name: 'studio-channels-send' } },
-        {
-          path: 'send',
-          name: 'studio-channels-send',
-          component: () => import('../views/studio/StudioChannelSendView.vue'),
-          meta: { ...STUDIO_PUBLIC, title: '판매처로 보내기' }
-        },
+        { path: '', name: 'studio-channels', redirect: { name: 'studio-channels-sent' } },
+        // [보내기] 탭은 [내 상품]으로 합침 (2026-10-02) — 예전 주소 ?export=<결과물 id>는 [내 상품]에서 그 상품의 보내기 창을 연다(?send=)
+        { path: 'send', name: 'studio-channels-send', redirect: to => ({ name: 'studio-projects', query: typeof to.query.export === 'string' && to.query.export ? { send: to.query.export } : {} }) },
         {
           path: 'sent',
           name: 'studio-channels-sent',
           component: () => import('../views/studio/StudioChannelSentView.vue'),
-          meta: { ...STUDIO_PUBLIC, title: '보낸 상품' }
+          meta: { ...STUDIO_PUBLIC, title: '전송 기록' }
         },
         {
           path: 'defaults',

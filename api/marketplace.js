@@ -767,9 +767,22 @@ async function sendInProgress(ctx, exportId, market) {
 // 같은 내 상품·같은 판매처·같은 계정으로 살아 있는 상품(등록 완료·승인 완료·승인 대기)이 있으면 새로 등록하지 않고 그 상품을 수정한다
 const TARGET_SELECT = `${SEND_SELECT},market_account,result_json`
 const TARGET_CHECK_FAILED = '판매처에 있는 상품을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.'
-/** 그 내 상품·그 판매처의 살아 있는 기록 (최근순) → updatePlan 재료 */
+/**
+ * 같은 작업(project)의 내 상품 id 전부 (2026-10-02) — [내 상품] 목록 한 줄 = 작업 하나. [다운로드]로 보관한 예전 결과물로 보냈던 상품도
+ * 같은 작업의 지금 결과물로 다시 보내면 새로 등록하지 않고 그 상품을 수정한다. 작업을 못 찾으면 그 내 상품 하나만
+ */
+async function projectExportIds(ctx, exportId) {
+  const rows = await sb(ctx.cfg, `studio_exports?select=project_id&id=eq.${exportId}&user_id=eq.${ctx.userId}&limit=1`)
+  const pid = Array.isArray(rows) ? rows[0]?.project_id : null
+  if (!pid) return [exportId]
+  const all = await sb(ctx.cfg, `studio_exports?select=id&project_id=eq.${pid}&user_id=eq.${ctx.userId}`)
+  const ids = (Array.isArray(all) ? all : []).map(r => r.id).filter(Boolean)
+  return ids.includes(exportId) ? ids : [exportId, ...ids]
+}
+/** 그 작업(같은 작업의 내 상품 전부)·그 판매처의 살아 있는 기록 (최근순) → updatePlan 재료 */
 async function liveSendRows(ctx, exportId, market) {
-  const rows = await sb(ctx.cfg, `marketplace_sends?select=${TARGET_SELECT}&user_id=eq.${ctx.userId}&export_id=eq.${exportId}&market=eq.${market}&status=in.(${LIVE_SEND_STATUSES.join(',')})&seller_product_id=not.is.null&order=created_at.desc`)
+  const ids = await projectExportIds(ctx, exportId)
+  const rows = await sb(ctx.cfg, `marketplace_sends?select=${TARGET_SELECT}&user_id=eq.${ctx.userId}&export_id=in.(${ids.join(',')})&market=eq.${market}&status=in.(${LIVE_SEND_STATUSES.join(',')})&seller_product_id=not.is.null&order=created_at.desc`)
   return (Array.isArray(rows) ? rows : []).map(r => ({ ...r, sellerProductId: r.seller_product_id, account: r.market_account, createdAt: r.created_at }))
 }
 /**
@@ -1628,7 +1641,9 @@ const revisionsOf = s => (Array.isArray(s?.request_json?.revisions) ? s.request_
 async function existingInMarkets(ctx, exportId) {
   const markets = Object.keys(UPDATE_MODES)
   // option_links·prev_items = 쿠팡 기록만 값이 있다 (2026-10-02 — 옵션 이름 연결을 다시 쓰고, 옵션 구성이 바뀌는지 보내기 창이 본다)
-  const rows = await sb(ctx.cfg, `marketplace_sends?select=id,market,status,seller_product_id,market_account,created_at,option_links:request_json->optionLinks,prev_items:request_json->body->items&user_id=eq.${ctx.userId}&export_id=eq.${exportId}&market=in.(${markets.join(',')})&status=in.(${LIVE_SEND_STATUSES.join(',')})&seller_product_id=not.is.null`)
+  // 같은 작업의 내 상품 전부에서 찾는다 (projectExportIds — 보낼 때 findUpdateTarget과 같은 범위)
+  const ids = await projectExportIds(ctx, exportId)
+  const rows = await sb(ctx.cfg, `marketplace_sends?select=id,market,status,seller_product_id,market_account,created_at,option_links:request_json->optionLinks,prev_items:request_json->body->items&user_id=eq.${ctx.userId}&export_id=in.(${ids.join(',')})&market=in.(${markets.join(',')})&status=in.(${LIVE_SEND_STATUSES.join(',')})&seller_product_id=not.is.null`)
   const list = (Array.isArray(rows) ? rows : []).map(r => ({ ...r, sellerProductId: r.seller_product_id, account: r.market_account, createdAt: r.created_at }))
   if (!list.length) return {}
   const accounts = await currentAccounts(ctx)
@@ -2030,7 +2045,14 @@ function publicSend(s, accounts = {}) {
     ssDisplay: ss ? (s.ss_display === 'ON' ? 'ON' : 'SUSPENSION') : null,
     channelProductNo: ss ? (s.channel_product_no || null) : null,
     approvalRequestedAt: s.approval_requested_at, lastSyncedAt: s.last_synced_at, createdAt: s.created_at, updatedAt: s.updated_at,
+    sentAt: sentAtOf(s), // 마지막으로 판매처에 보낸 시각 = 마지막 수정 회차(revisions[].at) 또는 처음 보낸 때 — [내 상품] "변경사항 미전송" 판정
   }
+}
+/** 마지막으로 판매처에 보낸 시각 (2026-10-02) — 수정 회차가 있으면 가장 늦은 회차 시각, 없으면 기록을 만든 때 */
+function sentAtOf(s) {
+  let at = new Date(s.created_at).getTime()
+  for (const r of Array.isArray(s.revisions) ? s.revisions : []) { const t = new Date(r?.at).getTime(); if (Number.isFinite(t) && (!Number.isFinite(at) || t > at)) at = t }
+  return Number.isFinite(at) ? new Date(at).toISOString() : null
 }
 // 목록은 모든 판매처 (쿠팡 + 카페24 + 스마트스토어 + 11번가) · 100건 한도 없음 — LIST_PAGE(1000)씩 끝까지 (2026-10-02)
 // 화면이 상품별로 묶고 상태 카드 숫자·거르기·검색을 하므로 기록 전부가 필요하다. 쪽 경계에서 같은 줄이 두 번 오면 하나만

@@ -1,7 +1,7 @@
 <template>
   <StudioModal :open="open" :title="prepare?.resend ? '수정 후 다시 보내기' : '판매처로 보내기'" full @close="close">
     <div v-if="prepare" class="space-y-5 max-h-[70vh] overflow-y-auto pr-1" data-mk-send-modal>
-      <p class="st-desc break-keep">상품 <b class="st-ink">{{ prepare.export.title || '이름 없는 작업' }}</b> · 이미지 {{ prepare.export.files.length }}장</p>
+      <p class="st-desc break-keep">상품 <b class="st-ink">{{ prepare.export.projectTitle || prepare.export.title || '이름 없는 상품' }}</b> · 이미지 {{ prepare.export.files.length }}장</p>
       <p v-if="prepare.resend" class="st-surface st-border rounded-[10px] p-3 text-[13px] break-keep" data-mk-s-resend-note>쿠팡 상품번호 <b class="st-ink">{{ prepare.resend.sellerProductId }}</b> 을 수정하여 다시 승인 요청합니다. 새 상품은 생성되지 않습니다.<span v-if="prepare.resend.reason" class="block mt-1 st-danger-text">반려 사유: {{ prepare.resend.reason }}</span></p>
 
       <!-- 0. 보낼 판매처 -->

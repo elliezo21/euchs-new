@@ -103,6 +103,13 @@ export async function listArchives() {
   return r.data
 }
 
+/** [내 상품] 목록(2026-10-02) — 작업마다 지금 결과물 하나 + 그 작업의 결과물 id 전부 → { ready, items:[{ …, source, exportIds }] } */
+export async function listProductExports() {
+  const r = await callStudioApi('studio-upload', { action: 'exports_list', perProject: true })
+  if (!r.ok) throw apiError(r)
+  return r.data
+}
+
 /**
  * [다시 받기] — 보관된 파일을 받는다(편집기를 열지 않는다). 파일마다 서명 주소 → 받아서 원래 이름으로 저장
  * @param onStep (done, total)

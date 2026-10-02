@@ -224,7 +224,10 @@ const quiet = async fn => { const o = [console.error, console.warn, console.info
   // [다운로드]는 받을 때마다 새 카드 (예전 그대로) — [작업 저장] 카드를 건드리지 않는다
   const dl = await call({ action: 'export_begin', projectId: PID, title: '후드티', format: 'jpg', scale: 1, mode: 'sections', count: 1 })
   eq('[다운로드] 보관 = 새 줄 · source download', [exportsRows.length, exportsRows[1].source, exportsRows[1].id !== firstId], [2, 'download', true])
-  eq('[다운로드] 기록으로 저장 마무리 → 400', (await call({ action: 'export_save_commit', exportId: dl.body.exportId })).code, 400)
+  // [내 상품] 목록(2026-10-02 perProject) — 작업마다 한 줄 · [작업 저장] 결과물 우선 · source·exportIds
+  const pp1 = await call({ action: 'exports_list', perProject: true })
+  eq('[내 상품] 목록(perProject): 작업 1개 = 1줄 · 지금 결과물 = [작업 저장] · source save · exportIds에 포함 (파일 없는 보관은 뺌)', [pp1.code, pp1.body.items.length, pp1.body.items[0].id, pp1.body.items[0].source, pp1.body.items[0].exportIds], [200, 1, firstId, 'save', [firstId]])
+  eq('[다운로드] 기록으로 저장 마무리 → 400',(await call({ action: 'export_save_commit', exportId: dl.body.exportId })).code, 400)
   eq('모르는 source → 400', (await call({ action: 'export_begin', projectId: PID, title: 't', format: 'jpg', scale: 1, mode: 'sections', count: 1, source: 'x' })).code, 400)
   const empty = await call({ action: 'export_begin', projectId: PID, title: 't', format: 'jpg', scale: 1, mode: 'sections', count: 1, source: 'save' })
   eq('파일 없이 저장 마무리 → not_uploaded (예전 카드 그대로)', [(await call({ action: 'export_save_commit', exportId: empty.body.exportId })).body.code, exportsRows.find(r => r.id === firstId).title], ['not_uploaded', '후드티 v3'])

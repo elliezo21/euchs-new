@@ -48,7 +48,7 @@
 
       <!-- [새로 만들기] = 작업 시작 — 관문(studioGate): 로그인 전 → 로그인 창 · 주문 없음 → 잠금 창 · 있음 → 내 작업 #start -->
       <button type="button" class="st-btn st-btn-primary st-btn-lg st-btn-block mt-6" data-studio-nav-new @click="startNew">
-        <Plus class="w-4 h-4" :stroke-width="2.5" /> 새로 만들기
+        <Plus class="w-4 h-4" :stroke-width="2.5" /> 새 상품 만들기
       </button>
 
       <nav class="mt-5 flex flex-col gap-0.5">
@@ -162,7 +162,7 @@ const isFullScreen = computed(() => FULL_SCREEN.has(route.name))
 
 const menuItems = [
   { name: 'studio-landing', label: '스튜디오 소개', icon: Home },
-  { name: 'studio-projects', label: '내 작업', icon: FolderOpen, also: ['studio-editor', 'studio-new'] },
+  { name: 'studio-projects', label: '내 상품', icon: FolderOpen, also: ['studio-editor', 'studio-new'] }, // 2026-10-02 [내 작업] → [내 상품] (상품 목록·보내기 고르기를 한 곳에)
   { name: 'studio-templates', label: '템플릿', icon: LayoutTemplate },
   // 판매처 — 만든 상품을 보내는 곳 (보내기·보낸 상품·기본 설정·연결 탭). 탭 어디에 있어도 켜짐
   { name: 'studio-channels', label: '판매처', icon: Store, prefix: 'studio-channels' },

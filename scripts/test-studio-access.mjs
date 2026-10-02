@@ -152,8 +152,8 @@ for (const [name, h] of [['studio-upload', upload], ['studio-ingest', ingest], [
   const gate = read('src/lib/studioGate.js')
   eq('관문: 판정은 checkStudioAccess 그대로 (새 판정 없음 — 서버·주문 표를 직접 부르지 않음)', [/import \{ checkStudioAccess, studioNoAccessOpen \} from '@\/lib\/studioAccess'/.test(gate), /supabase|orders|callStudioApi/.test(gate.replace(/\/\*[\s\S]*?\*\//g, ''))], [true, false])
   eq('관문: 로그인 전 = 목적지 저장 + 로그인 창 · 주문 없음 = 안내 창 · 있음 = 진행', [/if \(!currentUser\.value\?\.id\) \{ askLogin\(resumePath\); return false \}/.test(gate), /sessionStorage\.setItem\(AUTH_REDIRECT_KEY, resumePath\)/.test(gate), /openLoginModal\('login'\)/.test(gate), /if \(access === 'not_customer'\) \{ studioNoAccessOpen\.value = true; return false \}/.test(gate), /if \(access === 'ok'\) return true/.test(gate)], [true, true, true, true, true])
-  const PUB = ['projects', 'templates', 'channels', 'send', 'sent', 'defaults', 'connect']
-  eq('누구나 보는 라우트 = 내 작업·템플릿·판매처(탭 4개) · 작업 화면(새로 만들기·편집기)·설정은 보호 그대로', [
+  const PUB = ['projects', 'templates', 'channels', 'sent', 'defaults', 'connect'] // 2026-10-02 판매처 [보내기] 탭은 [내 상품]으로 합침 (예전 주소 send = redirect)
+  eq('누구나 보는 라우트 = 내 상품·템플릿·판매처(탭 3개) · 작업 화면(새로 만들기·편집기)·설정은 보호 그대로', [
     PUB.map(p => new RegExp(`path: '${p}',[\\s\\S]{0,140}?meta: \\{ \\.\\.\\.STUDIO_PUBLIC`).test(router)),
     ['new', 'p/:projectId', 'settings'].map(p => new RegExp(`path: '${p.replace(/[/:]/g, m => '\\' + m)}',[\\s\\S]{0,140}?meta: \\{ \\.\\.\\.STUDIO_PROTECTED`).test(router)),
   ], [PUB.map(() => true), [true, true, true]])
@@ -162,7 +162,7 @@ for (const [name, h] of [['studio-upload', upload], ['studio-ingest', ingest], [
   eq('첫 화면 [무료로 시작하기] = 템플릿 (관문 없음)', [/function start\(\) \{\s*router\.push\(\{ name: 'studio-templates' \}\)/.test(read('src/views/studio/StudioLandingView.vue')), /studioGate|openLoginModal/.test(read('src/views/studio/StudioLandingView.vue'))], [true, false])
   eq('가드 3-2: 주소로 바로 들어온 잠금은 첫 화면이 아니라 [템플릿]으로', /if \(access === 'not_customer'\) \{[\s\S]{0,400}?else next\(\{ name: 'studio-templates' \}\)/.test(router), true)
   eq('사이드바 [새로 만들기] = 관문 뒤에 (로그인 뒤 ?start=new로 이어서)', [/data-studio-nav-new @click="startNew"/.test(read('src/layouts/StudioLayout.vue')), /if \(await studioGate\('\/studio\/projects\?start=new#start'\)\) router\.push/.test(read('src/layouts/StudioLayout.vue'))], [true, true])
-  eq('내 작업: 로그인 전 개인 데이터 안 부름 · 안내 카드', [/<template v-if="loggedIn">\s*<!--[^>]*-->\s*<StudioRecentProjects/.test(home), /<StudioLoginNeeded v-else/.test(home), /if \(loggedIn\.value\) loadCollages\(\)/.test(home)], [true, true, true])
+  eq('내 상품: 로그인 전 개인 데이터 안 부름(목록 v-if="loggedIn") · 안내 카드', [/<StudioProductList v-if="loggedIn" \/>/.test(home), /<StudioLoginNeeded v-else/.test(home), /if \(loggedIn\.value\) loadCollages\(\)/.test(home)], [true, true, true])
   eq('내 작업: [1688 가져오기]·[내 사진으로] = 관문 · 로그인 뒤 이어서도 관문을 한 번 더', [/if \(!\(await studioGate\(`\/studio\/projects\?start=url&url=/.test(home), /if \(!\(await studioGate\('\/studio\/projects\?start=upload#start'\)\)\) return/.test(home), /watch\(\(\) => \[route\.query\.start, currentUser\.value\?\.id\][\s\S]{0,400}?if \(!\(await studioGate\(route\.fullPath\)\)\) return/.test(home)], [true, true, true])
   eq('로그인 전 판매처 화면은 DB를 부르지 않음', [
     /if \(!loggedIn\.value\) return \/\/ 로그인 전에는 부르지 않는다/.test(read('src/views/studio/StudioChannelSendView.vue')),

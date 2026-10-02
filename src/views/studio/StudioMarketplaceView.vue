@@ -101,7 +101,7 @@
       </div>
     </section>
 
-    <p v-if="st?.connected" class="st-desc break-keep" data-mk-next>다음 단계: <router-link :to="{ name: 'studio-channels-defaults' }" class="st-link">[기본 설정]</router-link>에서 배송·반품 템플릿을 만들어 두면 <router-link :to="{ name: 'studio-channels-send' }" class="st-link">[보내기]</router-link>에서 내 상품을 보낼 수 있습니다.</p>
+    <p v-if="st?.connected" class="st-desc break-keep" data-mk-next>다음 단계: <router-link :to="{ name: 'studio-channels-defaults' }" class="st-link">[기본 설정]</router-link>에서 배송·반품 템플릿을 만들어 두면 <router-link :to="{ name: 'studio-projects' }" class="st-link">[내 상품]</router-link>에서 상품을 보낼 수 있습니다.</p>
 
     <!-- 연결·키 교체 창 -->
     <StudioModal :open="formOpen" :title="rekey ? '쿠팡 키 교체' : '쿠팡 연결'" wide @close="formOpen = false">

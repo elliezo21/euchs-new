@@ -2,7 +2,7 @@
   <div class="studio-root st-dark relative h-screen flex flex-col overflow-hidden" data-studio-editor>
     <!-- 상단바: ← · 로고 · 되돌리기 다시 · 작업명 · 저장 상태 · "직접 만들기 · 반자동" · [원클릭 AI 자동 제작] · 이력 · 미리보기 · 작업 저장 · 다운로드 -->
     <header class="h-14 shrink-0 px-3 flex items-center gap-2 st-topbar st-border-b" data-topbar>
-      <router-link :to="{ name: 'studio-projects' }" class="st-icon-btn" title="내 작업으로" data-back>
+      <router-link :to="{ name: 'studio-projects' }" class="st-icon-btn" title="내 상품으로" data-back>
         <ArrowLeft class="w-5 h-5" :stroke-width="2" />
       </router-link>
       <span class="w-[26px] h-[26px] rounded-[7px] flex items-center justify-center st-logo-mark text-[13px] font-extrabold shrink-0">E</span>
@@ -90,7 +90,7 @@
     <p v-else-if="errorMsg" class="p-6 text-[14px] font-bold st-danger-text">{{ errorMsg }}</p>
     <div v-else-if="!project" class="p-10 text-center st-body">
       프로젝트를 찾을 수 없어요. 삭제됐거나 다른 계정의 프로젝트일 수 있어요.
-      <router-link :to="{ name: 'studio-projects' }" class="ml-1 st-link">내 작업으로</router-link>
+      <router-link :to="{ name: 'studio-projects' }" class="ml-1 st-link">내 상품으로</router-link>
     </div>
 
     <div v-else class="flex-1 min-h-0 flex" :class="isWide ? '' : 'flex-col'">
@@ -2278,15 +2278,15 @@ function goHomeAfterSave() {
   exportOpen.value = false
   router.push({ name: 'studio-projects' })
 }
-// [작업 저장] 뒤 [판매처로 보내기] — 판매처 > [보내기] 탭으로, 방금 저장한 내 상품을 골라 둔 채 (보내기 창은 그 탭에서 연다 — 2026-09-30)
+// [작업 저장] 뒤 [판매처로 보내기] — [내 상품]으로, 방금 저장한 상품의 보내기 창을 연 채 (2026-10-02 — 보내기 탭을 [내 상품]으로 합침)
 function sendAfterSave(exportId) {
   exportOpen.value = false
   if (!exportId) {
-    console.error('[StudioEditor] 판매처로 보내기: 저장한 내 상품 id가 없음 — 고르지 않은 채 보내기 탭을 연다')
-    router.push({ name: 'studio-channels-send' })
+    console.error('[StudioEditor] 판매처로 보내기: 저장한 내 상품 id가 없음 — 창 없이 [내 상품]을 연다')
+    router.push({ name: 'studio-projects' })
     return
   }
-  router.push({ name: 'studio-channels-send', query: { export: exportId } })
+  router.push({ name: 'studio-projects', query: { send: exportId } })
 }
 /** 상단 [미리보기] (13-2) — 받게 될 이미지 그대로 PC·모바일로 */
 function openPreview() {

@@ -1,16 +1,16 @@
 <template>
-  <div class="px-4 sm:px-12 py-9 max-w-[1560px] space-y-10">
-    <!-- 6-1. 시작하기 -->
-    <section id="start" class="scroll-mt-6">
-      <h1 class="st-h-page">무엇으로 시작할까요?</h1>
-      <p class="mt-2 text-[15px] st-ink-2">상품 사진을 불러오면 수정할 부분을 지우고, 한글을 올리고, 상세페이지로 저장하거나 받을 수 있어요.</p>
+  <div class="px-4 sm:px-12 py-9 max-w-[1560px] space-y-8">
+    <h1 class="st-h-page">내 상품</h1>
+    <!-- 새 상품 만들기 (2026-10-02 — 예전 [내 작업] 시작하기 그대로, 높이만 줄임) -->
+    <section id="start" class="scroll-mt-6" data-new-product>
+      <h2 class="st-h-card">새 상품 만들기</h2>
 
-      <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
         <!-- 찜한 상품 -->
         <button type="button" class="st-card st-card-hover overflow-hidden text-left" @click="goPick('saved')">
-          <div class="h-[150px] overflow-hidden">
+          <div class="h-[64px] overflow-hidden">
             <div v-if="savedThumbs.length" class="grid gap-[3px] h-full" :style="{ gridTemplateColumns: `repeat(${savedThumbs.length}, 1fr)` }">
-              <img v-for="(src, i) in savedThumbs" :key="i" :src="src" alt="" referrerpolicy="no-referrer" class="w-full h-[150px] object-cover" />
+              <img v-for="(src, i) in savedThumbs" :key="i" :src="src" alt="" referrerpolicy="no-referrer" class="w-full h-[64px] object-cover" />
             </div>
             <div v-else class="h-full st-placeholder"><Heart class="w-7 h-7" :stroke-width="1.5" /></div>
           </div>
@@ -19,9 +19,9 @@
 
         <!-- 주문한 상품 -->
         <button type="button" class="st-card st-card-hover overflow-hidden text-left" @click="goPick('ordered')">
-          <div class="h-[150px] overflow-hidden">
+          <div class="h-[64px] overflow-hidden">
             <div v-if="orderedThumbs.length" class="grid gap-[3px] h-full" :style="{ gridTemplateColumns: `repeat(${orderedThumbs.length}, 1fr)` }">
-              <img v-for="(src, i) in orderedThumbs" :key="i" :src="src" alt="" referrerpolicy="no-referrer" class="w-full h-[150px] object-cover" />
+              <img v-for="(src, i) in orderedThumbs" :key="i" :src="src" alt="" referrerpolicy="no-referrer" class="w-full h-[64px] object-cover" />
             </div>
             <div v-else class="h-full st-placeholder"><Package class="w-7 h-7" :stroke-width="1.5" /></div>
           </div>
@@ -38,9 +38,9 @@
           @dragleave.prevent="cardDrag = false"
           @drop.prevent="onCardDrop"
         >
-          <div class="h-[150px] p-3">
-            <div class="st-dropzone h-full flex flex-col items-center justify-center gap-1.5" :class="{ 'is-drag': cardDrag }">
-              <FolderUp class="w-6 h-6 st-muted" :stroke-width="2" />
+          <div class="h-[64px] p-2">
+            <div class="st-dropzone h-full flex items-center justify-center gap-1.5" :class="{ 'is-drag': cardDrag }">
+              <FolderUp class="w-5 h-5 st-muted" :stroke-width="2" />
               <span class="text-[13px] font-bold st-ink-2">사진이나 폴더를 끌어다 놓기</span>
             </div>
           </div>
@@ -73,16 +73,10 @@
       </div>
     </section>
 
-    <template v-if="loggedIn">
-      <!-- 6-2. 최근 작업 (0개면 숨김) -->
-      <StudioRecentProjects title="최근 작업" show-filters />
-
-      <!-- 내 상품 (2026-09-28): [작업 저장]·[다운로드]로 만든 결과물 보관 — [다시 받기] + "판매처에서 보내기 →"
-           보내기·보낸 상품·상태 배지는 사이드바 [판매처]로 옮겼다 (2026-09-30 — 만드는 곳과 보내는 곳을 나눔) -->
-      <StudioExportList />
-    </template>
-    <!-- 로그인 전 (누구나 봄 — 2026-09-30): 내 작업·내 상품을 부르지 않고 안내만 -->
-    <StudioLoginNeeded v-else title="만든 작업과 내 상품이 여기에 모여요" desc="로그인하면 최근 작업을 이어서 고치고, 저장한 상품을 다시 받거나 판매처로 보낼 수 있어요." />
+    <!-- [내 상품] 목록 (2026-10-02) — 한 줄 = 작업 하나. 예전 최근 작업 + 내 상품 카드 + 판매처 > 보내기 탭의 상품 고르기를 합침 (StudioProductList) -->
+    <StudioProductList v-if="loggedIn" />
+    <!-- 로그인 전 (누구나 봄 — 2026-09-30): 내 상품을 부르지 않고 안내만 -->
+    <StudioLoginNeeded v-else title="만든 상품이 여기에 모입니다" desc="로그인하면 만든 상품을 이어서 편집하고, 여러 판매처로 한 번에 보낼 수 있습니다." />
 
     <!-- 6-3. 새 소식 (랜딩 개편 때 /studio 대문에서 옮김) -->
     <section>
@@ -106,7 +100,7 @@
 </template>
 
 <script setup>
-// 스튜디오 내 작업 — 시작하기(찜·주문·내 사진·1688 주소) + 최근 작업
+// 스튜디오 [내 상품] (2026-10-02 — 예전 [내 작업]) — 새 상품 만들기(찜·주문·내 사진·1688 주소) + 내 상품 목록(StudioProductList)
 import { ref, h, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { currentUser } from '@/lib/auth'
@@ -117,12 +111,11 @@ import { listSavedProducts } from '@/lib/savedProducts'
 import { fetchOrderedProducts } from '@/lib/orderedProducts'
 import { getStudioNotices } from '@/lib/studioNotices'
 import StudioUploadPanel from '@/components/studio/StudioUploadPanel.vue'
-import StudioRecentProjects from '@/components/studio/StudioRecentProjects.vue'
-import StudioExportList from '@/components/studio/StudioExportList.vue'
+import StudioProductList from '@/components/studio/StudioProductList.vue'
 import StudioImportFlow from '@/components/studio/StudioImportFlow.vue'
 
 // 카드 아래쪽 (아이콘 상자 + 제목 + 설명 + 화살표)
-const CardFoot = (props) => h('div', { class: 'flex items-center gap-3 px-[18px] py-4' }, [
+const CardFoot = (props) => h('div', { class: 'flex items-center gap-3 px-[16px] py-3' }, [
   h('span', { class: 'st-icon-box' }, [h(props.icon, { class: 'w-[18px] h-[18px]', 'stroke-width': 2 })]),
   h('span', { class: 'min-w-0 flex-1' }, [
     h('span', { class: 'block st-h-card' }, props.title),
@@ -250,7 +243,7 @@ async function loadNotices() {
   }
 }
 
-// 로그아웃 구독 (CLAUDE.md 2-9) — 이전 계정의 찜·주문 사진을 비운다 (최근 작업은 StudioRecentProjects가 비운다)
+// 로그아웃 구독 (CLAUDE.md 2-9) — 이전 계정의 찜·주문 사진을 비운다 (내 상품 목록은 StudioProductList가 비운다)
 const onStudioAuthChanged = (e) => {
   if (!e.detail?.user) {
     savedThumbs.value = []

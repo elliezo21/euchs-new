@@ -684,9 +684,10 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('/studio/settings → 첫 탭', router.includes("path: '', name: 'studio-settings', redirect: { name: 'studio-settings-assets' }"), true)
   eq('예전 주소 2개(저장값·용어집) → 해당 탭으로 redirect', R.SETTINGS_TABS.filter(t => t.legacy).map(t => router.includes(`path: '${t.key}', name: '${t.legacy}', redirect: { name: '${t.route}' }`)), [true, true])
   // 판매처 메뉴 (2026-09-30) — 보내기 | 보낸 상품 | 기본 설정 | 연결
-  eq('판매처 탭 4개 · 순서', R.CHANNEL_TABS.map(t => t.label), ['보내기', '보낸 상품', '기본 설정', '연결'])
-  eq('판매처 탭마다 라우트 /studio/channels/<key> (누구나 구경 — STUDIO_PUBLIC)', R.CHANNEL_TABS.map(t => new RegExp(`path: '${t.key}',\\s*name: '${esc(t.route)}',[\\s\\S]{0,160}?meta: \\{ \\.\\.\\.STUDIO_PUBLIC`).test(router)), [true, true, true, true])
-  eq('/studio/channels → [보내기] · 부모도 같은 meta', [router.includes("path: '', name: 'studio-channels', redirect: { name: 'studio-channels-send' }"), /path: 'channels',[\s\S]{0,120}?meta: \{ \.\.\.STUDIO_PUBLIC/.test(router)], [true, true])
+  // 2026-10-02 [보내기] 탭은 [내 상품]으로 합침 · [보낸 상품] → "전송 기록"
+  eq('판매처 탭 3개 · 순서', R.CHANNEL_TABS.map(t => t.label), ['전송 기록', '기본 설정', '연결'])
+  eq('판매처 탭마다 라우트 /studio/channels/<key> (누구나 구경 — STUDIO_PUBLIC)', R.CHANNEL_TABS.map(t => new RegExp(`path: '${t.key}',\\s*name: '${esc(t.route)}',[\\s\\S]{0,160}?meta: \\{ \\.\\.\\.STUDIO_PUBLIC`).test(router)), [true, true, true])
+  eq('/studio/channels → [전송 기록] · 부모도 같은 meta · 예전 보내기 주소 = [내 상품](?export → ?send)', [router.includes("path: '', name: 'studio-channels', redirect: { name: 'studio-channels-sent' }"), /path: 'channels',[\s\S]{0,120}?meta: \{ \.\.\.STUDIO_PUBLIC/.test(router), /path: 'send', name: 'studio-channels-send', redirect: to => \(\{ name: 'studio-projects', query: [^\n]*\{ send: to\.query\.export \}/.test(router)], [true, true, true])
   eq('[기본 설정] = StudioShippingView · [연결] = StudioMarketplaceView (그대로 재사용)', [/name: 'studio-channels-defaults',\s*component: \(\) => import\('\.\.\/views\/studio\/StudioShippingView\.vue'\)/.test(router), /name: 'studio-channels-connect',\s*component: \(\) => import\('\.\.\/views\/studio\/StudioMarketplaceView\.vue'\)/.test(router)], [true, true])
   eq('예전 주소 3개 → 판매처 탭으로 redirect (이름 유지)', [
     router.includes("{ path: 'marketplace', name: 'studio-settings-marketplace', redirect: { name: 'studio-channels-connect' } }"),
@@ -696,7 +697,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   ], [true, true, true, true])
   eq('예전 설정 화면에 판매처 라우트(컴포넌트) 없음', /name: 'studio-settings-(marketplace|shipping)',\s*component/.test(router), false)
   const menu = /const menuItems = \[([\s\S]*?)\n\]/.exec(layout)[1]
-  eq('사이드바 메인 = 스튜디오 소개·내 작업·템플릿·판매처 4개', [...menu.matchAll(/label: '([^']+)'/g)].map(m => m[1]), ['스튜디오 소개', '내 작업', '템플릿', '판매처'])
+  eq('사이드바 메인 = 스튜디오 소개·내 상품·템플릿·판매처 4개 (2026-10-02 내 작업 → 내 상품)', [...menu.matchAll(/label: '([^']+)'/g)].map(m => m[1]), ['스튜디오 소개', '내 상품', '템플릿', '판매처'])
   eq('사이드바 [판매처] = 탭 어디에서나 켜짐', [/name: 'studio-channels', label: '판매처', icon: Store, prefix: 'studio-channels'/.test(menu), /String\(route\.name \|\| ''\)\.startsWith\(item\.prefix\)/.test(layout)], [true, true])
   eq('사이드바 아래 [설정] 1개 (계정 영역 위)', [(layout.match(/name: 'studio-settings'/g) || []).length, layout.indexOf('data-studio-nav-settings') < layout.indexOf('<!-- 계정 -->')], [1, true])
 
@@ -737,7 +738,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   // 만드는 곳(내 작업)과 보내는 곳(판매처) 나누기 (2026-09-30)
   const home = read('src/views/studio/StudioHomeView.vue'), sendView = read('src/views/studio/StudioChannelSendView.vue'), sentView = read('src/views/studio/StudioChannelSentView.vue')
   const list = read('src/components/studio/StudioExportList.vue'), listShown = shown('src/components/studio/StudioExportList.vue')
-  eq('내 작업: 보낸 상품·보내기 없음 · 내 상품 칸만', [/StudioSendList|StudioSendModal|sendToMarketplace|sends/.test(home), /<StudioExportList \/>/.test(home)], [false, true])
+  eq('내 상품 화면: 목록은 StudioProductList 하나(예전 최근 작업·내 상품 카드 없음) · 화면 자체는 보내기 창을 직접 안 씀', [/StudioSendList|StudioSendModal|sendToMarketplace/.test(home), /<StudioProductList v-if="loggedIn" \/>/.test(home), /StudioRecentProjects|StudioExportList/.test(home)], [false, true, false])
   eq('내 상품(내 작업) = [다시 받기] + "판매처에서 보내기 →"(이 상품을 골라 둔 보내기 탭)만', [/'다시 받기'/.test(listShown), /:to="\{ name: 'studio-channels-send', query: \{ export: x\.id \} \}"[^>]*>판매처에서 보내기 →</.test(listShown), /StudioSendModal|sendToMarketplace|판매처로 보내기/.test(list)], [true, true, false])
   eq('내 상품 배지·고르기는 판매처 > 보내기(pick)에서만', [/v-if="pick && sendsOf\[x\.id\]"/.test(listShown), /v-if="!pick" class="flex flex-col gap-1"/.test(listShown), /<StudioExportList pick :selected-id="selectedId" :sends="sends"/.test(sendView)], [true, true, true])
   eq('보내기 탭: 예전 진입 그대로 (sendToMarketplace → StudioSendModal) · ?export= 로 골라 둠', [/const r = await sendToMarketplace\(exportId\)/.test(sendView), /<StudioSendModal :open="sendOpen" :prepare="sendPrepare"/.test(sendView), /route\.query\.export/.test(sendView)], [true, true, true])
@@ -745,7 +746,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('보낸 상품 탭 = StudioSendList 그대로 · 연결 화면에는 없음', [/<StudioSendList v-if="loggedIn" ref="sendList" :exports="exportItems"/.test(sentView), /<StudioSendList|<StudioShippingTemplates/.test(read('src/views/studio/StudioMarketplaceView.vue'))], [true, false])
   eq('판매처 화면: 로그아웃 구독', ['src/components/studio/StudioSendList.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioChannelSendView.vue', 'src/views/studio/StudioChannelSentView.vue', 'src/components/studio/StudioExportList.vue'].map(p => /euchs-auth-changed/.test(read(p))), [true, true, true, true, true])
   const ed = read('src/views/studio/StudioEditorView.vue')
-  eq('편집기 [작업 저장] 뒤 [판매처로 보내기] = 보내기 탭으로 (방금 저장한 상품) · 편집기 안 보내기 창 없음', [/router\.push\(\{ name: 'studio-channels-send', query: \{ export: exportId \} \}\)/.test(ed), /StudioSendModal|sendToMarketplace/.test(ed)], [true, false])
+  eq('편집기 [작업 저장] 뒤 [판매처로 보내기] = [내 상품]에서 그 상품의 보내기 창 (?send=) · 편집기 안 보내기 창 없음', [/router\.push\(\{ name: 'studio-projects', query: \{ send: exportId \} \}\)/.test(ed), /StudioSendModal|sendToMarketplace/.test(ed)], [true, false])
   eq('예전 설정 링크 이름이 남은 곳 = 보내기 창·쿠팡 섹션뿐 (redirect로 새 탭)', [...['src/components/studio/StudioExportList.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioChannelSendView.vue'].filter(p => /studio-settings-(marketplace|shipping)/.test(read(p)))], [])
   // 판매처 줄 (보내기 탭)
   const on = R.channelRows({ coupang: { connected: true } }), off = R.channelRows({ coupang: { connected: false } })
@@ -1084,7 +1085,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const left = [...walk('src'), ...walk('api')].filter(p => read(p).includes('완성작'))
   eq('"완성작"이 남은 파일 = 계정 탈퇴 API 주석 1곳뿐 (화면·스튜디오 서버 0건)', left, ['api/account-withdraw.js'])
   const list = read('src/components/studio/StudioExportList.vue')
-  eq('내 작업 화면 영역 제목 = "내 상품"(판매처 > 보내기에서는 "보낼 상품 고르기") · 사이드바 "내 작업"·"보낸 상품"은 그대로', [/<h2 class="st-h-section">\{\{ pick \? '보낼 상품 고르기' : '내 상품' \}\}<\/h2>/.test(list), /label: '내 작업'/.test(read('src/layouts/StudioLayout.vue')), /<h2 class="st-h-section">보낸 상품<\/h2>/.test(read('src/components/studio/StudioSendList.vue'))], [true, true, true])
+  eq('화면 이름 (2026-10-02): 사이드바 "내 상품" · 판매처 탭 "전송 기록" · 내 상품 화면 제목 "내 상품"', [/label: '내 상품'/.test(read('src/layouts/StudioLayout.vue')), /<h2 class="st-h-section">전송 기록<\/h2>/.test(read('src/components/studio/StudioSendList.vue')), /<h1 class="st-h-page">내 상품<\/h1>/.test(read('src/views/studio/StudioHomeView.vue'))], [true, true, true])
   eq('변수·DB 이름은 그대로 (studio_exports · exportId · exports_list)', [/studio_exports/.test(read('api/studio-upload.js')), /exportId/.test(read('src/components/studio/StudioSendCoupang.vue')), /exports_list/.test(read('api/studio-upload.js'))], [true, true, true])
 
   // 3-2 보낼 판매처
@@ -3209,6 +3210,19 @@ function elevenstRelay(u, method, opts) {
   relay.calls = []
   const c7 = await post('send', { ...CP, productName: '이름 바꿈 2' })
   eq('쿠팡 살아 있는 상품 2개(예전 중복) → 가장 최근 것만 수정 · extra 1 · 보내기 창 existing.extra 1', [c7.body.sellerProductId, c7.body.extra, cpPaths().filter(x => x.startsWith('GET')), (await post('send_prepare', { exportId: UEID })).body.existing.coupang.extra], ['1234567890', 1, ['GET /seller-products/1234567890'], 1])
+  // 같은 작업의 다른 결과물(2026-10-02 [내 상품] 한 줄 = 작업) — 예전 결과물로 보낸 쿠팡 상품을 새로 등록하지 않고 수정한다 (projectExportIds)
+  {
+    const UEID2 = newId()
+    db.studio_exports.push({ id: UEID2, user_id: UID, project_id: UPID, folder: `${ufolder}-2`, title: '수정 머그', format: 'jpg', mode: 'sections', files: [{ key: '01', name: 'u2_01.jpg', path: `${ufolder}-2/01.jpg`, width: 780, height: 900 }] })
+    const before = db.marketplace_sends.filter(r => r.market === 'coupang').length
+    const pre = await post('send_prepare', { exportId: UEID2 })
+    relay.calls = []
+    const c8 = await post('send', { ...CP, exportId: UEID2, productName: '이름 바꿈 3' })
+    eq('같은 작업의 새 결과물로 보내기 → 보내기 창 existing = 수정 · 상품 생성(POST) 없음 · 같은 쿠팡 상품 수정 · 새 기록 없음', [
+      pre.body.existing.coupang?.mode, c8.statusCode, c8.body.sellerProductId, cpPaths().includes('POST /seller-products'), db.marketplace_sends.filter(r => r.market === 'coupang').length === before,
+    ], ['modify', 200, '1234567890', false, true])
+    db.studio_exports = db.studio_exports.filter(e => e.id !== UEID2)
+  }
   // 계정 기록이 없는 예전 기록 — 판매처 조회로 확인 (같은 계정으로 확인된 기록이 먼저라 예전 중복은 잠시 삭제됨으로)
   const dup = mine().find(r => r.seller_product_id === '1234567800')
   dup.status = 'deleted'

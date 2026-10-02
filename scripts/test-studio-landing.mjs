@@ -140,7 +140,7 @@ const landingRoute = /path: '',\s*name: 'studio-landing',[\s\S]*?meta: \{([^}]*)
 eq('/studio 랜딩 = 보호 meta 없음 (누구나)', !!landingRoute && !/STUDIO_PROTECTED|requiresAuth/.test(landingRoute[1]), true)
 eq('/studio/projects = 보호 (작업 홈)', /name: 'studio-projects',[\s\S]*?meta: \{ \.\.\.STUDIO_PROTECTED/.test(router), true)
 const home = read('src/views/studio/StudioHomeView.vue')
-eq('작업 홈에 최근 작업·새 소식', [/StudioRecentProjects/.test(home), /getStudioNotices\(\)/.test(home)], [true, true])
+eq('작업 홈([내 상품])에 상품 목록·새 소식', [/StudioProductList/.test(home), /getStudioNotices\(\)/.test(home)], [true, true])
 eq('랜딩 [무료로 시작하기] = 스튜디오 안 [템플릿]으로 (로그인·잠금 창 없음 — 2026-09-30)', /function start\(\) \{\s*router\.push\(\{ name: 'studio-templates' \}\)/.test(landing), true)
 // ── 4. 범용 문구 (스튜디오는 1688 전용이 아님 — 2026-09-28) ──
 {

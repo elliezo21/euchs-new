@@ -18,15 +18,32 @@ function eq(name, got, want) {
 
 const API_STUB = '\0studio-marketplace-stub'
 const LT_STUB = '\0studio-listing-templates-stub' // 등록 템플릿(DB) — 목록은 sendCache로 넣는다
+// [내 상품] 목록(2026-10-02)이 부르는 DB·서버 파일 — 그려 보기만 하므로 모두 가짜(부르면 실패)
+const DB_STUBS = {
+  '@/lib/studioProjects': 'listMyProjects,listImagesOf,signViewUrls,renameProject,softDeleteProject',
+  '@/lib/studioProjectCopy': 'copyProject',
+  '@/lib/studioFolders': 'listFolders,createFolder,renameFolder,deleteFolder,moveProjects',
+  '@/lib/studioExportArchive': 'listProductExports,downloadArchive',
+  '@/lib/studioGate': 'studioGate',
+}
 const stubPlugin = {
   name: 'send-modal-test',
   enforce: 'pre',
   resolveId(id) {
     if (id === '@/lib/studioMarketplace') return API_STUB
     if (id === '@/lib/studioListingTemplates') return LT_STUB
+    // 별칭(@)이 먼저 풀려 절대 경로로 올 수도 있다 — src/ 아래 경로로 맞춰 본다
+    const key = String(id).replace(/\\/g, '/').replace(/^.*\/src\//, '@/').replace(/\.js$/, '')
+    if (DB_STUBS[key]) return `\0stub:${key}`
     return null
   },
   load(id) {
+    if (id.startsWith('\0stub:')) {
+      const names = DB_STUBS[id.slice(6)].split(',')
+      return `const never = () => Promise.reject(new Error('테스트에서는 DB를 부르지 않는다'))
+      export const ${names.map(n => `${n} = never`).join(', ')}
+      export const sortStudioImages = list => list || []`
+    }
     if (id === LT_STUB) return `
       const never = () => Promise.reject(new Error('테스트에서는 DB를 부르지 않는다'))
       export const listListingTemplates = never, createListingTemplate = never, updateListingTemplate = never, setDefaultListingTemplate = never, deleteListingTemplate = never
@@ -40,6 +57,8 @@ const stubPlugin = {
       export const listSmartstoreCategories = never, listSmartstoreAddresses = never, sendSmartstoreProduct = never
       export const listElevenstCategories = never, listElevenstAddresses = never, sendElevenstProduct = never
       export const getZigzagMeta = never, sendZigzagProduct = never
+      export const listSends = never, sendToMarketplace = never, resendToMarketplace = never
+      export { sendsByExport } from '@/lib/studioMarketplaceRules'
       export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료', rejected: '반려', failed: '실패' }`
     return null
   },
@@ -56,6 +75,8 @@ export { default as Cafe24 } from '@/components/studio/StudioSendCafe24.vue'
 export { default as Smartstore } from '@/components/studio/StudioSendSmartstore.vue'
 export { default as Elevenst } from '@/components/studio/StudioSendElevenst.vue'
 export { default as Common } from '@/components/studio/StudioSendCommon.vue'
+export { default as ProductList } from '@/components/studio/StudioProductList.vue'
+export { createRouter, createMemoryHistory } from 'vue-router'
 export { commonFromPrepare } from '@/lib/studioSendCommon'
 export { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 export { userRole } from '@/lib/auth'
@@ -408,6 +429,25 @@ if (built?.Elevenst) {
   eq('기본 템플릿이 없으면 아무것도 고르지 않음 · 칸은 처음 값(중국·무료·금액 빈칸)', [t2.error, sel11(t2.html, 'data-mk-11st-lt="product"', ''), sel11(t2.html, 'data-mk-11st-lt="shipping"', ''), sel11(t2.html, 'data-mk-11st-origin-code', '1287'), chk11(t2.html, 'data-mk-11st-fee-free'), val11(t2.html, 'data-mk-11st-return-fee')], [null, true, true, true, true, ''])
   const t3 = await render11(ltCache([]))
   eq('템플릿이 하나도 없으면 [기본 설정] 안내 한 줄 · 저장 버튼 2개(상품정보·배송)', [/data-mk-11st-lt-empty/.test(t3.html), (t3.html.match(/data-mk-11st-lt-save="/g) || []).length], [true, 2])
+}
+
+// ── [내 상품] 목록 (2026-10-02) — 운영 방식으로 묶어 setup이 예외 없이 도는지 (목록 읽기는 onMounted라 그려 보기에서는 부르지 않는다) ──
+if (built?.ProductList) {
+  const router = built.createRouter({ history: built.createMemoryHistory(), routes: [
+    { path: '/studio/projects', name: 'studio-projects', component: { render: () => null } },
+    { path: '/studio/p/:projectId', name: 'studio-editor', component: { render: () => null } },
+    { path: '/studio/channels/sent', name: 'studio-channels-sent', component: { render: () => null } },
+  ] })
+  await router.push('/studio/projects?send=x1')
+  await router.isReady()
+  const errors = []
+  const app = createSSRApp({ render: () => h(built.ProductList) })
+  app.use(router)
+  app.config.errorHandler = e => { errors.push(e) }
+  app.config.warnHandler = () => {}
+  let html = ''
+  try { html = await renderToString(app) } catch (e) { errors.push(e) }
+  eq('[내 상품] 목록: 운영 방식으로 그려도 setup 예외 없음 · 탭 5개 · 상품 없음 안내', [errors[0] ? `${errors[0].name}: ${errors[0].message}` : null, (html.match(/data-products-tab="/g) || []).length, /data-products-none/.test(html)], [null, 5, true])
 }
 
 try { fs.rmSync(workDir, { recursive: true, force: true }) } catch (e) { console.warn('임시 폴더를 지우지 못함:', workDir, e.message) }

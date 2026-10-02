@@ -2,7 +2,7 @@
   <div data-channels-view>
     <div class="px-4 sm:px-12 pt-9 max-w-5xl">
       <h1 class="st-h-page">판매처</h1>
-      <p class="mt-2 st-desc break-keep">만든 상품을 판매처로 보내고, 보낸 상품의 진행 상태를 확인해요.</p>
+      <p class="mt-2 st-desc break-keep">판매처 연결·기본 설정과 전송 기록을 관리합니다. 상품 보내기는 [내 상품]에서 합니다.</p>
     </div>
 
     <!-- 탭 — 좁은 화면에서는 한 줄로 두고 옆으로 민다 (설정 화면과 같은 모양) -->
