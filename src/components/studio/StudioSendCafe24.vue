@@ -31,9 +31,9 @@
     <!-- 대표 이미지 -->
     <div class="block">
       <span class="st-label">대표 이미지 *</span>
-      <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
+      <div v-if="!repImages.length" class="st-desc">{{ REP_IMAGE_EMPTY }}</div>
       <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-c24-images>
-        <button v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="f.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :disabled="!!done" :data-mk-c24-image="im.id" @click="f.repImageId = im.id">
+        <button v-for="im in repImages" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="f.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :disabled="!!done" :data-mk-c24-image="im.id" @click="f.repImageId = im.id">
           <img :src="im.url" alt="" class="w-full h-full object-cover" loading="lazy" />
         </button>
       </div>
@@ -83,13 +83,14 @@
 // 문구 원칙(2026-09-30 해성): 항목명은 명사, 설명은 칸 아래 회색 한 줄, 결과는 "~되었습니다"
 import { ref, computed, onMounted, inject } from 'vue'
 import { listCafe24Categories, sendCafe24Product, isNotReady } from '@/lib/studioMarketplace'
-import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
+import { SEND_CACHE_KEY, repImageCandidates, defaultRepImageId, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
 
 const PRODUCT_NAME_MAX = 250 // api/_cafe24.js PRODUCT_NAME_MAX와 같음 (카페24 product_name maxLength)
 const DISPLAY_LABEL = { F: '진열안함', T: '진열함' }
 const SELLING_LABEL = { F: '판매안함', T: '판매함' }
 const props = defineProps({ prepare: { type: Object, required: true } })
+const repImages = computed(() => repImageCandidates(props.prepare?.images)) // 대표 이미지 후보 = 1688 대표 사진 + 내 사진 (studioMarketplaceRules)
 
 const busy = ref('')
 const done = ref(null)
@@ -102,7 +103,7 @@ const catSoft = ref(false)
 const f = ref({
   // 상품명 기본값 = 쿠팡 섹션과 같은 규칙(한글만 — 작업의 지금 이름 → 내 상품 이름 → 가져온 제목의 번역 캐시), 없으면 빈칸
   productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
-  price: null, categoryNo: null, repImageId: props.prepare?.images?.[0]?.id ?? null, fit: 'contain', display: 'F',
+  price: null, categoryNo: null, repImageId: defaultRepImageId(props.prepare?.images), fit: 'contain', display: 'F',
 })
 
 const priceOk = computed(() => Number.isInteger(f.value.price) && f.value.price >= 0)

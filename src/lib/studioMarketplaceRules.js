@@ -54,6 +54,24 @@ export const PLANNED_LABEL = '예정'
 /** 보내기 창(StudioSendModal)이 판매처 섹션에 내려주는 "같은 화면 안에서 다시 받지 않는 목록" provide 키 (2026-09-30 — 카페24 상품 분류) */
 export const SEND_CACHE_KEY = 'studio-send-cache'
 
+/**
+ * 대표 이미지 후보 (2026-10-02 — 예전에는 1688 상세 설명 사진까지 최대 60장을 늘어놓았다)
+ *   = 1688 상품 대표(갤러리) 사진 → 내 사진 순, 각각 사진 순서(sortOrder)대로. 1688 상세 설명 사진(desc)은 뺀다
+ *   kind는 서버 send_prepare.images가 준다(studio_images.kind — gallery·desc·upload). 옵션 사진 고르기(쿠팡)는 예전처럼 사진 전부
+ */
+export const REP_IMAGE_KINDS = ['gallery', 'upload']
+export function repImageCandidates(images) {
+  const list = (Array.isArray(images) ? images : []).filter(im => im && REP_IMAGE_KINDS.includes(im.kind))
+  const so = im => (Number.isFinite(im.sortOrder) ? im.sortOrder : 0)
+  return list.sort((a, b) => REP_IMAGE_KINDS.indexOf(a.kind) - REP_IMAGE_KINDS.indexOf(b.kind) || so(a) - so(b))
+}
+/** 처음 고를 대표 이미지 — 후보 중 [사용] 사진 먼저, 없으면 첫 후보, 후보가 없으면 null */
+export function defaultRepImageId(images) {
+  const c = repImageCandidates(images)
+  return (c.find(im => im.included !== false) || c[0])?.id ?? null
+}
+export const REP_IMAGE_EMPTY = '대표 이미지로 쓸 사진이 없습니다. 편집기 [사진]에서 내 사진을 올려 주세요.'
+
 // 보이는 범위 — MARKETS 항목의 설정 두 가지로만 정한다 (화면마다 판매처 이름으로 거르지 않는다)
 //   off: true       = 운영 중단 — 누구에게도(관리자·스태프 포함) 안 보임: 판매처 목록·보내기 줄·보낸 상품(칩·필터·상태 카드·이력)·연결 화면·소개·홈
 //   adminOnly: true = 관리자·스태프에게만 (지금은 없음)

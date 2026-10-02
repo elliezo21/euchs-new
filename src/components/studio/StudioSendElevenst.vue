@@ -69,7 +69,8 @@
           <option :value="null">카테고리 선택</option>
           <option v-for="c in catOptions" :key="c.id" :value="c.id">{{ c.wholeName }}</option>
         </select>
-        <span class="st-desc-sm block mt-1">검색 결과 {{ catMatches.length.toLocaleString('ko-KR') }}건<template v-if="catMatches.length > CAT_SHOWN"> · 앞 {{ CAT_SHOWN }}건 표시</template></span>
+        <span v-if="catQuery.trim()" class="st-desc-sm block mt-1">검색 결과 {{ catMatches.length.toLocaleString('ko-KR') }}건<template v-if="catMatches.length > CAT_SHOWN"> · 앞 {{ CAT_SHOWN }}건 표시</template></span>
+        <span v-else class="st-desc-sm block mt-1" data-mk-cat-hint>카테고리 이름을 검색하면 목록이 보입니다.</span>
       </template>
       <p v-if="catError" class="mt-1 text-[12px] break-keep" :class="catSoft ? 'st-muted' : 'st-danger-text'" data-mk-11st-cat-error>{{ catError }}
         <button type="button" class="st-link ml-1" data-mk-11st-cat-retry @click="loadCategories">다시 불러오기</button></p>
@@ -100,9 +101,9 @@
     <!-- 대표 이미지 -->
     <div v-show="showOwn('image')" ref="imageEl" class="block">
       <span class="st-label">대표 이미지 *</span>
-      <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
+      <div v-if="!repImages.length" class="st-desc">{{ REP_IMAGE_EMPTY }}</div>
       <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-11st-images>
-        <button v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="f.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :disabled="!!done" :data-mk-11st-image="im.id" @click="f.repImageId = im.id">
+        <button v-for="im in repImages" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="f.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :disabled="!!done" :data-mk-11st-image="im.id" @click="f.repImageId = im.id">
           <img :src="im.url" alt="" class="w-full h-full object-cover" loading="lazy" />
         </button>
       </div>
@@ -282,7 +283,7 @@ import { listElevenstCategories, listElevenstAddresses, sendElevenstProduct, isN
 import { COMMON_GROUPS, commonPatch } from '@/lib/studioSendCommon'
 import { listListingTemplates, createListingTemplate } from '@/lib/studioListingTemplates'
 import { TEMPLATE_KINDS, TEMPLATE_NAME_MAX, pickDefaultTemplate, uniqueTemplateName } from '../../../api/_listingTemplates.js'
-import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
+import { SEND_CACHE_KEY, repImageCandidates, defaultRepImageId, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
 import { isAdminOrStaff } from '@/lib/auth'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
 import {
@@ -299,6 +300,7 @@ const CAT_SHOWN = 200
 const OPTION_NOTE = '11번가는 옵션 종류가 여럿이면 "/"로 합쳐 한 칸으로 등록합니다(예: 색상/사이즈 · 블랙/M). 추가금액 0원인 옵션이 1개 이상 있어야 하고, 판매할 옵션 재고는 1개 이상이어야 합니다.'
 // common = 창의 공통 정보(2026-10-01) — 스마트스토어와 함께 보낼 때만 온다. null이면 예전 그대로(이 섹션 칸에 직접 넣는다)
 const props = defineProps({ prepare: { type: Object, required: true }, common: { type: Object, default: null } })
+const repImages = computed(() => repImageCandidates(props.prepare?.images)) // 대표 이미지 후보 = 1688 대표 사진 + 내 사진 (studioMarketplaceRules)
 
 const busy = ref('')
 const done = ref(null)
@@ -333,7 +335,7 @@ const productBase = () => ({
 const f = ref({
   // 상품명 기본값 = 다른 판매처 섹션과 같은 규칙(한글만), 없으면 빈칸
   productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
-  categoryId: null, price: null, stock: null, repImageId: props.prepare?.images?.[0]?.id ?? null, fit: 'contain',
+  categoryId: null, price: null, stock: null, repImageId: defaultRepImageId(props.prepare?.images), fit: 'contain',
   ...shippingBase(),
   outAddr: null, inAddr: null,
   vat: '01', minorBlocked: false,
@@ -365,7 +367,8 @@ const catMatches = computed(() => {
   return q ? categories.value.filter(c => c.wholeName.toLowerCase().includes(q)) : categories.value
 })
 const catOptions = computed(() => {
-  const list = catMatches.value.slice(0, CAT_SHOWN)
+  // 검색했을 때만 목록을 그린다 (2026-10-02 창 열기 속도 — 고른 카테고리는 늘 보인다)
+  const list = catQuery.value.trim() ? catMatches.value.slice(0, CAT_SHOWN) : []
   const sel = categories.value.find(c => c.id === f.value.categoryId)
   return sel && !list.includes(sel) ? [sel, ...list] : list
 })

@@ -106,7 +106,7 @@ const { renderToString } = await import('vue/server-renderer')
 const PREPARE = (connected, source = null) => ({
   connected, markets: { coupang: { connected } },
   export: { id: '44444444-4444-4444-8444-444444444444', title: '매일 쓰는 머그', files: [{ key: '01', name: 'a_01.jpg', width: 780, height: 900 }] },
-  images: [{ id: 'img1', url: 'https://example.test/a.jpg', width: 800, height: 800, included: true, sourceUrl: 'https://cbu01.alicdn.com/img/ibank/O1CN01black.jpg' }],
+  images: [{ id: 'img1', kind: 'gallery', sortOrder: 0, url: 'https://example.test/a.jpg', width: 800, height: 800, included: true, sourceUrl: 'https://cbu01.alicdn.com/img/ibank/O1CN01black.jpg' }],
   templates: [{ id: 't1', name: '기본', is_default: true, outbound_shipping_time_day: 2 }],
   places: [], source, limits: { optionImages: 6, documents: 5, documentBytes: 3145728 },
 })
@@ -240,7 +240,7 @@ if (built?.Coupang && built?.Modal) {
   const ssCache = { smartstoreCategoriesDone: { categories: [{ id: '50000999', name: '머그컵', wholeName: '생활/건강>주방용품>잔/컵>머그컵' }] }, smartstoreAddressesDone: { addresses: [{ id: 102, name: '물류창고', type: 'RELEASE', address: '광주 북구 1층', phone: '' }, { id: 103, name: '반품센터', type: 'REFUND_OR_EXCHANGE', address: '광주 북구 2층', phone: '' }], defaults: { shipping: 102, return: 103 } } }
   const ss = await render({ setup: () => { vueProvide(built.SEND_CACHE_KEY, ssCache); return () => h(built.Smartstore, { prepare: PREPARE(true) }) } }, {})
   const checked = (html, attr) => new RegExp('<input[^>]*' + attr + '[^>]*checked|<input[^>]*checked[^>]*' + attr).test(html)
-  eq('스마트스토어 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 한글 기본값 · 카테고리 목록 · 기본 출고지·반품지 골라짐 · 판매 상태 전시중지 체크', [ss.error, val(ss.html, 'data-mk-ss-name'), (ss.html.includes('생활/건강&gt;주방용품&gt;잔/컵&gt;머그컵') || ss.html.includes('생활/건강>주방용품>잔/컵>머그컵')), /data-mk-ss-shipping[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="102"[^>]*selected/.test(ss.html), /data-mk-ss-return[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="103"[^>]*selected/.test(ss.html), checked(ss.html, 'data-mk-ss-display-off'), checked(ss.html, 'data-mk-ss-display-on')], [null, '매일 쓰는 머그', true, true, true, true, false])
+  eq('스마트스토어 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 한글 기본값 · 카테고리 목록은 검색 전에 안 그림(안내 한 줄) · 기본 출고지·반품지 골라짐 · 판매 상태 전시중지 체크', [ss.error, val(ss.html, 'data-mk-ss-name'), ss.html.includes('data-mk-cat-hint') && !ss.html.includes('잔/컵'), /data-mk-ss-shipping[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="102"[^>]*selected/.test(ss.html), /data-mk-ss-return[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="103"[^>]*selected/.test(ss.html), checked(ss.html, 'data-mk-ss-display-off'), checked(ss.html, 'data-mk-ss-display-on')], [null, '매일 쓰는 머그', true, true, true, true, false])
   eq('스마트스토어 섹션: 요약 표 판매상태 판매중·전시상태 전시중지 · 가격·재고는 빈칸(임의 숫자 없음)', [/data-mk-ss-preview-row="판매상태"[\s\S]{0,200}판매중/.test(ss.html), /data-mk-ss-preview-row="전시상태"[\s\S]{0,200}전시중지/.test(ss.html), val(ss.html, 'data-mk-ss-price'), val(ss.html, 'data-mk-ss-stock')], [true, true, '', ''])
   eq('스마트스토어 섹션: 국내 출고지면 관부가세 칸·요약 줄 없음', [/data-mk-ss-customs/.test(ss.html), /data-mk-ss-preview-row="관부가세"/.test(ss.html)], [false, false])
   // 옵션(조합형, 2026-10-01) — 가져온 상품에 옵션이 있으면 옵션 영역 · 없으면 예전 그대로 단일상품

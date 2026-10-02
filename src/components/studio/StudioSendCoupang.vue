@@ -232,9 +232,9 @@
       <!-- 7. 대표 이미지 -->
       <section v-show="showOwn('image')" class="space-y-2">
         <h4 class="st-h-card">대표 이미지 *</h4>
-        <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
+        <div v-if="!repImages.length" class="st-desc">{{ REP_IMAGE_EMPTY }}</div>
         <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-s-images>
-          <button v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="f.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :data-mk-s-image="im.id" @click="f.repImageId = im.id">
+          <button v-for="im in repImages" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="f.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :data-mk-s-image="im.id" @click="f.repImageId = im.id">
             <img :src="im.url" alt="" class="w-full h-full object-cover" loading="lazy" />
           </button>
         </div>
@@ -308,7 +308,7 @@
 // 필수값은 화면에서 먼저 막고(missing) 서버가 다시 검사한다. 항목 규칙은 api/_coupangFields.js — 서버와 같은 파일
 import { ref, reactive, computed, watch, inject, onMounted, onBeforeUnmount } from 'vue'
 import StudioTagChips from '@/components/studio/StudioTagChips.vue'
-import { optionTableMode, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
+import { optionTableMode, SEND_CACHE_KEY, repImageCandidates, defaultRepImageId, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
 import { COMMON_GROUPS } from '@/lib/studioSendCommon'
 import {
   COUPANG_LINK_TITLE, COMMON_ITEMS_NOTE, OPTION_CHANGE_NOTE, OPTION_CHANGE_CONFIRM, OPTION_CHANGE_MISSING, LINK_EMPTY, LINK_FILL,
@@ -325,6 +325,7 @@ import {
 
 // common = 창의 공통 정보(2026-10-02) — 스마트스토어·11번가와 함께 보낼 때만 온다. null이면 예전 그대로(이 섹션 칸에 직접 넣는다)
 const props = defineProps({ prepare: { type: Object, required: true }, common: { type: Object, default: null } })
+const repImages = computed(() => repImageCandidates(props.prepare?.images)) // 대표 이미지 후보 = 1688 대표 사진 + 내 사진 (studioMarketplaceRules)
 
 const ATTR_NAME_MAX = 25
 const ATTR_VALUE_MAX = 30
@@ -377,7 +378,7 @@ function init() {
   // 상품명 기본값은 한글만 — 작업 이름(지금 이름 → 내 상품을 만들 때 이름) → 가져온 상품 제목의 한글(번역 캐시). 없으면 빈칸 + placeholder
   f.value.productName = pickKoreanName([p?.export?.projectTitle, p?.export?.title, source.value?.title?.ko])
   f.value.templateId = (p?.templates || []).find(t => t.is_default)?.id || p?.templates?.[0]?.id || ''
-  f.value.repImageId = p?.images?.find(im => im.included !== false)?.id || p?.images?.[0]?.id || null
+  f.value.repImageId = defaultRepImageId(p?.images)
   // 고쳐서 다시 보내기 — 그 전송에서 보냈던 값으로 채운다 (템플릿·대표 이미지·옵션 사진은 지금 것에서 다시 고른다)
   if (resend.value?.form) return fillFromResend(resend.value.form)
   fillFromSource()

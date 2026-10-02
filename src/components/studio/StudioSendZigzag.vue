@@ -35,7 +35,8 @@
           <option :value="null">카테고리 선택</option>
           <option v-for="c in catOptions" :key="c.id" :value="c.id">{{ c.wholeName }}</option>
         </select>
-        <span class="st-desc-sm block mt-1">검색 결과 {{ catMatches.length.toLocaleString('ko-KR') }}건<template v-if="catMatches.length > CAT_SHOWN"> · 앞 {{ CAT_SHOWN }}건 표시</template></span>
+        <span v-if="catQuery.trim()" class="st-desc-sm block mt-1">검색 결과 {{ catMatches.length.toLocaleString('ko-KR') }}건<template v-if="catMatches.length > CAT_SHOWN"> · 앞 {{ CAT_SHOWN }}건 표시</template></span>
+        <span v-else class="st-desc-sm block mt-1" data-mk-cat-hint>카테고리 이름을 검색하면 목록이 보입니다.</span>
       </template>
     </div>
 
@@ -67,9 +68,9 @@
     <!-- 대표 이미지 -->
     <div v-show="showOwn('image')" ref="imageEl" class="block">
       <span class="st-label">대표 이미지 *</span>
-      <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
+      <div v-if="!repImages.length" class="st-desc">{{ REP_IMAGE_EMPTY }}</div>
       <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-zz-images>
-        <button v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="f.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :disabled="!!done" :data-mk-zz-image="im.id" @click="f.repImageId = im.id">
+        <button v-for="im in repImages" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="f.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :disabled="!!done" :data-mk-zz-image="im.id" @click="f.repImageId = im.id">
           <img :src="im.url" alt="" class="w-full h-full object-cover" loading="lazy" />
         </button>
       </div>
@@ -184,7 +185,7 @@
 // 스토어·카테고리·고시 템플릿·배송주소록은 창이 들고 있는 목록(sendCache)을 같이 쓴다 — 창을 다시 열어도 다시 받지 않는다
 import { ref, reactive, computed, watch, onMounted, inject, nextTick } from 'vue'
 import { getZigzagMeta, sendZigzagProduct, isNotReady } from '@/lib/studioMarketplace'
-import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
+import { SEND_CACHE_KEY, repImageCandidates, defaultRepImageId, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
 import {
   FEE_TYPES, DISPLAY_STATUSES, BUNDLE_TYPES, TAX_TYPES, PARALLEL_TYPES, SHIPPING_DAYS_MIN, SHIPPING_DAYS_MAX, ITEM_MAX,
@@ -200,6 +201,7 @@ const CAT_SHOWN = 200
 const OPTION_NOTE = `지그재그는 옵션 조합마다 구매 단위(품목)로 등록합니다. 품목 가격 = 판매가 + 추가금액이며, 조합은 ${ITEM_MAX}개까지입니다. 재고 0인 조합은 품절로 등록됩니다.`
 // common = 창의 공통 정보(2026-10-02) — 다른 판매처와 함께 보낼 때만 온다. null이면 예전 그대로(이 섹션 칸에 직접 넣는다)
 const props = defineProps({ prepare: { type: Object, required: true }, common: { type: Object, default: null } })
+const repImages = computed(() => repImageCandidates(props.prepare?.images)) // 대표 이미지 후보 = 1688 대표 사진 + 내 사진 (studioMarketplaceRules)
 
 const busy = ref('')
 const done = ref(null)
@@ -214,7 +216,7 @@ const metaSoft = ref(false)
 const catQuery = ref('')
 const f = ref({
   productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
-  categoryId: null, price: null, listPrice: null, stock: null, repImageId: props.prepare?.images?.[0]?.id ?? null, fit: 'contain',
+  categoryId: null, price: null, listPrice: null, stock: null, repImageId: defaultRepImageId(props.prepare?.images), fit: 'contain',
   display: 'HIDDEN', feeType: 'FREE', baseFee: null, freeOver: null, jejuFee: null, isolatedFee: null, returnFee: null, partialReturnFee: null, exchangeFee: null, shippingDays: null,
   bundle: 'CONSOLIDATED', returnId: null, taxType: 'TAX', parallel: 'NOT_PARALLEL_IMPORTED', overseas: false, brandId: '',
   essentialCode: '', essentials: {},
@@ -234,7 +236,8 @@ const catMatches = computed(() => {
   return q ? categories.value.filter(c => c.wholeName.toLowerCase().includes(q)) : categories.value
 })
 const catOptions = computed(() => {
-  const list = catMatches.value.slice(0, CAT_SHOWN)
+  // 검색했을 때만 목록을 그린다 (2026-10-02 창 열기 속도 — 고른 카테고리는 늘 보인다)
+  const list = catQuery.value.trim() ? catMatches.value.slice(0, CAT_SHOWN) : []
   const sel = categories.value.find(c => c.id === f.value.categoryId)
   return sel && !list.includes(sel) ? [sel, ...list] : list
 })

@@ -36,9 +36,9 @@
     <!-- 대표 이미지 -->
     <div class="block">
       <span class="st-label">대표 이미지 *</span>
-      <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
+      <div v-if="!repImages.length" class="st-desc">{{ REP_IMAGE_EMPTY }}</div>
       <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-cm-images>
-        <button v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="common.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :disabled="disabled" :data-mk-cm-image="im.id" @click="common.repImageId = im.id">
+        <button v-for="im in repImages" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="common.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :disabled="disabled" :data-mk-cm-image="im.id" @click="common.repImageId = im.id">
           <img :src="im.url" alt="" class="w-full h-full object-cover" loading="lazy" />
         </button>
       </div>
@@ -54,7 +54,7 @@
 // 판매처 규칙 검사(10원 단위·재고 1개 이상·옵션 범위 등)는 섹션 빠짐 목록과 서버가 예전대로 한다 — 여기서는 안내만
 import { computed } from 'vue'
 import StudioSendOptions from './StudioSendOptions.vue'
-import { MARKETS } from '@/lib/studioMarketplaceRules'
+import { MARKETS, repImageCandidates, REP_IMAGE_EMPTY } from '@/lib/studioMarketplaceRules'
 import { COUPANG_COMMON_NOTE, commonOptionRange } from '@/lib/studioSendCommon'
 import { optionsPayload } from '../../../api/_marketOptions.js'
 
@@ -65,6 +65,7 @@ const props = defineProps({
   coupang: { type: Boolean, default: false }, // 쿠팡도 체크했는지 — 쿠팡은 자기 칸에서 따로
   disabled: { type: Boolean, default: false },
 })
+const repImages = computed(() => repImageCandidates(props.prepare?.images)) // 대표 이미지 후보 = 1688 대표 사진 + 내 사진 (studioMarketplaceRules)
 const marketNames = computed(() => MARKETS.filter(m => props.markets.includes(m.key)).map(m => m.name).join('·'))
 const useOptions = computed(() => props.common.opts.enabled) // 판매처 섹션과 같은 규칙 — 켜면 조합이 0개여도 옵션 상품
 const optionStockTotal = computed(() => (useOptions.value ? optionsPayload(props.common.opts)?.rows || [] : []).reduce((s, r) => s + (Number.isInteger(r.stock) ? r.stock : 0), 0))

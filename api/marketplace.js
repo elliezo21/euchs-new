@@ -1663,6 +1663,16 @@ async function existingInMarkets(ctx, exportId) {
   }
   return out
 }
+const SIGN_POOL = 8 // 사진 서명 주소를 동시에 만드는 수
+/** items를 n개씩 동시에 worker로 — 결과 순서는 items 순서 그대로 */
+async function runSignPool(items, n, worker) {
+  const out = new Array(items.length)
+  let next = 0
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (next < items.length) { const i = next++; out[i] = await worker(items[i]) }
+  }))
+  return out
+}
 async function sendPrepare(ctx, body, res) {
   let prev = null
   if (body.resendId != null) {
@@ -1673,23 +1683,27 @@ async function sendPrepare(ctx, body, res) {
   const ex = await loadOwnedExport(ctx, body, res)
   if (!ex) return
   const imgs = await sb(ctx.cfg, `studio_images?select=id,kind,source_url,original_path,width,height,sort_order,included&project_id=eq.${ex.project_id}&user_id=eq.${ctx.userId}&ingest_status=eq.done&original_path=not.is.null&order=sort_order&limit=60`)
-  const images = []
-  for (const im of Array.isArray(imgs) ? imgs : []) {
-    try { images.push({ id: im.id, path: im.original_path, width: im.width, height: im.height, included: im.included, sourceUrl: im.source_url || null, url: await storageSignDownload(ctx.cfg, BUCKET, im.original_path, PREVIEW_URL_SEC) }) }
-    catch (e) { console.error('[marketplace] 사진 서명 주소 실패:', im.original_path, e.message) }
-  }
-  const [projRows, templates, places, account] = await Promise.all([
-    sb(ctx.cfg, `studio_projects?select=title,offer_id&id=eq.${ex.project_id}&limit=1`), loadTemplates(ctx), loadPlaces(ctx), loadAccountRow(ctx),
+  // 사진 서명 주소 — 예전에는 한 장씩 차례로(사진 60장 = 60번 왕복, 2026-10-02 실측 창 열기 약 20초) → 동시에 SIGN_POOL장씩. 순서는 그대로
+  //   kind(gallery = 1688 대표 사진 · desc = 1688 상세 설명 사진 · upload = 내 사진)·sortOrder를 같이 준다 — 대표 이미지 후보는 화면이 gallery·upload만 고른다(studioMarketplaceRules.repImageCandidates)
+  const signed = runSignPool(Array.isArray(imgs) ? imgs : [], SIGN_POOL, async im => {
+    try { return { id: im.id, kind: im.kind, sortOrder: im.sort_order, path: im.original_path, width: im.width, height: im.height, included: im.included, sourceUrl: im.source_url || null, url: await storageSignDownload(ctx.cfg, BUCKET, im.original_path, PREVIEW_URL_SEC) } }
+    catch (e) { console.error('[marketplace] 사진 서명 주소 실패:', im.original_path, e.message); return null }
+  })
+  const [projRows, templates, places, account, signedList] = await Promise.all([
+    sb(ctx.cfg, `studio_projects?select=title,offer_id&id=eq.${ex.project_id}&limit=1`), loadTemplates(ctx), loadPlaces(ctx), loadAccountRow(ctx), signed,
   ])
-  const source = await loadSource(ctx, projRows?.[0]?.offer_id)
+  const images = signedList.filter(Boolean)
   const connected = !!account && daysLeft(account.expires_at) >= 0
-  let existing
-  try { existing = await existingInMarkets(ctx, ex.id) } catch (e) {
-    if (isNewColumnMissing(e)) return newSqlMissing(res, e, 'send_prepare')
-    throw e
-  }
+  // 1688 원천 · 판매처에 이미 있는 상품 · 지난 값 — 서로 기다리지 않게 동시에 (2026-10-02 창 열기 속도)
   // 판매처마다 마지막으로 보낸 판매가·재고·카테고리 (2026-10-02 여러 상품 한 번에 보내기 — 같은 작업의 결과물 전부, 판매처를 부르지 않음)
-  const prevRows = await sb(ctx.cfg, `marketplace_sends?select=${PREVIOUS_SELECT}&user_id=eq.${ctx.userId}&export_id=in.(${(await projectExportIds(ctx, ex.id)).join(',')})&order=created_at.desc&limit=200`)
+  const prevRowsP = projectExportIds(ctx, ex.id).then(ids => sb(ctx.cfg, `marketplace_sends?select=${PREVIOUS_SELECT}&user_id=eq.${ctx.userId}&export_id=in.(${ids.join(',')})&order=created_at.desc&limit=200`))
+  const existingP = existingInMarkets(ctx, ex.id).then(v => ({ v }), e => ({ e }))
+  const [source, existingR, prevRows] = await Promise.all([loadSource(ctx, projRows?.[0]?.offer_id), existingP, prevRowsP])
+  if (existingR.e) {
+    if (isNewColumnMissing(existingR.e)) return newSqlMissing(res, existingR.e, 'send_prepare')
+    throw existingR.e
+  }
+  const existing = existingR.v
   const previous = previousOf(prevRows)
   return res.status(200).json({
     existing, // 판매처마다 이미 있는 상품 (2026-10-02) — { [market]: { mode:'modify'|'manual', sendId, sellerProductId, status, extra } } · 없으면 새로 등록

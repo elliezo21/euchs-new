@@ -2657,7 +2657,7 @@ function elevenstRelay(u, method, opts) {
     { skuId: '1', values: [{ name: pair('颜色', '색상'), value: pair('黑色', '블랙') }], priceCny: 12.5, stock: 300 },
     { skuId: '2', values: [{ name: pair('颜色', '색상'), value: pair('白色', '화이트') }], priceCny: 18, stock: 0 },
   ]
-  const PREP = { export: { projectTitle: '매일 쓰는 머그', title: 'x' }, source: { title: { ko: '머그' }, skus: SKUS }, images: [{ id: 'img1' }, { id: 'img2' }] }
+  const PREP = { export: { projectTitle: '매일 쓰는 머그', title: 'x' }, source: { title: { ko: '머그' }, skus: SKUS }, images: [{ id: 'img0', kind: 'desc', sortOrder: 0 }, { id: 'img2', kind: 'upload', sortOrder: 0 }, { id: 'img1', kind: 'gallery', sortOrder: 1 }] }
   const c0 = SC.commonFromPrepare(PREP)
   {
     const src = O.marketOptionsFromSource(SKUS)
@@ -3751,6 +3751,30 @@ function elevenstRelay(u, method, opts) {
     MO.smartstoreOptionProblems(p(['블랙-L (95)', 'M,L']), 10000), MO.smartstoreOptionProblems({ groupNames: ['색상/무늬'], rows: [row('블랙')] }, 10000),
   ], [[], []])
   eq('서버도 같은 검사로 거절 (smartstoreOptionInfo)', MO.smartstoreOptionInfo(p(['블랙*']), 10000), { ok: false, message: '옵션값에 쓸 수 없는 문자(*)' })
+}
+
+// ── 27. 보내기 창 열기 속도 · 대표 이미지 후보 (2026-10-02 운영: 창 열기 약 20초 · 1688 상세 설명 사진까지 50장) ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const R = await import('../src/lib/studioMarketplaceRules.js')
+  const imgs = [
+    { id: 'd0', kind: 'desc', sortOrder: 0 }, { id: 'g1', kind: 'gallery', sortOrder: 1 }, { id: 'u0', kind: 'upload', sortOrder: 9 }, { id: 'g0', kind: 'gallery', sortOrder: 0, included: false }, { id: 'd1', kind: 'desc', sortOrder: 1 },
+  ]
+  eq('대표 이미지 후보 = 1688 대표 사진(순서대로) → 내 사진 · 상세 설명 사진 뺌', R.repImageCandidates(imgs).map(x => x.id), ['g0', 'g1', 'u0'])
+  eq('처음 고를 대표 이미지 = 후보 중 [사용] 사진 먼저 · 후보가 없으면 null(상세 설명 사진으로 채우지 않음)', [R.defaultRepImageId(imgs), R.defaultRepImageId([{ id: 'd0', kind: 'desc' }]), R.defaultRepImageId(null)], ['g1', null, null])
+  const api = read('api/marketplace.js')
+  const sp = api.slice(api.indexOf('async function sendPrepare'), api.indexOf('async function categoryPredict'))
+  eq('서버: 사진 서명을 동시에(SIGN_POOL) · kind·sortOrder를 응답에 · 원천·기존 상품·지난 값도 동시에', [
+    /const SIGN_POOL = \d+/.test(api), sp.includes('runSignPool(') && !/for \(const im of[^\n]*\n[^\n]*await storageSignDownload/.test(sp), sp.includes('kind: im.kind, sortOrder: im.sort_order'),
+    sp.includes('await Promise.all([loadSource(ctx, projRows?.[0]?.offer_id), existingP, prevRowsP])'),
+  ], [true, true, true, true])
+  const secs = ['Common', 'Coupang', 'Smartstore', 'Elevenst', 'Zigzag', 'Cafe24'].map(n => read(`src/components/studio/StudioSend${n}.vue`))
+  eq('화면: 대표 이미지 그리드 6곳 = repImages · 처음 값 = defaultRepImageId · 사진은 loading="lazy" · 쿠팡 옵션 사진 고르기는 사진 전부', [
+    secs.every(s => s.includes('v-for="im in repImages"') && !/v-for="im in prepare\.images"[^>]*repImageId === im\.id/.test(s)), secs.every(s => !s.includes('prepare?.images?.[0]?.id')),
+    secs.every(s => (s.match(/<img /g) || []).length === (s.match(/<img [^>]*loading="lazy"/g) || []).length), secs[1].includes('v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[6px]'),
+  ], [true, true, true, true])
+  const cats = ['Smartstore', 'Elevenst', 'Zigzag'].map(n => read(`src/components/studio/StudioSend${n}.vue`))
+  eq('카테고리: 검색했을 때만 목록을 그림(고른 카테고리는 늘 보임) · 검색 전 안내 한 줄', cats.map(s => s.includes("const list = catQuery.value.trim() ? catMatches.value.slice(0, CAT_SHOWN) : []") && s.includes('data-mk-cat-hint')), [true, true, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)
