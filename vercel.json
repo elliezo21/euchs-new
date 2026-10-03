@@ -92,6 +92,24 @@
       "regions": [
         "iad1"
       ]
+    },
+    "api/diag-onebound-icn1.js": {
+      "maxDuration": 60,
+      "regions": [
+        "icn1"
+      ]
+    },
+    "api/diag-onebound-hkg1.js": {
+      "maxDuration": 60,
+      "regions": [
+        "hkg1"
+      ]
+    },
+    "api/diag-onebound-iad1.js": {
+      "maxDuration": 60,
+      "regions": [
+        "iad1"
+      ]
     }
   }
 }
