@@ -1,5 +1,7 @@
 {
-  "regions": ["icn1"],
+  "regions": [
+    "icn1"
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
@@ -8,13 +10,22 @@
   ],
   "functions": {
     "api/bulk-item-detail.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "regions": [
+        "iad1"
+      ]
     },
     "api/1688-item-detail.js": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "regions": [
+        "iad1"
+      ]
     },
     "api/1688-order-create.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "regions": [
+        "iad1"
+      ]
     },
     "api/verify-business.js": {
       "maxDuration": 30
@@ -23,7 +34,10 @@
       "maxDuration": 30
     },
     "api/studio-product.js": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "regions": [
+        "iad1"
+      ]
     },
     "api/studio-ingest.js": {
       "maxDuration": 60
@@ -33,6 +47,51 @@
     },
     "api/marketplace.js": {
       "maxDuration": 60
+    },
+    "api/1688-crossborder-pay.js": {
+      "regions": [
+        "iad1"
+      ]
+    },
+    "api/1688-freight-estimate.js": {
+      "regions": [
+        "iad1"
+      ]
+    },
+    "api/1688-image-search.js": {
+      "regions": [
+        "iad1"
+      ]
+    },
+    "api/1688-order-address.js": {
+      "regions": [
+        "iad1"
+      ]
+    },
+    "api/1688-order-logistics.js": {
+      "regions": [
+        "iad1"
+      ]
+    },
+    "api/1688-order-preview.js": {
+      "regions": [
+        "iad1"
+      ]
+    },
+    "api/1688-protocol-pay.js": {
+      "regions": [
+        "iad1"
+      ]
+    },
+    "api/1688-search.js": {
+      "regions": [
+        "iad1"
+      ]
+    },
+    "api/1688-seller-items.js": {
+      "regions": [
+        "iad1"
+      ]
     }
   }
 }
